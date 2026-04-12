@@ -18,7 +18,7 @@ const DUNGEON_CHOICES = [
   { name: "Seat of the Triumvirate", value: "seat-of-the-triumvirate" },
   { name: "Skyreach", value: "skyreach" },
   { name: "Windrunner Spire", value: "windrunner-spire" },
-  { name: "Any dungeon", value: "" },
+  { name: "Any dungeon", value: "any" },
 ] as const;
 
 function formatDate(iso: string): string {
@@ -150,7 +150,7 @@ async function handleCreate(
   try {
     const result = await apiClient.createEvent({
       name,
-      dungeonSlug: dungeon === "" ? undefined : dungeon,
+      dungeonSlug: dungeon === "" || dungeon === "any" ? undefined : dungeon,
       startsAt,
       endsAt,
       minKeyLevel: minKey,
