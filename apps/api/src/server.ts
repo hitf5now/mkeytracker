@@ -14,6 +14,7 @@ import { registerJwtPlugin } from "./plugins/jwt-auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { charactersRoutes } from "./routes/characters.js";
 import { downloadRoutes } from "./routes/download.js";
+import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { leaderboardsRoutes } from "./routes/leaderboards.js";
 import { registerRoutes } from "./routes/register.js";
@@ -46,11 +47,7 @@ async function buildServer(): Promise<FastifyInstance> {
   await app.register(telemetryRoutes, { prefix: "/api/v1" });
   await app.register(charactersRoutes, { prefix: "/api/v1" });
   await app.register(leaderboardsRoutes, { prefix: "/api/v1" });
-
-  // Future routes plug in here:
-  // await app.register(authRoutes, { prefix: "/api/v1/auth" });
-  // await app.register(eventsRoutes, { prefix: "/api/v1/events" });
-  // await app.register(leaderboardsRoutes, { prefix: "/api/v1/leaderboards" });
+  await app.register(eventsRoutes, { prefix: "/api/v1" });
 
   app.addHook("onClose", async () => {
     await prisma.$disconnect();

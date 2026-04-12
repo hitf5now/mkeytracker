@@ -12,12 +12,14 @@ import type {
   SlashCommandOptionsOnlyBuilder,
   SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
+import { eventCommand } from "./event.js";
 import { leaderboardCommand } from "./leaderboard.js";
 import { linkCommand } from "./link.js";
 import { pingCommand } from "./ping.js";
 import { profileCommand } from "./profile.js";
 import { registerCommand } from "./register.js";
 import { setupCommand } from "./setup.js";
+import { signupCommand } from "./signup.js";
 
 export type CommandBuilder =
   | SlashCommandBuilder
@@ -37,6 +39,8 @@ export const commands: Map<string, Command> = new Map([
   [setupCommand.data.name, setupCommand],
   [profileCommand.data.name, profileCommand],
   [leaderboardCommand.data.name, leaderboardCommand],
+  [eventCommand.data.name, eventCommand],
+  [signupCommand.data.name, signupCommand],
 ]);
 
 export function allCommands(): Command[] {

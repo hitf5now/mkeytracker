@@ -115,6 +115,59 @@ export interface LeaderboardResponse {
   updatedAt: string;
 }
 
+// ── Events ────────────────────────────────────────────────────────
+export interface EventResponse {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+  dungeonId: number | null;
+  minKeyLevel: number;
+  maxKeyLevel: number;
+  startsAt: string;
+  endsAt: string;
+  description: string | null;
+}
+
+export interface EventListItem extends EventResponse {
+  dungeon: { name: string; slug: string } | null;
+  _count: { signups: number; teams: number };
+}
+
+export interface EventSignupDetail {
+  id: number;
+  rolePreference: string;
+  character: { name: string; realm: string; class: string };
+  team: { id: number; name: string } | null;
+}
+
+export interface EventTeamDetail {
+  id: number;
+  name: string;
+  members: EventSignupDetail[];
+}
+
+export interface EventDetailResponse extends EventResponse {
+  dungeon: { name: string; slug: string } | null;
+  season: { slug: string; name: string };
+  signups: EventSignupDetail[];
+  teams: EventTeamDetail[];
+}
+
+export interface CloseSignupsResponse {
+  teams: Array<{
+    name: string;
+    members: Array<{ characterName: string; realm: string; role: string }>;
+  }>;
+  benched: Array<{ characterName: string; realm: string; role: string }>;
+  stats: {
+    totalSignups: number;
+    teamsFormed: number;
+    benchedCount: number;
+    limitingRole: string;
+  };
+}
+
 export interface ApiErrorBody {
   error: string;
   message?: string;
@@ -209,4 +262,37 @@ export const apiClient = {
     apiGet<LeaderboardResponse>(
       `/api/v1/leaderboards/${encodeURIComponent(category)}?limit=${limit}`,
     ),
+
+  // ── Events ─────────────────────────────────────────────────────
+  createEvent: (req: {
+    name: string;
+    dungeonSlug?: string;
+    startsAt: string;
+    endsAt: string;
+    minKeyLevel?: number;
+    maxKeyLevel?: number;
+    description?: string;
+    createdByDiscordId: string;
+  }): Promise<{ event: EventResponse }> =>
+    apiPost("/api/v1/events", req),
+
+  listEvents: (): Promise<{ events: EventListItem[] }> =>
+    apiGet("/api/v1/events"),
+
+  getEvent: (id: number): Promise<{ event: EventDetailResponse }> =>
+    apiGet(`/api/v1/events/${id}`),
+
+  eventSignup: (req: {
+    eventId: number;
+    discordId: string;
+    characterName: string;
+    characterRealm: string;
+    characterRegion: "us" | "eu" | "kr" | "tw" | "cn";
+    rolePreference: "tank" | "healer" | "dps";
+  }): Promise<{ signup: { id: number }; updated: boolean }> =>
+    apiPost(`/api/v1/events/${req.eventId}/signup`, req),
+
+  closeSignups: (
+    eventId: number,
+  ): Promise<CloseSignupsResponse> => apiPost(`/api/v1/events/${eventId}/close-signups`, {}),
 };
