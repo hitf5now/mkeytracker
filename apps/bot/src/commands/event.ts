@@ -107,12 +107,33 @@ export const eventCommand: Command = {
     .addSubcommand((sub) =>
       sub
         .setName("close-signups")
-        .setDescription("Close signups and auto-assign teams.")
+        .setDescription("Close signups (enter Group Assignments phase).")
         .addIntegerOption((opt) =>
-          opt
-            .setName("id")
-            .setDescription("Event ID")
-            .setRequired(true),
+          opt.setName("id").setDescription("Event ID").setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("assign-teams")
+        .setDescription("Auto-assign teams (must be in Group Assignments phase).")
+        .addIntegerOption((opt) =>
+          opt.setName("id").setDescription("Event ID").setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("start")
+        .setDescription("Start the event (transition to Active Event).")
+        .addIntegerOption((opt) =>
+          opt.setName("id").setDescription("Event ID").setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("cancel")
+        .setDescription("Cancel an event.")
+        .addIntegerOption((opt) =>
+          opt.setName("id").setDescription("Event ID").setRequired(true),
         ),
     ),
 
@@ -125,6 +146,12 @@ export const eventCommand: Command = {
       await handleStatus(interaction);
     } else if (sub === "close-signups") {
       await handleCloseSignups(interaction);
+    } else if (sub === "assign-teams") {
+      await handleAssignTeams(interaction);
+    } else if (sub === "start") {
+      await handleTransition(interaction, "in_progress", "Active Event");
+    } else if (sub === "cancel") {
+      await handleTransition(interaction, "cancelled", "Cancelled");
     }
   },
 };
@@ -163,6 +190,7 @@ async function handleCreate(
       endsAt,
       minKeyLevel: minKey,
       maxKeyLevel: maxKey,
+      discordGuildId: interaction.guildId ?? undefined,
       description,
       createdByDiscordId: interaction.user.id,
     });
@@ -201,10 +229,6 @@ async function handleCreate(
         .setCustomId(`event-tentative:${event.id}`)
         .setLabel("Tentative")
         .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`event-decline:${event.id}`)
-        .setLabel("Decline")
-        .setStyle(ButtonStyle.Danger),
     );
 
     const reply = await interaction.editReply({
@@ -320,11 +344,33 @@ async function handleCloseSignups(
   interaction: import("discord.js").ChatInputCommandInteraction,
 ): Promise<void> {
   await interaction.deferReply();
-
   const eventId = interaction.options.getInteger("id", true);
 
   try {
-    const result = await apiClient.closeSignups(eventId);
+    await apiClient.closeSignups(eventId);
+    await interaction.editReply(
+      `✅ Signups closed for event **#${eventId}**. Now in **Group Assignments** phase.\n` +
+      `Use \`/event assign-teams ${eventId}\` to auto-assign teams, or manage teams manually.\n` +
+      `Use \`/event start ${eventId}\` when ready to begin.`,
+    );
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error("/event close-signups error:", err);
+    await interaction.editReply("❌ Failed to close signups.");
+  }
+}
+
+async function handleAssignTeams(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+): Promise<void> {
+  await interaction.deferReply();
+  const eventId = interaction.options.getInteger("id", true);
+
+  try {
+    const result = await apiClient.assignTeams(eventId);
 
     const embed = new EmbedBuilder()
       .setTitle("🎯 Teams Assigned!")
@@ -350,13 +396,44 @@ async function handleCloseSignups(
       embed.addFields({ name: "📋 Bench", value: benchList, inline: false });
     }
 
+    embed.setFooter({ text: `Use /event start ${eventId} to begin the event.` });
+
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     if (err instanceof ApiError) {
       await interaction.editReply(`❌ ${err.message}`);
       return;
     }
-    console.error("/event close-signups error:", err);
-    await interaction.editReply("❌ Failed to close signups.");
+    console.error("/event assign-teams error:", err);
+    await interaction.editReply("❌ Failed to assign teams.");
+  }
+}
+
+const STATUS_DISPLAY: Record<string, string> = {
+  open: "Signups Open",
+  signups_closed: "Group Assignments",
+  in_progress: "Active Event",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+async function handleTransition(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+  targetStatus: string,
+  displayName: string,
+): Promise<void> {
+  await interaction.deferReply();
+  const eventId = interaction.options.getInteger("id", true);
+
+  try {
+    await apiClient.transitionEvent(eventId, targetStatus);
+    await interaction.editReply(`✅ Event **#${eventId}** is now **${displayName}**.`);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error(`/event ${targetStatus} error:`, err);
+    await interaction.editReply("❌ Failed to update event status.");
   }
 }

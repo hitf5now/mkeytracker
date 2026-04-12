@@ -1,65 +1,120 @@
 /**
- * /setup — reposts companion app installation instructions.
+ * /setup — server configuration + companion app instructions.
  *
- * Useful for users who lost their original /register reply (ephemeral,
- * closes when Discord restarts) or who registered before the companion
- * app was available.
+ * Subcommands:
+ *   /setup companion  — reposts companion app installation instructions
+ *   /setup events-channel <channel> — configure where event embeds are posted
  */
 
-import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { ChannelType, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { apiClient, ApiError } from "../lib/api-client.js";
 import type { Command } from "./index.js";
 
-/** Dynamic download redirect served by our API. Resolves to the latest
- * .exe on click; hides the distribution backend from end users. */
 const COMPANION_DOWNLOAD_URL = "https://api.mythicplustracker.com/download";
 
 export const setupCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("setup")
-    .setDescription("Get the M+ Tracker Companion installer + setup instructions."),
+    .setDescription("Server configuration and companion app setup.")
+    .addSubcommand((sub) =>
+      sub
+        .setName("companion")
+        .setDescription("Get the M+ Tracker Companion installer + setup instructions."),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("events-channel")
+        .setDescription("Set the channel where event embeds are posted.")
+        .addChannelOption((opt) =>
+          opt
+            .setName("channel")
+            .setDescription("The text channel for event embeds")
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true),
+        ),
+    ),
 
   async execute(interaction) {
-    const embed = new EmbedBuilder()
-      .setTitle("M+ Tracker — Companion App Setup")
-      .setColor(0xffcc00)
-      .setDescription(
-        "The companion is a small Windows app that captures your M+ runs and posts them to this Discord.",
-      )
-      .addFields(
-        {
-          name: "1️⃣ Download",
-          value: `**[⬇ Download MKeyTracker-Setup.exe](${COMPANION_DOWNLOAD_URL})**`,
-          inline: false,
-        },
-        {
-          name: "2️⃣ Install",
-          value:
-            "Run the installer. Windows may show a SmartScreen warning — click **More info → Run anyway**. The app auto-detects your WoW install and copies the addon for you.",
-          inline: false,
-        },
-        {
-          name: "3️⃣ Pair",
-          value:
-            "In the wizard's pairing step, run `/link` here in Discord to get a 6-digit code, then paste it into the companion.",
-          inline: false,
-        },
-        {
-          name: "4️⃣ Play",
-          value:
-            "Run Mythic+ keys normally. The companion posts them to <#results> automatically.",
-          inline: false,
-        },
-        {
-          name: "❓ Haven't registered yet?",
-          value:
-            "You need to link a WoW character first with `/register character:<name> realm:<realm> region:US`.",
-          inline: false,
-        },
-      )
-      .setFooter({
-        text: "Need help? Check #mkeytracker-help or ping an admin.",
-      });
+    const sub = interaction.options.getSubcommand();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    if (sub === "events-channel") {
+      await handleEventsChannel(interaction);
+    } else {
+      await handleCompanion(interaction);
+    }
   },
 };
+
+async function handleCompanion(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+): Promise<void> {
+  const embed = new EmbedBuilder()
+    .setTitle("M+ Tracker — Companion App Setup")
+    .setColor(0xffcc00)
+    .setDescription(
+      "The companion is a small Windows app that captures your M+ runs and posts them to this Discord.",
+    )
+    .addFields(
+      {
+        name: "1. Download",
+        value: `**[Download MKeyTracker-Setup.exe](${COMPANION_DOWNLOAD_URL})**`,
+        inline: false,
+      },
+      {
+        name: "2. Install",
+        value:
+          "Run the installer. Windows may show a SmartScreen warning — click **More info > Run anyway**. The app auto-detects your WoW install and copies the addon for you.",
+        inline: false,
+      },
+      {
+        name: "3. Pair",
+        value:
+          "In the wizard's pairing step, run `/link` here in Discord to get a 6-digit code, then paste it into the companion.",
+        inline: false,
+      },
+      {
+        name: "4. Play",
+        value:
+          "Run Mythic+ keys normally. The companion posts them automatically.",
+        inline: false,
+      },
+    )
+    .setFooter({
+      text: "💡 With the companion app, your characters are auto-linked — no /register needed!",
+    });
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleEventsChannel(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  const channel = interaction.options.getChannel("channel", true);
+  const guildId = interaction.guildId;
+
+  if (!guildId) {
+    await interaction.editReply("❌ This command can only be used in a server.");
+    return;
+  }
+
+  try {
+    await apiClient.setGuildConfig(guildId, {
+      eventsChannelId: channel.id,
+      guildName: interaction.guild?.name ?? null,
+    });
+
+    await interaction.editReply(
+      `✅ Event embeds will now be posted to <#${channel.id}>.\n` +
+      "Events created on the website or via `/event create` will appear there with signup buttons.",
+    );
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error("/setup events-channel error:", err);
+    await interaction.editReply("❌ Failed to save channel configuration.");
+  }
+}

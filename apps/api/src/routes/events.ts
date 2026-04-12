@@ -28,6 +28,7 @@ const CreateEventSchema = z.object({
   signupClosesAt: z.string().datetime({ offset: true }).optional(),
   description: z.string().max(1000).optional(),
   createdByDiscordId: z.string().regex(/^\d{17,20}$/),
+  discordGuildId: z.string().regex(/^\d{17,20}$/).optional(),
 });
 
 const SignupSchema = z.object({
@@ -36,7 +37,73 @@ const SignupSchema = z.object({
   characterRealm: z.string().min(1).max(50),
   characterRegion: z.enum(["us", "eu", "kr", "tw", "cn"]),
   rolePreference: z.enum(["tank", "healer", "dps"]),
+  signupStatus: z.enum(["confirmed", "tentative"]).default("confirmed"),
+  spec: z.string().max(30).optional(),
 });
+
+/** Shared matchmaking logic used by close-signups (autoAssign) and assign-teams */
+async function runMatchmaking(eventId: number, req: { log: { info: (...args: unknown[]) => void } }) {
+  const signups = await prisma.eventSignup.findMany({
+    where: { eventId, signupStatus: "confirmed" },
+    include: { character: true },
+  });
+
+  if (signups.length < 5) {
+    throw { statusCode: 409, error: "not_enough_signups", message: `Need at least 5 confirmed signups. Currently ${signups.length}.` };
+  }
+
+  const pool: SignupForMatching[] = signups.map((s) => ({
+    signupId: s.id,
+    userId: s.userId,
+    characterId: s.characterId,
+    rolePreference: s.rolePreference as "tank" | "healer" | "dps",
+    characterName: s.character.name,
+    realm: s.character.realm,
+    hasCompanionApp: s.character.hasCompanionApp,
+  }));
+
+  const result = assignTeams(pool);
+
+  await prisma.$transaction(async (tx) => {
+    for (const team of result.teams) {
+      const created = await tx.eventTeam.create({
+        data: { eventId, name: team.name, status: "assigned" },
+      });
+      for (const member of team.members) {
+        await tx.eventSignup.update({
+          where: { id: member.signupId },
+          data: { teamId: created.id },
+        });
+      }
+    }
+    await tx.event.update({
+      where: { id: eventId },
+      data: { status: "signups_closed" },
+    });
+  });
+
+  req.log.info(
+    { eventId, teams: result.stats.teamsFormed, benched: result.stats.benchedCount },
+    "Teams assigned",
+  );
+
+  return {
+    teams: result.teams.map((t) => ({
+      name: t.name,
+      members: t.members.map((m) => ({
+        characterName: m.characterName,
+        realm: m.realm,
+        role: m.rolePreference,
+      })),
+    })),
+    benched: result.benched.map((b) => ({
+      characterName: b.characterName,
+      realm: b.realm,
+      role: b.rolePreference,
+    })),
+    stats: result.stats,
+  };
+}
 
 export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   // ── Create event (internal auth) ────────────────────────────
@@ -79,6 +146,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           signupClosesAt: body.signupClosesAt ? new Date(body.signupClosesAt) : null,
           description: body.description,
           createdByUserId: creator.id,
+          discordGuildId: body.discordGuildId ?? null,
         },
       });
 
@@ -130,10 +198,15 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         where: { eventId_discordUserId: { eventId, discordUserId: body.discordId } },
       });
       if (existing) {
-        // Update role preference if they're changing it
+        // Update signup details
         const updated = await prisma.eventSignup.update({
           where: { id: existing.id },
-          data: { rolePreference: body.rolePreference, characterId: character.id },
+          data: {
+            rolePreference: body.rolePreference,
+            characterId: character.id,
+            signupStatus: body.signupStatus,
+            spec: body.spec ?? existing.spec,
+          },
         });
         return reply.code(200).send({ signup: updated, updated: true });
       }
@@ -145,6 +218,8 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           discordUserId: body.discordId,
           characterId: character.id,
           rolePreference: body.rolePreference,
+          signupStatus: body.signupStatus,
+          spec: body.spec,
         },
       });
 
@@ -152,7 +227,63 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ signup, updated: false });
     });
 
-    // ── Close signups + assign teams ────────────────────────────
+    // ── Check if a user has a signup for an event ──────────────
+    scope.get<{
+      Params: { id: string };
+      Querystring: { discordId?: string };
+    }>("/events/:id/signup-check", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const discordId = (req.query as { discordId?: string }).discordId;
+      if (!discordId) return reply.code(400).send({ error: "missing_discord_id" });
+
+      const signup = await prisma.eventSignup.findUnique({
+        where: { eventId_discordUserId: { eventId, discordUserId: discordId } },
+        include: { character: true },
+      });
+
+      if (!signup) {
+        return reply.code(200).send({ hasSignup: false });
+      }
+
+      return reply.code(200).send({
+        hasSignup: true,
+        signup: {
+          id: signup.id,
+          signupStatus: signup.signupStatus,
+          rolePreference: signup.rolePreference,
+          spec: signup.spec,
+          characterName: signup.character.name,
+          characterRealm: signup.character.realm,
+          characterClass: signup.character.class,
+        },
+      });
+    });
+
+    // ── Remove a signup ──────────────────────────────────────────
+    scope.delete<{
+      Params: { id: string };
+      Querystring: { discordId?: string };
+    }>("/events/:id/signup", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const discordId = (req.query as { discordId?: string }).discordId;
+      if (!discordId) return reply.code(400).send({ error: "missing_discord_id" });
+
+      const signup = await prisma.eventSignup.findUnique({
+        where: { eventId_discordUserId: { eventId, discordUserId: discordId } },
+      });
+      if (!signup) return reply.code(404).send({ error: "signup_not_found" });
+
+      await prisma.eventSignup.delete({ where: { id: signup.id } });
+
+      req.log.info({ eventId, discordUserId: discordId }, "Signup removed");
+      return reply.code(200).send({ removed: true });
+    });
+
+    // ── Close signups (transition to Group Assignments) ──────────
     scope.post<{ Params: { id: string } }>("/events/:id/close-signups", async (req, reply) => {
       const eventId = parseInt(req.params.id, 10);
       if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
@@ -163,79 +294,78 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}.` });
       }
 
-      // Get all signups
-      const signups = await prisma.eventSignup.findMany({
-        where: { eventId },
-        include: { character: true },
+      // Backward compat: ?autoAssign=true does close + matchmaking in one call
+      const autoAssign = (req.query as { autoAssign?: string }).autoAssign === "true";
+
+      if (autoAssign) {
+        const result = await runMatchmaking(eventId, req);
+        return reply.code(200).send(result);
+      }
+
+      // Just close signups — no matchmaking
+      await prisma.event.update({
+        where: { id: eventId },
+        data: { status: "signups_closed" },
       });
 
-      if (signups.length < 5) {
+      req.log.info({ eventId }, "Signups closed (Group Assignments phase)");
+      return reply.code(200).send({ status: "signups_closed" });
+    });
+
+    // ── Assign teams (matchmaking during Group Assignments) ─────
+    scope.post<{ Params: { id: string } }>("/events/:id/assign-teams", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event) return reply.code(404).send({ error: "event_not_found" });
+      if (event.status !== "signups_closed") {
         return reply.code(409).send({
-          error: "not_enough_signups",
-          message: `Need at least 5 signups to form a team. Currently ${signups.length}.`,
+          error: "wrong_status",
+          message: `Event must be in Group Assignments phase (signups_closed). Currently: ${event.status}.`,
         });
       }
 
-      // Build the matchmaking input
-      const pool: SignupForMatching[] = signups.map((s) => ({
-        signupId: s.id,
-        userId: s.userId,
-        characterId: s.characterId,
-        rolePreference: s.rolePreference as "tank" | "healer" | "dps",
-        characterName: s.character.name,
-        realm: s.character.realm,
-        hasCompanionApp: s.character.hasCompanionApp,
-      }));
+      const result = await runMatchmaking(eventId, req);
+      return reply.code(200).send(result);
+    });
 
-      const result = assignTeams(pool);
+    // ── Status transition ──────────────────────────────────────
+    scope.post<{ Params: { id: string } }>("/events/:id/transition", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
 
-      // Persist teams + update signups in a transaction
-      await prisma.$transaction(async (tx) => {
-        for (const team of result.teams) {
-          const created = await tx.eventTeam.create({
-            data: {
-              eventId,
-              name: team.name,
-              status: "assigned",
-            },
-          });
-          // Update each signup in this team with the teamId
-          for (const member of team.members) {
-            await tx.eventSignup.update({
-              where: { id: member.signupId },
-              data: { teamId: created.id },
-            });
-          }
-        }
+      const body = req.body as { targetStatus?: string };
+      if (!body.targetStatus) {
+        return reply.code(400).send({ error: "missing_target_status" });
+      }
 
-        // Update event status
-        await tx.event.update({
-          where: { id: eventId },
-          data: { status: "signups_closed" },
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event) return reply.code(404).send({ error: "event_not_found" });
+
+      // Validate allowed transitions
+      const allowed: Record<string, string[]> = {
+        open: ["signups_closed", "cancelled"],
+        signups_closed: ["in_progress", "open", "cancelled"],
+        in_progress: ["completed", "cancelled"],
+        draft: ["open", "cancelled"],
+      };
+
+      const validTargets = allowed[event.status] ?? ["cancelled"];
+      if (!validTargets.includes(body.targetStatus)) {
+        return reply.code(409).send({
+          error: "invalid_transition",
+          message: `Cannot transition from ${event.status} to ${body.targetStatus}. Allowed: ${validTargets.join(", ")}`,
         });
+      }
+
+      const updated = await prisma.event.update({
+        where: { id: eventId },
+        data: { status: body.targetStatus as import("@prisma/client").EventStatus },
       });
 
-      req.log.info(
-        { eventId, teams: result.stats.teamsFormed, benched: result.stats.benchedCount },
-        "Teams assigned",
-      );
-
-      return reply.code(200).send({
-        teams: result.teams.map((t) => ({
-          name: t.name,
-          members: t.members.map((m) => ({
-            characterName: m.characterName,
-            realm: m.realm,
-            role: m.rolePreference,
-          })),
-        })),
-        benched: result.benched.map((b) => ({
-          characterName: b.characterName,
-          realm: b.realm,
-          role: b.rolePreference,
-        })),
-        stats: result.stats,
-      });
+      req.log.info({ eventId, from: event.status, to: body.targetStatus }, "Event status transition");
+      return reply.code(200).send({ event: updated });
     });
 
     // ── Store Discord embed message/channel IDs ─────────────────
@@ -282,9 +412,21 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── Public read routes ──────────────────────────────────────
-  app.get("/events", async (_req, reply) => {
+  app.get("/events", async (req, reply) => {
+    const guildIdsParam = (req.query as { guildIds?: string }).guildIds;
+    const guildIds = guildIdsParam ? guildIdsParam.split(",").filter(Boolean) : undefined;
+
+    const where: Record<string, unknown> = {
+      status: { in: ["open", "signups_closed", "in_progress"] },
+    };
+
+    // When guildIds provided, filter to only events from those servers
+    if (guildIds && guildIds.length > 0) {
+      where.discordGuildId = { in: guildIds };
+    }
+
     const events = await prisma.event.findMany({
-      where: { status: { in: ["open", "signups_closed", "in_progress"] } },
+      where,
       include: {
         dungeon: true,
         _count: { select: { signups: true, teams: true } },

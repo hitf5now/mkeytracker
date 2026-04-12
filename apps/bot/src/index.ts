@@ -6,10 +6,24 @@
  */
 
 import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
+import { Redis } from "ioredis";
 import { env } from "./config/env.js";
 import { commands } from "./commands/index.js";
 import { findHandler } from "./components/index.js";
 import { startNotificationSubscriber } from "./lib/notifications.js";
+
+const redisClient = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+
+/** Write the bot's guild list to Redis for the web app's guild intersection. */
+async function syncGuildCache(client: Client): Promise<void> {
+  const guilds = client.guilds.cache.map((g) => ({
+    id: g.id,
+    name: g.name,
+    icon: g.iconURL({ size: 64 }),
+  }));
+  await redisClient.set("bot:guilds", JSON.stringify(guilds));
+  console.log(`   Synced ${guilds.length} guild(s) to Redis cache`);
+}
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
@@ -21,8 +35,13 @@ client.once(Events.ClientReady, (c) => {
   if (env.DISCORD_GUILD_ID) {
     console.log(`   Dev guild: ${env.DISCORD_GUILD_ID}`);
   }
+  void syncGuildCache(client);
   startNotificationSubscriber(client);
 });
+
+// Keep guild cache in sync when bot joins/leaves servers
+client.on(Events.GuildCreate, () => void syncGuildCache(client));
+client.on(Events.GuildDelete, () => void syncGuildCache(client));
 
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   // ── Slash commands ──────────────────────────────────────────

@@ -3,6 +3,10 @@
  *
  * On sign-in, calls the API's /auth/discord-login endpoint to
  * upsert the User row and get the userId. Session uses JWT strategy.
+ *
+ * Scopes: "identify guilds" — we need guild membership for server-scoped events.
+ * The Discord access token is stored in the JWT (server-side only) for
+ * making Discord API calls to fetch the user's guild list.
  */
 
 import NextAuth, { type NextAuthResult } from "next-auth";
@@ -12,18 +16,21 @@ const API_BASE =
   process.env.API_INTERNAL_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
 
 const nextAuth: NextAuthResult = NextAuth({
+  trustHost: true,
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
-      authorization: { params: { scope: "identify" } },
+      authorization: { params: { scope: "identify guilds" } },
     }),
   ],
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, account }) {
-      // On initial sign-in, call our API to resolve/create the user
       if (account?.access_token) {
+        // Store Discord access token for server-side guild lookups
+        token.discordAccessToken = account.access_token;
+
         try {
           const res = await fetch(`${API_BASE}/api/v1/auth/discord-login`, {
             method: "POST",
@@ -56,6 +63,8 @@ const nextAuth: NextAuthResult = NextAuth({
         discordId: token.discordId,
         displayName: token.displayName,
         avatar: token.avatar ?? null,
+        // NOTE: discordAccessToken intentionally NOT included in session
+        // (stays server-side only in the JWT)
       };
     },
   },

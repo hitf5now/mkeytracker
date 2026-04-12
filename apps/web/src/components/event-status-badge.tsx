@@ -11,9 +11,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "Open",
-  signups_closed: "Signups Closed",
-  in_progress: "In Progress",
+  open: "Signups Open",
+  signups_closed: "Group Assignments",
+  in_progress: "Active Event",
   completed: "Completed",
   draft: "Draft",
   cancelled: "Cancelled",

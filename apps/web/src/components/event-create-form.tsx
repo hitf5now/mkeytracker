@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Dungeon {
@@ -8,6 +8,12 @@ interface Dungeon {
   slug: string;
   name: string;
   shortCode: string;
+}
+
+interface Guild {
+  id: string;
+  name: string;
+  icon: string | null;
 }
 
 interface Props {
@@ -24,6 +30,18 @@ export function EventCreateForm({ dungeons }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [guildsLoading, setGuildsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/guilds")
+      .then((res) => res.json())
+      .then((data: { guilds?: Guild[] }) => {
+        setGuilds(data.guilds ?? []);
+      })
+      .catch(() => setGuilds([]))
+      .finally(() => setGuildsLoading(false));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,16 +59,14 @@ export function EventCreateForm({ dungeons }: Props) {
       startsAt: new Date(form.get("startsAt") as string).toISOString(),
       endsAt: new Date(form.get("endsAt") as string).toISOString(),
       description: (form.get("description") as string) || undefined,
+      discordGuildId: (form.get("server") as string) || undefined,
     };
 
     try {
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL ?? "https://api.mythicplustracker.com";
-      const res = await fetch(`${apiUrl}/api/v1/events`, {
+      const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        credentials: "include",
       });
 
       if (!res.ok) {
@@ -75,6 +91,28 @@ export function EventCreateForm({ dungeons }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Discord Server */}
+      <div>
+        <label htmlFor="server" className={labelClass}>
+          Discord Server
+        </label>
+        {guildsLoading ? (
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+        ) : guilds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No servers found. The bot must be installed in a server you belong to.
+          </p>
+        ) : (
+          <select id="server" name="server" required className={inputClass}>
+            {guilds.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       {/* Name */}
       <div>
         <label htmlFor="name" className={labelClass}>
@@ -201,7 +239,7 @@ export function EventCreateForm({ dungeons }: Props) {
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || guilds.length === 0}
         className="w-full rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-background transition-colors hover:bg-gold-dark disabled:opacity-50"
       >
         {submitting ? "Creating..." : "Create Event & Post to Discord"}

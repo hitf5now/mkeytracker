@@ -61,11 +61,23 @@ export function startNotificationSubscriber(client: Client): void {
 }
 
 async function handleEventCreated(client: Client, eventId: number): Promise<void> {
-  const channelId = env.DISCORD_EVENTS_CHANNEL_ID;
-  if (!channelId) return;
-
   try {
     const { event } = await apiClient.getEvent(eventId);
+
+    // Resolve the channel: per-guild config first, fallback to env var
+    let channelId: string | null = null;
+    const guildId = event.discordGuildId;
+    if (guildId) {
+      const { config } = await apiClient.getGuildConfig(guildId);
+      channelId = config?.eventsChannelId ?? null;
+    }
+    if (!channelId) {
+      channelId = env.DISCORD_EVENTS_CHANNEL_ID || null;
+    }
+    if (!channelId) {
+      console.log(`No events channel configured for event #${eventId} — skipping embed post`);
+      return;
+    }
 
     const startTs = Math.floor(new Date(event.startsAt).getTime() / 1000);
     const endTs = Math.floor(new Date(event.endsAt).getTime() / 1000);
@@ -99,10 +111,6 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
         .setCustomId(`event-tentative:${event.id}`)
         .setLabel("Tentative")
         .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`event-decline:${event.id}`)
-        .setLabel("Decline")
-        .setStyle(ButtonStyle.Danger),
     );
 
     const channel = await client.channels.fetch(channelId) as TextChannel | null;

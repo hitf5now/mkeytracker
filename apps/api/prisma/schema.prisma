@@ -245,6 +245,9 @@ model Event {
   seasonId        Int         @map("season_id")
   season          Season      @relation(fields: [seasonId], references: [id])
 
+  /// Discord server this event belongs to (for server-scoped filtering)
+  discordGuildId  String?     @map("discord_guild_id")
+
   /// Key level constraints for the event
   minKeyLevel     Int         @default(2) @map("min_key_level")
   maxKeyLevel     Int         @default(40) @map("max_key_level")
@@ -274,6 +277,7 @@ model Event {
   @@index([status])
   @@index([seasonId])
   @@index([startsAt])
+  @@index([discordGuildId])
   @@map("events")
 }
 
@@ -337,6 +341,25 @@ model EventTeam {
 
   @@index([eventId])
   @@map("event_teams")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Guild configuration — per-Discord-server settings
+// ─────────────────────────────────────────────────────────────
+
+model GuildConfig {
+  id               Int      @id @default(autoincrement())
+  /// Discord guild snowflake — one config per server
+  discordGuildId   String   @unique @map("discord_guild_id")
+  /// Channel ID where event embeds are posted
+  eventsChannelId  String?  @map("events_channel_id")
+  /// Cached guild name for display
+  guildName        String?  @map("guild_name")
+
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("guild_configs")
 }
 
 // ─────────────────────────────────────────────────────────────

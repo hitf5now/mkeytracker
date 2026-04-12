@@ -27,7 +27,10 @@ export interface ComponentHandler {
 import {
   eventSignupHandler,
   eventTentativeHandler,
-  eventDeclineHandler,
+  eventEditHandler,
+  eventRemoveHandler,
+  eventSwitchTentativeHandler,
+  eventSwitchConfirmedHandler,
   eventCharHandler,
   eventSpecHandler,
   eventManualHandler,
@@ -40,7 +43,10 @@ import {
 const handlers: ComponentHandler[] = [
   eventSignupHandler,
   eventTentativeHandler,
-  eventDeclineHandler,
+  eventEditHandler,
+  eventRemoveHandler,
+  eventSwitchTentativeHandler,
+  eventSwitchConfirmedHandler,
   eventCharHandler,
   eventSpecHandler,
   eventManualHandler,

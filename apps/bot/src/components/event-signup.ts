@@ -81,6 +81,7 @@ interface SignupForRoster {
   rolePreference: string;
   hasCompanionApp: boolean;
   signupStatus: string;
+  discordUserId: string | null;
 }
 
 interface EventForEmbed {
@@ -105,8 +106,10 @@ function buildRosterEmbed(event: EventForEmbed, signups: SignupForRoster[]): Emb
 
   const formatMember = (s: SignupForRoster, i: number): string => {
     const tag = s.hasCompanionApp ? " ⚡" : "";
-    const specLabel = s.spec ? ` (${s.spec})` : "";
-    return `${i + 1}. **${s.characterName}** - ${s.realm}${specLabel}${tag}`;
+    const className = CLASSES[s.classSlug]?.name ?? s.classSlug;
+    const specClass = s.spec ? `${s.spec} ${className}` : className;
+    const userMention = s.discordUserId ? `<@${s.discordUserId}>` : s.characterName;
+    return `${i + 1}. ${userMention} — ${specClass} (${s.characterName})${tag}`;
   };
 
   const embed = new EmbedBuilder()
@@ -163,10 +166,6 @@ function buildEventButtons(eventId: number): ActionRowBuilder<ButtonBuilder> {
       .setCustomId(`event-tentative:${eventId}`)
       .setLabel("Tentative")
       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`event-decline:${eventId}`)
-      .setLabel("Decline")
-      .setStyle(ButtonStyle.Danger),
   );
 }
 
@@ -191,6 +190,7 @@ async function updateEventEmbed(eventId: number, client: Client): Promise<void> 
         rolePreference: s.rolePreference,
         hasCompanionApp: s.character.hasCompanionApp ?? false,
         signupStatus: s.signupStatus ?? "confirmed",
+        discordUserId: s.discordUserId ?? null,
       }));
 
       const embed = buildRosterEmbed(event, signups);
@@ -241,10 +241,52 @@ async function handleSignupButton(interaction: ButtonInteraction, client: Client
   await interaction.deferReply({ ephemeral: true });
   const eventId = parseEventId(interaction.customId);
 
+  // Check if user already has a signup
+  const check = await apiClient.signupCheck(eventId, interaction.user.id);
+
+  if (check.hasSignup && check.signup) {
+    const s = check.signup;
+    const className = CLASSES[s.characterClass]?.name ?? s.characterClass;
+    const specLabel = s.spec ? `${s.spec} ${className}` : className;
+    const statusLabel = s.signupStatus === "tentative" ? " (tentative)" : "";
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-edit:${eventId}`)
+        .setLabel("Edit Signup")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(
+          s.signupStatus === "confirmed"
+            ? `event-switch-tentative:${eventId}`
+            : `event-switch-confirmed:${eventId}`,
+        )
+        .setLabel(s.signupStatus === "confirmed" ? "Switch to Tentative" : "Switch to Confirmed")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`event-remove:${eventId}`)
+        .setLabel("Remove Signup")
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await interaction.editReply({
+      content: `You're already signed up as **${specLabel}** (${s.rolePreference.toUpperCase()}) with **${s.characterName}**${statusLabel}. What would you like to do?`,
+      components: [row],
+    });
+    return;
+  }
+
+  // No existing signup — start the normal flow
+  await startSignupFlow(interaction, eventId);
+}
+
+async function startSignupFlow(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  eventId: number,
+): Promise<void> {
   const { characters } = await apiClient.getUserCharacters(interaction.user.id);
 
   if (characters.length > 0) {
-    // Show character select menu
     const options = characters.map((c: UserCharacter) => ({
       label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
       description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
@@ -261,7 +303,6 @@ async function handleSignupButton(interaction: ButtonInteraction, client: Client
 
     await interaction.editReply({ content: "Which character are you signing up with?", components: [row] });
   } else {
-    // No linked characters — show manual modal
     await showManualModal(interaction, eventId);
   }
 }
@@ -270,29 +311,109 @@ async function handleTentativeButton(interaction: ButtonInteraction, client: Cli
   await interaction.deferReply({ ephemeral: true });
   const eventId = parseEventId(interaction.customId);
 
+  // Check if already signed up
+  const check = await apiClient.signupCheck(eventId, interaction.user.id);
+
+  if (check.hasSignup && check.signup) {
+    if (check.signup.signupStatus === "tentative") {
+      await interaction.editReply("You're already marked as tentative. Click **Sign Up** to switch to confirmed or edit your signup.");
+      return;
+    }
+    // Switch from confirmed to tentative
+    try {
+      await apiClient.eventSignup({
+        eventId,
+        discordId: interaction.user.id,
+        characterName: check.signup.characterName,
+        characterRealm: check.signup.characterRealm,
+        characterRegion: "us",
+        rolePreference: check.signup.rolePreference as "tank" | "healer" | "dps",
+        signupStatus: "tentative",
+      });
+      await interaction.editReply("✅ Switched to **tentative**. Click **Sign Up** to confirm when you're sure.");
+      await updateEventEmbed(eventId, client);
+    } catch (err) {
+      await interaction.editReply(err instanceof ApiError ? `❌ ${err.message}` : "❌ Something went wrong.");
+    }
+    return;
+  }
+
+  // No existing signup — start signup flow as tentative
+  // For now, start the normal flow (user picks character/spec, status set to tentative)
+  await startSignupFlow(interaction, eventId);
+}
+
+async function handleEditButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+  await interaction.deferUpdate();
+  const eventId = parseEventId(interaction.customId);
+  await startSignupFlow(interaction, eventId);
+}
+
+async function handleRemoveButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+  await interaction.deferUpdate();
+  const eventId = parseEventId(interaction.customId);
+
+  try {
+    await apiClient.removeSignup(eventId, interaction.user.id);
+    await interaction.editReply({ content: "✅ Your signup has been removed. You can sign up again anytime.", components: [] });
+    await updateEventEmbed(eventId, client);
+  } catch (err) {
+    await interaction.editReply({ content: err instanceof ApiError ? `❌ ${err.message}` : "❌ Something went wrong.", components: [] });
+  }
+}
+
+async function handleSwitchTentativeButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+  await interaction.deferUpdate();
+  const eventId = parseEventId(interaction.customId);
+
+  const check = await apiClient.signupCheck(eventId, interaction.user.id);
+  if (!check.hasSignup || !check.signup) {
+    await interaction.editReply({ content: "❌ No signup found.", components: [] });
+    return;
+  }
+
   try {
     await apiClient.eventSignup({
       eventId,
       discordId: interaction.user.id,
-      characterName: interaction.user.displayName,
-      characterRealm: "unknown",
+      characterName: check.signup.characterName,
+      characterRealm: check.signup.characterRealm,
       characterRegion: "us",
-      rolePreference: "dps",
+      rolePreference: check.signup.rolePreference as "tank" | "healer" | "dps",
+      signupStatus: "tentative",
     });
-    await interaction.editReply("✅ You're marked as **tentative**. Update to confirmed by clicking Sign Up.");
+    await interaction.editReply({ content: "✅ Switched to **tentative**.", components: [] });
     await updateEventEmbed(eventId, client);
   } catch (err) {
-    if (err instanceof ApiError) {
-      await interaction.editReply(`❌ ${err.message}`);
-    } else {
-      await interaction.editReply("❌ Something went wrong.");
-    }
+    await interaction.editReply({ content: err instanceof ApiError ? `❌ ${err.message}` : "❌ Something went wrong.", components: [] });
   }
 }
 
-async function handleDeclineButton(interaction: ButtonInteraction, _client: Client): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
-  await interaction.editReply("👍 You've declined this event.");
+async function handleSwitchConfirmedButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+  await interaction.deferUpdate();
+  const eventId = parseEventId(interaction.customId);
+
+  const check = await apiClient.signupCheck(eventId, interaction.user.id);
+  if (!check.hasSignup || !check.signup) {
+    await interaction.editReply({ content: "❌ No signup found.", components: [] });
+    return;
+  }
+
+  try {
+    await apiClient.eventSignup({
+      eventId,
+      discordId: interaction.user.id,
+      characterName: check.signup.characterName,
+      characterRealm: check.signup.characterRealm,
+      characterRegion: "us",
+      rolePreference: check.signup.rolePreference as "tank" | "healer" | "dps",
+      signupStatus: "confirmed",
+    });
+    await interaction.editReply({ content: "✅ Switched to **confirmed**!", components: [] });
+    await updateEventEmbed(eventId, client);
+  } catch (err) {
+    await interaction.editReply({ content: err instanceof ApiError ? `❌ ${err.message}` : "❌ Something went wrong.", components: [] });
+  }
 }
 
 async function handleCharSelect(interaction: StringSelectMenuInteraction, client: Client): Promise<void> {
@@ -609,9 +730,24 @@ export const eventTentativeHandler: ComponentHandler = {
   handleButton: handleTentativeButton,
 };
 
-export const eventDeclineHandler: ComponentHandler = {
-  prefix: "event-decline",
-  handleButton: handleDeclineButton,
+export const eventEditHandler: ComponentHandler = {
+  prefix: "event-edit",
+  handleButton: handleEditButton,
+};
+
+export const eventRemoveHandler: ComponentHandler = {
+  prefix: "event-remove",
+  handleButton: handleRemoveButton,
+};
+
+export const eventSwitchTentativeHandler: ComponentHandler = {
+  prefix: "event-switch-tentative",
+  handleButton: handleSwitchTentativeButton,
+};
+
+export const eventSwitchConfirmedHandler: ComponentHandler = {
+  prefix: "event-switch-confirmed",
+  handleButton: handleSwitchConfirmedButton,
 };
 
 export const eventCharHandler: ComponentHandler = {

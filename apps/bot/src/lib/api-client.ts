@@ -139,6 +139,7 @@ export interface EventSignupDetail {
   rolePreference: string;
   spec: string | null;
   signupStatus: string;
+  discordUserId: string | null;
   character: { name: string; realm: string; region: string; class: string; hasCompanionApp: boolean };
   team: { id: number; name: string } | null;
 }
@@ -154,6 +155,7 @@ export interface EventDetailResponse extends EventResponse {
   season: { slug: string; name: string };
   discordMessageId: string | null;
   discordChannelId: string | null;
+  discordGuildId: string | null;
   signups: EventSignupDetail[];
   teams: EventTeamDetail[];
 }
@@ -207,6 +209,20 @@ export interface RaiderIOLookupResponse {
     rioScore: number;
     profileUrl: string;
   } | null;
+}
+
+// ── Signup check (for context-aware buttons) ───────────────────────
+export interface SignupCheckResponse {
+  hasSignup: boolean;
+  signup?: {
+    id: number;
+    signupStatus: string;
+    rolePreference: string;
+    spec: string | null;
+    characterName: string;
+    characterRealm: string;
+    characterClass: string;
+  };
 }
 
 export class ApiError extends Error {
@@ -265,6 +281,31 @@ async function apiPost<TBody, TResponse>(
     } catch {
       // non-JSON response
     }
+    throw new ApiError(
+      errBody?.message ?? `API ${response.status}`,
+      response.status,
+      errBody?.error ?? "unknown_error",
+    );
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+async function apiDelete<TResponse>(path: string): Promise<TResponse> {
+  const url = `${env.API_BASE_URL}${path}`;
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${env.API_INTERNAL_SECRET}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errBody: ApiErrorBody | null = null;
+    try {
+      errBody = (await response.json()) as ApiErrorBody;
+    } catch { /* non-JSON */ }
     throw new ApiError(
       errBody?.message ?? `API ${response.status}`,
       response.status,
@@ -364,6 +405,7 @@ export const apiClient = {
     maxKeyLevel?: number;
     description?: string;
     createdByDiscordId: string;
+    discordGuildId?: string;
   }): Promise<{ event: EventResponse }> =>
     apiPost("/api/v1/events", req),
 
@@ -380,6 +422,8 @@ export const apiClient = {
     characterRealm: string;
     characterRegion: "us" | "eu" | "kr" | "tw" | "cn";
     rolePreference: "tank" | "healer" | "dps";
+    signupStatus?: "confirmed" | "tentative";
+    spec?: string;
   }): Promise<{ signup: { id: number }; updated: boolean }> =>
     apiPost(`/api/v1/events/${req.eventId}/signup`, req),
 
@@ -406,4 +450,24 @@ export const apiClient = {
     channelId: string,
   ): Promise<unknown> =>
     apiPatch(`/api/v1/events/${eventId}/discord-message`, { messageId, channelId }),
+
+  // ── Sprint 9: Signup management endpoints ─────────────────────
+  signupCheck: (eventId: number, discordId: string): Promise<SignupCheckResponse> =>
+    apiGetInternal(`/api/v1/events/${eventId}/signup-check?discordId=${encodeURIComponent(discordId)}`),
+
+  removeSignup: (eventId: number, discordId: string): Promise<{ removed: boolean }> =>
+    apiDelete(`/api/v1/events/${eventId}/signup?discordId=${encodeURIComponent(discordId)}`),
+
+  assignTeams: (eventId: number): Promise<CloseSignupsResponse> =>
+    apiPost(`/api/v1/events/${eventId}/assign-teams`, {}),
+
+  transitionEvent: (eventId: number, targetStatus: string): Promise<{ event: EventResponse }> =>
+    apiPost(`/api/v1/events/${eventId}/transition`, { targetStatus }),
+
+  // ── Guild config ────────────────────────────────────────────
+  setGuildConfig: (guildId: string, config: { eventsChannelId?: string | null; guildName?: string | null }): Promise<unknown> =>
+    apiPost(`/api/v1/guilds/${guildId}/config`, config),
+
+  getGuildConfig: (guildId: string): Promise<{ config: { eventsChannelId: string | null; guildName: string | null } | null }> =>
+    apiGetInternal(`/api/v1/guilds/${guildId}/config`),
 };

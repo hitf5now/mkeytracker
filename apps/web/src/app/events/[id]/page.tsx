@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { EventDetail } from "@/types/api";
+import type { EventDetail, EventSignup } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
@@ -24,6 +25,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventDetailPage({ params }: Props) {
+  const session = await auth();
+  if (!session) {
+    redirect(`/api/auth/signin?callbackUrl=/events/${(await params).id}`);
+  }
+
   const { id } = await params;
 
   let data: { event: EventDetail };
@@ -116,61 +122,83 @@ export default async function EventDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* Signups */}
-      {event.signups.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-xl font-bold">
-            Signups ({event.signups.length})
-          </h2>
-          <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Player</th>
-                  <th className="px-4 py-3 font-medium">Realm</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Team</th>
-                </tr>
-              </thead>
-              <tbody>
-                {event.signups.map((signup) => (
-                  <tr
-                    key={signup.id}
-                    className="border-b border-border/50"
-                  >
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1">
-                        <ClassBadge
-                          name={signup.character.name}
-                          realm={signup.character.realm}
-                          region={signup.character.region}
-                          classSlug={signup.character.class}
-                        />
-                        {signup.character.hasCompanionApp && (
-                          <span title="Companion app linked" className="text-gold">⚡</span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {signup.character.realm}
-                    </td>
-                    <td className="px-4 py-3">
-                      <RoleIcon role={signup.rolePreference} />
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {signup.team?.name ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Signups — grouped by role */}
+      {event.signups.length > 0 && (() => {
+        const confirmed = event.signups.filter((s: EventSignup) => s.signupStatus !== "declined");
+        const tanks = confirmed.filter((s: EventSignup) => s.rolePreference === "tank" && s.signupStatus === "confirmed");
+        const healers = confirmed.filter((s: EventSignup) => s.rolePreference === "healer" && s.signupStatus === "confirmed");
+        const dps = confirmed.filter((s: EventSignup) => s.rolePreference === "dps" && s.signupStatus === "confirmed");
+        const tentative = confirmed.filter((s: EventSignup) => s.signupStatus === "tentative");
+
+        const renderSignup = (signup: EventSignup) => (
+          <div key={signup.id} className="flex items-center justify-between rounded-md border border-border/50 bg-background px-3 py-2">
+            <span className="inline-flex items-center gap-2">
+              <ClassBadge
+                name={signup.character.name}
+                realm={signup.character.realm}
+                region={signup.character.region}
+                classSlug={signup.character.class}
+              />
+              {signup.spec && (
+                <span className="text-xs text-muted-foreground">{signup.spec}</span>
+              )}
+              {signup.character.hasCompanionApp && (
+                <span title="Companion app linked" className="text-gold">⚡</span>
+              )}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {signup.character.realm}
+              {signup.team && ` · ${signup.team.name}`}
+            </span>
           </div>
-        </section>
-      )}
+        );
+
+        return (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold">
+              Roster ({confirmed.length} signed up)
+            </h2>
+            <div className="mt-4 grid gap-6 sm:grid-cols-3">
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-blue-400">Tanks ({tanks.length})</h3>
+                <div className="space-y-2">
+                  {tanks.length > 0 ? tanks.map(renderSignup) : (
+                    <p className="text-xs text-muted-foreground">None yet</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-green-400">Healers ({healers.length})</h3>
+                <div className="space-y-2">
+                  {healers.length > 0 ? healers.map(renderSignup) : (
+                    <p className="text-xs text-muted-foreground">None yet</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-red-400">DPS ({dps.length})</h3>
+                <div className="space-y-2">
+                  {dps.length > 0 ? dps.map(renderSignup) : (
+                    <p className="text-xs text-muted-foreground">None yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {tentative.length > 0 && (
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-semibold text-yellow-400">Tentative ({tentative.length})</h3>
+                <div className="space-y-2">
+                  {tentative.map(renderSignup)}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {event.signups.length === 0 && (
         <p className="mt-12 text-center text-muted-foreground">
-          No signups yet. Use <code>/signup</code> in Discord to join!
+          No signups yet. Click Sign Up on the Discord event embed or use the companion app to get started!
         </p>
       )}
     </div>
