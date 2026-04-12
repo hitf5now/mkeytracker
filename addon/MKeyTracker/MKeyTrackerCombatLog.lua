@@ -40,7 +40,7 @@ end
 local clFrame = CreateFrame("Frame", "MKeyTrackerCombatLogFrame")
 
 local function OnCombatLogEvent()
-    if not tracking then return end
+    if not tracking or ns.CombatLog._stopped then return end
 
     local timestamp, subevent, hideCaster,
           sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
@@ -188,12 +188,18 @@ function ns.CombatLog.Start()
         EnsurePlayer(guid)
     end
 
-    -- Register combat log
-    clFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    clFrame:SetScript("OnEvent", function() OnCombatLogEvent() end)
+    ns.CombatLog._stopped = false
 
-    -- Register inspect handler
+    -- Register events with a combined handler
+    clFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
     clFrame:RegisterEvent("INSPECT_READY")
+    clFrame:SetScript("OnEvent", function(self, event, arg1)
+        if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+            OnCombatLogEvent()
+        elseif event == "INSPECT_READY" and arg1 then
+            OnInspectReady(arg1)
+        end
+    end)
 
     -- Start inspecting party members for spec detection
     inspectQueue = {}
@@ -214,10 +220,12 @@ function ns.CombatLog.Start()
 end
 
 function ns.CombatLog.Stop()
-    clFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    clFrame:UnregisterEvent("INSPECT_READY")
-    clFrame:SetScript("OnEvent", nil)
-    -- Don't clear tracking — it's read by OnCompleted
+    -- Do NOT call UnregisterEvent here — it's a protected function
+    -- and CHALLENGE_MODE_COMPLETED fires during combat. The handler
+    -- already checks `if not tracking then return end`, so setting
+    -- tracking to nil in Clear() will stop processing.
+    -- The events will be unregistered safely when we leave combat.
+    ns.CombatLog._stopped = true
 end
 
 function ns.CombatLog.GetPlayerStats()
@@ -281,12 +289,28 @@ function ns.CombatLog.Clear()
     tracking = nil
     inspectQueue = {}
     inspectIndex = 0
+    ns.CombatLog._stopped = false
+
+    -- Safely unregister events now that we're (hopefully) out of combat.
+    -- If still in combat, use PLAYER_REGEN_ENABLED to defer.
+    if not InCombatLockdown() then
+        pcall(function()
+            clFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+            clFrame:UnregisterEvent("INSPECT_READY")
+        end)
+    else
+        -- Defer until combat ends
+        local regenFrame = CreateFrame("Frame")
+        regenFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        regenFrame:SetScript("OnEvent", function(self)
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            pcall(function()
+                clFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+                clFrame:UnregisterEvent("INSPECT_READY")
+            end)
+        end)
+    end
 end
 
--- Handle INSPECT_READY at frame level
-local origOnEvent = clFrame:GetScript("OnEvent")
-clFrame:HookScript("OnEvent", function(self, event, arg1)
-    if event == "INSPECT_READY" and arg1 then
-        OnInspectReady(arg1)
-    end
-end)
+-- Note: INSPECT_READY is handled inside the combined OnEvent handler
+-- set in ns.CombatLog.Start(). No HookScript needed.
