@@ -13,6 +13,7 @@ import { redis } from "./lib/redis.js";
 import { registerJwtPlugin } from "./plugins/jwt-auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { charactersRoutes } from "./routes/characters.js";
+import { downloadRoutes } from "./routes/download.js";
 import { healthRoutes } from "./routes/health.js";
 import { leaderboardsRoutes } from "./routes/leaderboards.js";
 import { registerRoutes } from "./routes/register.js";
@@ -36,6 +37,9 @@ async function buildServer(): Promise<FastifyInstance> {
   await registerJwtPlugin(app);
 
   await app.register(healthRoutes);
+  // downloadRoutes registered WITHOUT /api/v1 prefix so the URL stays
+  // short and user-facing: https://api.mythicplustracker.com/download
+  await app.register(downloadRoutes);
   await app.register(authRoutes, { prefix: "/api/v1" });
   await app.register(registerRoutes, { prefix: "/api/v1" });
   await app.register(runsRoutes, { prefix: "/api/v1" });

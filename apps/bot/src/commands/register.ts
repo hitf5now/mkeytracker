@@ -12,12 +12,10 @@ import type { Command } from "./index.js";
 
 const REGIONS = ["us", "eu", "kr", "tw", "cn"] as const;
 
-/** GitHub Releases page for the companion installer.
- * We intentionally link to the release page (not the direct .exe) because
- * electron-builder stamps each release with a versioned filename. The
- * release page always shows the most recent build's Assets section. */
-const COMPANION_RELEASES_PAGE =
-  "https://github.com/hitf5now/mkeytracker/releases/latest";
+/** Dynamic download redirect served by our own API. Resolves to the
+ * latest .exe on each click, so users never see GitHub. If we ever
+ * move distribution off GitHub, this URL stays stable. */
+const COMPANION_DOWNLOAD_URL = "https://api.mythicplustracker.com/download";
 
 export const registerCommand: Command = {
   data: new SlashCommandBuilder()
@@ -95,11 +93,11 @@ export const registerCommand: Command = {
           {
             name: "📥 Next: Install the Companion App",
             value: [
-              `Download the **M+ Tracker Companion** for Windows from the latest release:`,
-              `**[⬇ github.com/hitf5now/mkeytracker/releases/latest](${COMPANION_RELEASES_PAGE})**`,
+              `Download the **M+ Tracker Companion** for Windows:`,
+              `**[⬇ Download MKeyTracker-Setup.exe](${COMPANION_DOWNLOAD_URL})**`,
               ``,
-              `On the release page, click \`MKeyTracker-Setup-<version>.exe\` under **Assets** to download.`,
-              `The installer bundles the WoW addon and sets everything up with a 5-step wizard. After installing, run \`/link\` to pair your account.`,
+              `The installer bundles the WoW addon and sets everything up with a 5-step wizard.`,
+              `After installing, run \`/link\` in this server to pair your account.`,
             ].join("\n"),
             inline: false,
           },

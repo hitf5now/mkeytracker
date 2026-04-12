@@ -9,10 +9,9 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import type { Command } from "./index.js";
 
-/** Release page URL — always resolves to the latest published release
- * so we don't have to hardcode a version in the link. */
-const COMPANION_RELEASES_PAGE =
-  "https://github.com/hitf5now/mkeytracker/releases/latest";
+/** Dynamic download redirect served by our API. Resolves to the latest
+ * .exe on click; hides the distribution backend from end users. */
+const COMPANION_DOWNLOAD_URL = "https://api.mythicplustracker.com/download";
 
 export const setupCommand: Command = {
   data: new SlashCommandBuilder()
@@ -29,7 +28,7 @@ export const setupCommand: Command = {
       .addFields(
         {
           name: "1️⃣ Download",
-          value: `**[⬇ Open the latest release](${COMPANION_RELEASES_PAGE})** then click the \`.exe\` file under **Assets**.`,
+          value: `**[⬇ Download MKeyTracker-Setup.exe](${COMPANION_DOWNLOAD_URL})**`,
           inline: false,
         },
         {
