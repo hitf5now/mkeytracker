@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { NavLink } from "./nav-link";
 import { UserMenu } from "@/components/auth/user-menu";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+const PUBLIC_NAV = [
   { href: "/leaderboards", label: "Leaderboards" },
   { href: "/events", label: "Events" },
   { href: "/download", label: "Download" },
 ];
 
+const AUTH_NAV = [
+  { href: "/dashboard", label: "Dashboard" },
+];
+
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: session } = useSession();
+  const navItems = session ? [...AUTH_NAV, ...PUBLIC_NAV] : PUBLIC_NAV;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -24,7 +31,7 @@ export function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 md:flex">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink key={item.href} href={item.href}>
               {item.label}
             </NavLink>
@@ -71,7 +78,7 @@ export function Header() {
         )}
       >
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}

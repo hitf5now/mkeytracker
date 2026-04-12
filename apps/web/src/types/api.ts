@@ -198,3 +198,82 @@ export interface ReleaseInfo {
   publishedAt: string;
   fileName: string;
 }
+
+// ─── Dashboard ──────────────────────────────────────────────────
+
+export interface DashboardOverview {
+  totalRuns: number;
+  timedRuns: number;
+  depletedRuns: number;
+  totalDeaths: number;
+  highestKeyCompleted: number;
+  totalPoints: number;
+  weeklyPoints: number;
+  timedRate: number;
+}
+
+export interface DashboardCharacter {
+  id: number;
+  name: string;
+  realm: string;
+  region: string;
+  class: string;
+  spec: string;
+  role: string;
+  rioScore: number;
+  hasCompanionApp: boolean;
+  totalRuns: number;
+  timedRuns: number;
+  highestKey: number;
+  totalPoints: number;
+}
+
+export interface DashboardRoleBreakdown {
+  role: string;
+  totalRuns: number;
+  timedRuns: number;
+  bestKey: number;
+  totalPoints: number;
+}
+
+export interface DashboardDungeonBreakdown {
+  dungeonSlug: string;
+  dungeonName: string;
+  dungeonShortCode: string;
+  bestKeyLevel: number;
+  fastestClearMs: number | null;
+  totalPoints: number;
+  timedCount: number;
+  bestCharacterName: string;
+  bestCharacterClass: string;
+}
+
+export interface DashboardRecentRun {
+  id: number;
+  dungeonName: string;
+  dungeonSlug: string;
+  level: number;
+  onTime: boolean;
+  upgrades: number;
+  deaths: number;
+  points: number;
+  recordedAt: string;
+  characterName: string;
+  characterClass: string;
+  roleSnapshot: string;
+}
+
+export interface DashboardChartData {
+  runsPerWeek: { week: string; count: number }[];
+  keyProgression: { date: string; level: number; characterName: string; characterClass: string }[];
+}
+
+export interface DashboardResult {
+  overview: DashboardOverview;
+  characters: DashboardCharacter[];
+  roleBreakdown: DashboardRoleBreakdown[];
+  dungeonBreakdown: DashboardDungeonBreakdown[];
+  recentRuns: DashboardRecentRun[];
+  chartData: DashboardChartData;
+  season: { slug: string; name: string };
+}
