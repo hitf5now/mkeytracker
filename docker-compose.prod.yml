@@ -1,9 +1,10 @@
 ##
 ## M+ Platform — Unraid production stack (192.168.1.4)
 ##
-## Joins the existing external `tech-stack-net` Docker bridge so all
-## containers can talk by name. Nginx Proxy Manager lives on a SEPARATE
-## host (192.168.1.2) and proxies `api.hitf5now.com` to 192.168.1.4:3020.
+## Joins the existing external `tech-stack-net` Docker bridge so the API
+## and bot can talk to the dedicated postgres + redis containers by
+## container name. Nginx Proxy Manager on 192.168.1.2 proxies
+## https://api.mythicplustracker.com → 192.168.1.4:3020.
 ##
 ## ─── Port map (see memory/reference_unraid_resources.md) ───
 ##   mplus-api                host 3020 → container 3001
@@ -12,6 +13,10 @@
 ##
 ## ⚠️ mplus-platform-postgres and mplus-platform-redis are RESERVED for
 ## this project. Do not connect other projects to these instances.
+##
+## Deploy:
+##   cd /mnt/user/appdata/mplus-platform/source
+##   docker compose -f docker-compose.prod.yml up -d --build
 ##
 
 services:
@@ -55,7 +60,10 @@ services:
       retries: 10
 
   api:
-    image: ghcr.io/hitf5now/mplus-api:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: mplus-api:local
     container_name: mplus-api
     restart: unless-stopped
     depends_on:
@@ -82,14 +90,12 @@ services:
     networks:
       - tech-stack-net
     mem_limit: 768m
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
 
   bot:
-    image: ghcr.io/hitf5now/mplus-bot:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    image: mplus-bot:local
     container_name: mplus-bot
     restart: unless-stopped
     depends_on:

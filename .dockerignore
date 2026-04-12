@@ -1,0 +1,35 @@
+# Don't send these to the Docker daemon during build — they're either
+# huge or completely unused for server-side containers.
+
+# dependencies (reinstalled inside image)
+node_modules
+**/node_modules
+
+# build outputs (regenerated inside image)
+dist
+**/dist
+*.tsbuildinfo
+
+# electron build outputs / installer (massive, bot+api don't need it)
+apps/companion/release
+apps/companion/build/icons
+
+# env & secrets
+.env
+.env.local
+
+# git
+.git
+.gitignore
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode
+.idea
+
+# logs
+*.log
+logs
