@@ -376,12 +376,32 @@ function registerIpcHandlers(): void {
   });
 }
 
+// ─── Auto-update addon on startup ────────────────────────────────────
+// Every time the companion starts (including after auto-update), ensure
+// the WoW addon is up to date by copying the bundled version over.
+function syncAddonOnStartup(): void {
+  const cfg = loadConfig();
+  if (!cfg.wowInstallPath || !cfg.onboarded) return;
+
+  try {
+    const result = installAddon(cfg.wowInstallPath);
+    if (result.success) {
+      console.log(`[main] addon synced to ${result.targetPath} (${result.filesCopied} files)`);
+    } else {
+      console.warn(`[main] addon sync failed: ${result.error}`);
+    }
+  } catch (err) {
+    console.warn(`[main] addon sync error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 // ─── App lifecycle ────────────────────────────────────────────────────
 app.whenReady().then(() => {
   registerIpcHandlers();
   mainWindow = createMainWindow();
   setupTray(trayCallbacks);
   refreshTrayMenu();
+  syncAddonOnStartup();
   startWatcherIfReady();
   startTelemetry();
   recordEvent("app_started");
