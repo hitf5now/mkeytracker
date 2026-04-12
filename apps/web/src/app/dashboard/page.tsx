@@ -52,7 +52,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const displayName = sessionData.displayName as string | undefined;
+  const displayName = session.displayName as string | undefined;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
