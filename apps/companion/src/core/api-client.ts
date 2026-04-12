@@ -61,13 +61,22 @@ export class CompanionApiClient {
 
   /**
    * POST a single run. Returns 201 for new, 200 for dedup.
+   *
+   * Automatically sets `submitterCharacterName` from members[0],
+   * which the WoW addon always populates with the logged-in player.
+   * This enables the API to auto-claim the character for the user.
    */
   async submitRun(run: ParsedRun): Promise<RunSubmissionResponse> {
     if (!this.jwt) {
       throw new CompanionApiError("No JWT configured — pair the companion first.", 401, "not_paired");
     }
+
+    // The addon puts the submitting player as members[0].
+    // Pass their name so the API can auto-claim the character.
+    const submitterCharacterName = run.members[0]?.name;
+
     return this.requestJson<RunSubmissionResponse>("POST", "/api/v1/runs", {
-      body: run,
+      body: { ...run, submitterCharacterName },
       authenticated: true,
     });
   }
