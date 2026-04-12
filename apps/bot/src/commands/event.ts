@@ -40,15 +40,9 @@ export const eventCommand: Command = {
       sub
         .setName("create")
         .setDescription("Create a new M+ event.")
+        // Required options first (Discord enforces this order)
         .addStringOption((opt) =>
           opt.setName("name").setDescription("Event name").setRequired(true),
-        )
-        .addStringOption((opt) =>
-          opt
-            .setName("dungeon")
-            .setDescription("Specific dungeon (or leave for any)")
-            .addChoices(...DUNGEON_CHOICES)
-            .setRequired(false),
         )
         .addStringOption((opt) =>
           opt
@@ -61,6 +55,14 @@ export const eventCommand: Command = {
             .setName("ends")
             .setDescription('End time (e.g. "2026-04-15 11:00 PM EST" or ISO)')
             .setRequired(true),
+        )
+        // Optional options after
+        .addStringOption((opt) =>
+          opt
+            .setName("dungeon")
+            .setDescription("Specific dungeon (or leave for any)")
+            .addChoices(...DUNGEON_CHOICES)
+            .setRequired(false),
         )
         .addIntegerOption((opt) =>
           opt
