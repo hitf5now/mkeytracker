@@ -71,8 +71,9 @@ export function KeyProgressionChart({ data }: Props) {
               color: "#e5e5e5",
               fontSize: 12,
             }}
-            formatter={(_value: unknown, _name: string, props: { payload?: { y: number; characterName: string; date: string } }) => {
-              const p = props.payload;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            formatter={(_value: unknown, _name: unknown, props: any) => {
+              const p = props?.payload as { y: number; characterName: string; date: string } | undefined;
               if (!p) return [];
               return [`+${p.y} — ${p.characterName} (${p.date})`, "Key"];
             }}

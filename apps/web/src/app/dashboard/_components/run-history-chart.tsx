@@ -35,7 +35,8 @@ export function RunHistoryChart({ data }: Props) {
               color: "#e5e5e5",
               fontSize: 12,
             }}
-            formatter={(value: number) => [`${value} runs`, "Runs"]}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            formatter={(value: any) => [`${value} runs`, "Runs"]}
           />
           <Bar dataKey="count" fill="#FFD100" radius={[3, 3, 0, 0]} />
         </BarChart>

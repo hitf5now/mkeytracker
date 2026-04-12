@@ -109,6 +109,8 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN is required}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      REDIS_URL: redis://mplus-platform-redis:6379
+      DISCORD_EVENTS_CHANNEL_ID: ${DISCORD_EVENTS_CHANNEL_ID}
     networks:
       - tech-stack-net
     mem_limit: 512m
