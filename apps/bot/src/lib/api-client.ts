@@ -137,7 +137,9 @@ export interface EventListItem extends EventResponse {
 export interface EventSignupDetail {
   id: number;
   rolePreference: string;
-  character: { name: string; realm: string; class: string };
+  spec: string | null;
+  signupStatus: string;
+  character: { name: string; realm: string; region: string; class: string; hasCompanionApp: boolean };
   team: { id: number; name: string } | null;
 }
 
@@ -150,6 +152,8 @@ export interface EventTeamDetail {
 export interface EventDetailResponse extends EventResponse {
   dungeon: { name: string; slug: string } | null;
   season: { slug: string; name: string };
+  discordMessageId: string | null;
+  discordChannelId: string | null;
   signups: EventSignupDetail[];
   teams: EventTeamDetail[];
 }
@@ -171,6 +175,38 @@ export interface CloseSignupsResponse {
 export interface ApiErrorBody {
   error: string;
   message?: string;
+}
+
+// ── User characters (for button signups) ────────────────────────────
+export interface UserCharacter {
+  id: number;
+  name: string;
+  realm: string;
+  region: string;
+  class: string;
+  spec: string;
+  role: string;
+  rioScore: number;
+  hasCompanionApp: boolean;
+}
+
+export interface UserCharactersResponse {
+  user: { id: number; discordId: string } | null;
+  characters: UserCharacter[];
+}
+
+export interface RaiderIOLookupResponse {
+  found: boolean;
+  character: {
+    name: string;
+    realm: string;
+    region: string;
+    class: string;
+    spec: string;
+    role: string;
+    rioScore: number;
+    profileUrl: string;
+  } | null;
 }
 
 export class ApiError extends Error {
@@ -239,6 +275,61 @@ async function apiPost<TBody, TResponse>(
   return (await response.json()) as TResponse;
 }
 
+async function apiPatch<TBody, TResponse>(
+  path: string,
+  body: TBody,
+): Promise<TResponse> {
+  const url = `${env.API_BASE_URL}${path}`;
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.API_INTERNAL_SECRET}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let errBody: ApiErrorBody | null = null;
+    try {
+      errBody = (await response.json()) as ApiErrorBody;
+    } catch { /* non-JSON */ }
+    throw new ApiError(
+      errBody?.message ?? `API ${response.status}`,
+      response.status,
+      errBody?.error ?? "unknown_error",
+    );
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+/** Internal-auth GET (for endpoints that require bearer token) */
+async function apiGetInternal<TResponse>(path: string): Promise<TResponse> {
+  const url = `${env.API_BASE_URL}${path}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${env.API_INTERNAL_SECRET}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errBody: ApiErrorBody | null = null;
+    try {
+      errBody = (await response.json()) as ApiErrorBody;
+    } catch { /* non-JSON */ }
+    throw new ApiError(
+      errBody?.message ?? `API ${response.status}`,
+      response.status,
+      errBody?.error ?? "unknown_error",
+    );
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 export const apiClient = {
   register: (req: RegisterRequest): Promise<RegisterResponse> =>
     apiPost<RegisterRequest, RegisterResponse>("/api/v1/register", req),
@@ -295,4 +386,24 @@ export const apiClient = {
   closeSignups: (
     eventId: number,
   ): Promise<CloseSignupsResponse> => apiPost(`/api/v1/events/${eventId}/close-signups`, {}),
+
+  // ── Phase 2: Bot interaction endpoints ─────────────────────────
+  getUserCharacters: (discordId: string): Promise<UserCharactersResponse> =>
+    apiGetInternal(`/api/v1/users/by-discord/${encodeURIComponent(discordId)}/characters`),
+
+  raiderioLookup: (
+    name: string,
+    realm: string,
+    region = "us",
+  ): Promise<RaiderIOLookupResponse> =>
+    apiGetInternal(
+      `/api/v1/raiderio/lookup?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${encodeURIComponent(region)}`,
+    ),
+
+  storeDiscordMessage: (
+    eventId: number,
+    messageId: string,
+    channelId: string,
+  ): Promise<unknown> =>
+    apiPatch(`/api/v1/events/${eventId}/discord-message`, { messageId, channelId }),
 };

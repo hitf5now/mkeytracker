@@ -17,6 +17,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev:api": "npm run dev --workspace=@mplus/api",
+    "dev:web": "npm run dev --workspace=@mplus/web",
     "db:up": "docker compose up -d postgres redis",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d postgres redis",

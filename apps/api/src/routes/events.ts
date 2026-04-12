@@ -13,6 +13,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { assignTeams, type SignupForMatching } from "../services/matchmaking.js";
 
@@ -82,6 +83,13 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       req.log.info({ eventId: event.id, name: event.name }, "Event created");
+
+      // Notify the bot via Redis pub/sub so it can post the embed to Discord
+      redis.publish(
+        "mplus:bot-notifications",
+        JSON.stringify({ type: "event_created", eventId: event.id }),
+      ).catch((err) => req.log.error({ err }, "Failed to publish event_created notification"));
+
       return reply.code(201).send({ event });
     });
 
@@ -117,9 +125,9 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       if (!character) return reply.code(404).send({ error: "character_not_found" });
       if (character.userId !== user.id) return reply.code(403).send({ error: "character_not_yours" });
 
-      // Check for duplicate signup
+      // Check for duplicate signup (keyed on discordUserId now)
       const existing = await prisma.eventSignup.findUnique({
-        where: { eventId_userId: { eventId, userId: user.id } },
+        where: { eventId_discordUserId: { eventId, discordUserId: body.discordId } },
       });
       if (existing) {
         // Update role preference if they're changing it
@@ -134,6 +142,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         data: {
           eventId,
           userId: user.id,
+          discordUserId: body.discordId,
           characterId: character.id,
           rolePreference: body.rolePreference,
         },
@@ -175,6 +184,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         rolePreference: s.rolePreference as "tank" | "healer" | "dps",
         characterName: s.character.name,
         realm: s.character.realm,
+        hasCompanionApp: s.character.hasCompanionApp,
       }));
 
       const result = assignTeams(pool);
@@ -226,6 +236,27 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         })),
         stats: result.stats,
       });
+    });
+
+    // ── Store Discord embed message/channel IDs ─────────────────
+    scope.patch<{ Params: { id: string } }>("/events/:id/discord-message", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const body = req.body as { messageId?: string; channelId?: string };
+      if (!body.messageId || !body.channelId) {
+        return reply.code(400).send({ error: "missing_fields", message: "messageId and channelId required" });
+      }
+
+      const event = await prisma.event.update({
+        where: { id: eventId },
+        data: {
+          discordMessageId: body.messageId,
+          discordChannelId: body.channelId,
+        },
+      });
+
+      return reply.code(200).send({ event: { id: event.id, discordMessageId: event.discordMessageId, discordChannelId: event.discordChannelId } });
     });
 
     // ── Lifecycle transitions ───────────────────────────────────

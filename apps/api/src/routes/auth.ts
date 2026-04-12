@@ -26,6 +26,7 @@ import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { signUserToken, JWT_EXPIRY_SECONDS } from "../plugins/jwt-auth.js";
 
+const DISCORD_API_BASE = "https://discord.com/api/v10";
 const LINK_CODE_TTL_SECONDS = 300; // 5 minutes
 const LINK_CODE_KEY_PREFIX = "auth:link:";
 
@@ -87,6 +88,56 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         code,
         expiresInSeconds: LINK_CODE_TTL_SECONDS,
       });
+    });
+  });
+
+  // ── /auth/discord-login — public, called by NextAuth on sign-in ──
+  //
+  // The web app authenticates users with Discord OAuth via NextAuth.
+  // After getting the Discord access token, NextAuth calls this endpoint
+  // to resolve/create the User row and get a userId back.
+  //
+  app.post("/auth/discord-login", async (req, reply) => {
+    const schema = z.object({
+      accessToken: z.string().min(1),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid_body", issues: parsed.error.issues });
+    }
+
+    // Validate the token with Discord
+    const discordRes = await fetch(`${DISCORD_API_BASE}/users/@me`, {
+      headers: { Authorization: `Bearer ${parsed.data.accessToken}` },
+    });
+    if (!discordRes.ok) {
+      return reply.code(401).send({ error: "invalid_discord_token", message: "Discord rejected the access token." });
+    }
+
+    const discordUser = (await discordRes.json()) as {
+      id: string;
+      username: string;
+      global_name: string | null;
+      avatar: string | null;
+    };
+
+    // Upsert user
+    const user = await prisma.user.upsert({
+      where: { discordId: discordUser.id },
+      create: { discordId: discordUser.id },
+      update: {},
+    });
+
+    req.log.info({ userId: user.id, discordId: discordUser.id }, "Discord OAuth login");
+
+    return reply.code(200).send({
+      userId: user.id,
+      discordId: discordUser.id,
+      username: discordUser.username,
+      displayName: discordUser.global_name ?? discordUser.username,
+      avatar: discordUser.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+        : null,
     });
   });
 

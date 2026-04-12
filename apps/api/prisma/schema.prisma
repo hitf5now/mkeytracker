@@ -124,6 +124,11 @@ model Character {
   /// NULL until /register links it.
   claimedAt DateTime? @map("claimed_at")
 
+  /// True if this character has submitted at least one run via the
+  /// companion app. Used by matchmaking (prefer 1 per team) and as
+  /// a subtle tag in embeds/web (⚡ icon).
+  hasCompanionApp Boolean @default(false) @map("has_companion_app")
+
   runMembers   RunMember[]
   eventSignups EventSignup[]
 
@@ -208,11 +213,30 @@ enum EventType {
   // Future types added here — schema migration only, no data loss
 }
 
+/// How the signup was created
+enum SignupSource {
+  discord_verified   // user has a linked Character, clicked button
+  discord_manual     // user entered character info via modal
+  web_oauth          // signed up through website
+}
+
+/// Signup intent status
+enum SignupStatus {
+  confirmed   // definitely attending
+  tentative   // interested but unsure
+  declined    // not attending (tracked for analytics)
+}
+
 model Event {
   id              Int         @id @default(autoincrement())
   name            String
   type            EventType   @default(fastest_clear_race)
   status          EventStatus @default(draft)
+
+  /// Discord message ID of the event embed (for in-place updates)
+  discordMessageId String?    @map("discord_message_id")
+  /// Discord channel ID where the embed was posted
+  discordChannelId String?    @map("discord_channel_id")
 
   /// Which dungeon this event targets (null = any dungeon)
   dungeonId       Int?        @map("dungeon_id")
@@ -258,8 +282,13 @@ model EventSignup {
   eventId         Int       @map("event_id")
   event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  userId          Int       @map("user_id")
-  user            User      @relation(fields: [userId], references: [id])
+  /// Nullable: unverified manual signups may not have a User row.
+  userId          Int?      @map("user_id")
+  user            User?     @relation(fields: [userId], references: [id])
+
+  /// Discord user snowflake of whoever clicked the button / submitted.
+  /// Primary identity key for signups — used for dedup since userId can be null.
+  discordUserId   String?   @map("discord_user_id")
 
   characterId     Int       @map("character_id")
   character       Character @relation(fields: [characterId], references: [id])
@@ -269,13 +298,23 @@ model EventSignup {
   /// sign up as tank.
   rolePreference  String    @map("role_preference") // "tank" | "healer" | "dps"
 
+  /// The spec the player chose for this event. Always user-selected,
+  /// never auto-set. Role is derived from spec.
+  spec            String?
+
+  /// How this signup was created
+  signupSource    SignupSource @default(discord_verified) @map("signup_source")
+
+  /// Signup intent: confirmed, tentative, or declined
+  signupStatus    SignupStatus @default(confirmed) @map("signup_status")
+
   /// Which team was this player assigned to? Null until assign-teams runs.
   teamId          Int?      @map("team_id")
   team            EventTeam? @relation(fields: [teamId], references: [id])
 
   signedUpAt      DateTime  @default(now()) @map("signed_up_at")
 
-  @@unique([eventId, userId])
+  @@unique([eventId, discordUserId])
   @@index([eventId])
   @@map("event_signups")
 }

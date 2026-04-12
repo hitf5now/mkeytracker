@@ -48,6 +48,9 @@ const RunSubmissionSchema = z.object({
   members: z.array(MemberPayloadSchema).length(5, "A Mythic+ run has exactly 5 members"),
   eventId: z.number().int().positive().optional(),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
+  /// The submitting player's character name — used for auto-claim.
+  /// The companion app knows the logged-in player's character.
+  submitterCharacterName: z.string().min(2).max(12).optional(),
 });
 
 type RunSubmissionBody = z.infer<typeof RunSubmissionSchema>;
@@ -197,10 +200,43 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         }),
       );
 
-      // 2b. Ownership check for JWT path: at least one member must
-      // belong to the authenticated user. Unclaimed characters (userId null)
-      // don't satisfy this check. Internal auth bypasses.
+      // 2b. Auto-claim + ownership check for JWT path.
       if (auth.mode === "jwt") {
+        // If the companion app told us which character is the submitter,
+        // try to auto-claim it and set hasCompanionApp.
+        if (body.submitterCharacterName) {
+          const submitterChar = characters.find(
+            (c) => c.name.toLowerCase() === body.submitterCharacterName!.toLowerCase(),
+          );
+          if (submitterChar) {
+            if (submitterChar.userId === null) {
+              // Auto-claim unclaimed character
+              await prisma.character.update({
+                where: { id: submitterChar.id },
+                data: {
+                  userId: auth.userId,
+                  claimedAt: new Date(),
+                  hasCompanionApp: true,
+                },
+              });
+              submitterChar.userId = auth.userId;
+              req.log.info(
+                { characterId: submitterChar.id, name: submitterChar.name, userId: auth.userId },
+                "Auto-claimed character from run submission",
+              );
+            } else if (submitterChar.userId === auth.userId) {
+              // Already claimed by this user — just ensure hasCompanionApp is set
+              if (!submitterChar.hasCompanionApp) {
+                await prisma.character.update({
+                  where: { id: submitterChar.id },
+                  data: { hasCompanionApp: true },
+                });
+              }
+            }
+          }
+        }
+
+        // At least one member must belong to the authenticated user
         const ownsMember = characters.some(
           (c) => c.userId !== null && c.userId === auth.userId,
         );

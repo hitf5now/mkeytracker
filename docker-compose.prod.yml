@@ -10,6 +10,7 @@
 ##   mplus-api                host 3020 → container 3001
 ##   mplus-platform-postgres  host 5434 → container 5432
 ##   mplus-platform-redis     host 6379 → container 6379
+##   mplus-web                host 3030 → container 3000
 ##
 ## ⚠️ mplus-platform-postgres and mplus-platform-redis are RESERVED for
 ## this project. Do not connect other projects to these instances.
@@ -108,6 +109,27 @@ services:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN is required}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+    networks:
+      - tech-stack-net
+    mem_limit: 512m
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: mplus-web:local
+    container_name: mplus-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://mplus-api:3001
+      NEXT_PUBLIC_API_URL: https://api.mythicplustracker.com
+      NEXT_PUBLIC_SITE_URL: https://mythicplustracker.com
+    ports:
+      - "3030:3000"
     networks:
       - tech-stack-net
     mem_limit: 512m

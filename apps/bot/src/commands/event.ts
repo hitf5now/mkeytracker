@@ -5,7 +5,13 @@
  * and triggers matchmaking (close-signups).
  */
 
-import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  SlashCommandBuilder,
+} from "discord.js";
 import { apiClient, ApiError, type EventDetailResponse, type EventListItem } from "../lib/api-client.js";
 import type { Command } from "./index.js";
 
@@ -162,30 +168,57 @@ async function handleCreate(
     });
 
     const event = result.event;
+
+    // Use Discord timestamp format for automatic timezone conversion
+    const startTs = Math.floor(new Date(event.startsAt).getTime() / 1000);
+    const endTs = Math.floor(new Date(event.endsAt).getTime() / 1000);
+
     const embed = new EmbedBuilder()
       .setTitle(`🏆 ${event.name}`)
-      .setColor(0xffcc00)
+      .setColor(0x3ba55d)
       .setDescription(event.description || "_No description_")
       .addFields(
-        { name: "Event ID", value: `#${event.id}`, inline: true },
         { name: "Type", value: event.type.replace(/_/g, " "), inline: true },
-        { name: "Status", value: event.status, inline: true },
         {
           name: "Key Range",
           value: `+${event.minKeyLevel} – +${event.maxKeyLevel}`,
           inline: true,
         },
-        { name: "Starts", value: formatDate(event.startsAt), inline: true },
-        { name: "Ends", value: formatDate(event.endsAt), inline: true },
+        { name: "Status", value: "Open", inline: true },
+        { name: "Time", value: `<t:${startTs}:F> — <t:${endTs}:t>`, inline: false },
+        { name: "🛡 Tanks (0)", value: "_None yet_", inline: false },
+        { name: "💚 Healers (0)", value: "_None yet_", inline: false },
+        { name: "⚔ DPS (0)", value: "_None yet_", inline: false },
       )
-      .setFooter({
-        text: `Sign up with /signup event:${event.id} role:<tank|healer|dps>`,
-      });
+      .setFooter({ text: `Event #${event.id} · 0 confirmed` });
 
-    await interaction.editReply({
-      content: "✅ Event created! Signups are now open.",
+    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-signup:${event.id}`)
+        .setLabel("Sign Up")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`event-tentative:${event.id}`)
+        .setLabel("Tentative")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`event-decline:${event.id}`)
+        .setLabel("Decline")
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    const reply = await interaction.editReply({
+      content: "✅ Event created! Click a button below to sign up.",
       embeds: [embed],
+      components: [buttons],
     });
+
+    // Store the message ID so we can edit the embed in-place on signups
+    try {
+      await apiClient.storeDiscordMessage(event.id, reply.id, interaction.channelId);
+    } catch (err) {
+      console.error("Failed to store Discord message ID:", err);
+    }
   } catch (err) {
     if (err instanceof ApiError) {
       await interaction.editReply(`❌ ${err.message}`);
@@ -268,7 +301,7 @@ async function handleStatus(
 
     if (event.status === "open") {
       embed.setFooter({
-        text: `Sign up: /signup event:${event.id} role:<tank|healer|dps>`,
+        text: "💡 Click the buttons on the event embed to sign up, or create events at mythicplustracker.com/events/create",
       });
     }
 

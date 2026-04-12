@@ -103,7 +103,7 @@ export const registerCommand: Command = {
           },
         )
         .setFooter({
-          text: "Linked to your Discord account. Spec shown is your last known — choose your role per event at signup.",
+          text: "💡 Tip: With the companion app, characters are linked automatically when you run keys!",
         })
         .setTimestamp();
 

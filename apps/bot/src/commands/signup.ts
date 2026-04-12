@@ -133,7 +133,7 @@ export const signupCommand: Command = {
         .setDescription(
           `You've ${action} for event **#${eventId}** as **${role.toUpperCase()}** with **${character}**.`,
         )
-        .setFooter({ text: "Use /event status to see the full signup list." });
+        .setFooter({ text: "💡 Tip: You can also sign up by clicking buttons on the event embed!" });
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {

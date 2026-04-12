@@ -9,24 +9,22 @@
  *   2. Shuffle each bucket randomly for fairness
  *   3. Form teams by pulling 1 tank, 1 healer, 3 DPS
  *   4. Leftover players who can't form a complete team go to "bench"
+ *   5. Post-process: redistribute companion-app users across teams
+ *      (soft constraint — prefer at least 1 per team for run tracking)
  *
  * The bottleneck role determines how many teams form. If you have
  * 5 tanks, 3 healers, and 20 DPS, you form 3 teams (limited by healers).
  * The remaining 2 tanks and 11 DPS are benched.
- *
- * MVP: fully random within each role bucket. Future enhancements:
- *   - RIO-balanced (spread high + low across teams)
- *   - Preferred teammate matching
- *   - Avoid-previous-teammate heuristic
  */
 
 export interface SignupForMatching {
   signupId: number;
-  userId: number;
+  userId: number | null;
   characterId: number;
   rolePreference: "tank" | "healer" | "dps";
   characterName: string;
   realm: string;
+  hasCompanionApp: boolean;
 }
 
 export interface AssignedTeam {
@@ -42,6 +40,7 @@ export interface MatchmakingResult {
     teamsFormed: number;
     benchedCount: number;
     limitingRole: "tank" | "healer" | "dps";
+    teamsWithoutCompanion: number;
   };
 }
 
@@ -86,9 +85,20 @@ export function assignTeams(signups: SignupForMatching[]): MatchmakingResult {
     });
   }
 
+  // ── Post-process: distribute companion-app users across teams ──
+  // Soft constraint: try to ensure at least 1 companion user per team.
+  // Swap within the same role bucket only to preserve role balance.
+  if (teams.length > 1) {
+    distributeCompanionUsers(teams);
+  }
+
   // Leftover players go to the bench.
   const assigned = new Set(teams.flatMap((t) => t.members.map((m) => m.signupId)));
   const benched = signups.filter((s) => !assigned.has(s.signupId));
+
+  const teamsWithoutCompanion = teams.filter(
+    (t) => !t.members.some((m) => m.hasCompanionApp),
+  ).length;
 
   return {
     teams,
@@ -98,6 +108,41 @@ export function assignTeams(signups: SignupForMatching[]): MatchmakingResult {
       teamsFormed: teamCount,
       benchedCount: benched.length,
       limitingRole,
+      teamsWithoutCompanion,
     },
   };
+}
+
+/**
+ * Try to redistribute companion-app users so each team has at least one.
+ * Only swaps within the same role to preserve role balance.
+ */
+function distributeCompanionUsers(teams: AssignedTeam[]): void {
+  for (const needyTeam of teams) {
+    const hasCompanion = needyTeam.members.some((m) => m.hasCompanionApp);
+    if (hasCompanion) continue;
+
+    // Find a team with 2+ companion users to swap with
+    for (const richTeam of teams) {
+      if (richTeam === needyTeam) continue;
+
+      const richCompanions = richTeam.members.filter((m) => m.hasCompanionApp);
+      if (richCompanions.length < 2) continue;
+
+      // Try to swap a companion user for a non-companion user in the same role
+      const donor = richCompanions[0]!;
+      const recipient = needyTeam.members.find(
+        (m) => m.rolePreference === donor.rolePreference && !m.hasCompanionApp,
+      );
+
+      if (recipient) {
+        // Swap them
+        const donorIdx = richTeam.members.indexOf(donor);
+        const recipientIdx = needyTeam.members.indexOf(recipient);
+        richTeam.members[donorIdx] = recipient;
+        needyTeam.members[recipientIdx] = donor;
+        break;
+      }
+    }
+  }
 }
