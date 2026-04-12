@@ -18,6 +18,7 @@ import {
   RaiderIOError,
   type RaiderIORegion,
 } from "../lib/raiderio.js";
+import { fetchCharacterMedia } from "../lib/blizzard.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 
 const RegisterBodySchema = z.object({
@@ -149,6 +150,26 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         },
         "Registered character",
       );
+
+      // Fire-and-forget: fetch Blizzard character portraits in the background.
+      // This doesn't block the registration response.
+      fetchCharacterMedia(body.region, rioChar.realmSlug, rioChar.name)
+        .then(async (media) => {
+          if (media) {
+            await prisma.character.update({
+              where: { id: result.character.id },
+              data: {
+                avatarUrl: media.avatar,
+                insetUrl: media.inset,
+                mainRawUrl: media.mainRaw,
+              },
+            });
+            req.log.info({ characterId: result.character.id }, "Blizzard portraits cached");
+          }
+        })
+        .catch((err) => {
+          req.log.warn({ err, characterId: result.character.id }, "Failed to fetch Blizzard portraits");
+        });
 
       return reply.code(200).send({
         user: {

@@ -114,8 +114,11 @@ model Character {
   role     String
   /// Latest RaiderIO overall score — refreshed on submission + nightly
   rioScore Int    @default(0) @map("rio_score")
-  /// Character portrait URL (cached from RaiderIO or Blizzard API)
-  thumbnailUrl String? @map("thumbnail_url")
+  /// Character portrait URLs (cached from RaiderIO + Blizzard API)
+  thumbnailUrl String? @map("thumbnail_url")       // 96x96 avatar (from RaiderIO)
+  avatarUrl    String? @map("avatar_url")           // 96x96 from Blizzard CDN
+  insetUrl     String? @map("inset_url")            // ~460x460 bust render from Blizzard CDN
+  mainRawUrl   String? @map("main_raw_url")         // ~1000x1000 full body transparent PNG
 
   /// Nullable: an "unclaimed" character exists in our DB because someone
   /// else ran a key with them. When the actual player registers via the

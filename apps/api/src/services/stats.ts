@@ -25,6 +25,10 @@ export interface CharacterPublic {
   role: string;
   rioScore: number;
   claimed: boolean;
+  thumbnailUrl: string | null;
+  avatarUrl: string | null;
+  insetUrl: string | null;
+  mainRawUrl: string | null;
 }
 
 export interface ProfileBestRun {
@@ -206,6 +210,10 @@ export async function getCharacterProfile(
       role: character.role,
       rioScore: character.rioScore,
       claimed: character.userId !== null,
+      thumbnailUrl: character.thumbnailUrl ?? null,
+      avatarUrl: character.avatarUrl ?? null,
+      insetUrl: character.insetUrl ?? null,
+      mainRawUrl: character.mainRawUrl ?? null,
     },
     stats: {
       totalRuns,

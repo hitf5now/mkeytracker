@@ -29,6 +29,10 @@ const EnvSchema = z.object({
   DISCORD_WEBHOOK_EVENTS: z.string().url().optional().or(z.literal("")).default(""),
 
   RAIDERIO_BASE_URL: z.string().url().default("https://raider.io/api/v1"),
+
+  // Blizzard Battle.net API (optional — for character portraits)
+  BLIZZARD_CLIENT_ID: z.string().optional().or(z.literal("")).default(""),
+  BLIZZARD_CLIENT_SECRET: z.string().optional().or(z.literal("")).default(""),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getClassColor, getClassName } from "@/lib/class-colors";
+import { getClassIconUrl } from "@mplus/wow-constants";
 
 interface ClassBadgeProps {
   name: string;
@@ -7,6 +8,8 @@ interface ClassBadgeProps {
   region: string;
   classSlug: string;
   linked?: boolean;
+  showIcon?: boolean;
+  thumbnailUrl?: string | null;
 }
 
 export function ClassBadge({
@@ -15,13 +18,26 @@ export function ClassBadge({
   region,
   classSlug,
   linked = true,
+  showIcon = true,
+  thumbnailUrl,
 }: ClassBadgeProps) {
   const color = getClassColor(classSlug);
   const title = `${name} - ${getClassName(classSlug)}`;
+  const iconUrl = getClassIconUrl(classSlug, "small");
 
   const content = (
-    <span style={{ color }} title={title} className="font-medium">
-      {name}
+    <span className="inline-flex items-center gap-1.5">
+      {showIcon && (
+        <img
+          src={thumbnailUrl ?? iconUrl}
+          alt={getClassName(classSlug)}
+          className="h-5 w-5 rounded-sm"
+          loading="lazy"
+        />
+      )}
+      <span style={{ color }} title={title} className="font-medium">
+        {name}
+      </span>
     </span>
   );
 

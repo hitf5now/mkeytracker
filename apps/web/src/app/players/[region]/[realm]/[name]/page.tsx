@@ -46,8 +46,19 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       {/* Character header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+        {/* Portrait */}
+        {(character.insetUrl || character.avatarUrl || character.thumbnailUrl) && (
+          <div className="shrink-0">
+            <img
+              src={character.insetUrl ?? character.avatarUrl ?? character.thumbnailUrl ?? ""}
+              alt={character.name}
+              className="h-24 w-24 rounded-lg border border-border object-cover sm:h-32 sm:w-32"
+              loading="eager"
+            />
+          </div>
+        )}
+        <div className="flex-1">
           <h1 className="text-3xl font-bold" style={{ color: classColor }}>
             {character.name}
           </h1>
@@ -55,14 +66,14 @@ export default async function PlayerProfilePage({ params }: Props) {
             {character.realm} &mdash; {character.region.toUpperCase()} &mdash;{" "}
             {getClassName(character.class)} ({character.spec})
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <RoleIcon role={character.role} />
-          {character.rioScore > 0 && (
-            <span className="text-sm text-muted-foreground">
-              RIO {formatNumber(character.rioScore)}
-            </span>
-          )}
+          <div className="mt-2 flex items-center gap-4">
+            <RoleIcon role={character.role} />
+            {character.rioScore > 0 && (
+              <span className="text-sm text-muted-foreground">
+                RIO {formatNumber(character.rioScore)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

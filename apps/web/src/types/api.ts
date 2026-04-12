@@ -66,6 +66,10 @@ export interface CharacterProfile {
     role: string;
     rioScore: number;
     claimed: boolean;
+    thumbnailUrl: string | null;
+    avatarUrl: string | null;
+    insetUrl: string | null;
+    mainRawUrl: string | null;
   };
   stats: {
     totalRuns: number;
