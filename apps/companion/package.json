@@ -51,7 +51,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "MKeyTracker-Setup-${version}.${ext}"
+      "artifactName": "MKeyTracker-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,

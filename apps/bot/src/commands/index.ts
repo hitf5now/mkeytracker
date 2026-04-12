@@ -12,8 +12,10 @@ import type {
   SlashCommandOptionsOnlyBuilder,
   SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
+import { leaderboardCommand } from "./leaderboard.js";
 import { linkCommand } from "./link.js";
 import { pingCommand } from "./ping.js";
+import { profileCommand } from "./profile.js";
 import { registerCommand } from "./register.js";
 import { setupCommand } from "./setup.js";
 
@@ -33,6 +35,8 @@ export const commands: Map<string, Command> = new Map([
   [registerCommand.data.name, registerCommand],
   [linkCommand.data.name, linkCommand],
   [setupCommand.data.name, setupCommand],
+  [profileCommand.data.name, profileCommand],
+  [leaderboardCommand.data.name, leaderboardCommand],
 ]);
 
 export function allCommands(): Command[] {

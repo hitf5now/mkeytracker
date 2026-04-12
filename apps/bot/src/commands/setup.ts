@@ -9,8 +9,8 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import type { Command } from "./index.js";
 
-const COMPANION_DOWNLOAD_URL =
-  "https://github.com/hitf5now/mkeytracker/releases/latest/download/MKeyTracker-Setup.exe";
+/** Release page URL — always resolves to the latest published release
+ * so we don't have to hardcode a version in the link. */
 const COMPANION_RELEASES_PAGE =
   "https://github.com/hitf5now/mkeytracker/releases/latest";
 
@@ -29,7 +29,7 @@ export const setupCommand: Command = {
       .addFields(
         {
           name: "1️⃣ Download",
-          value: `**[⬇ MKeyTracker-Setup.exe](${COMPANION_DOWNLOAD_URL})**\nAll releases: [github.com/hitf5now/mkeytracker](${COMPANION_RELEASES_PAGE})`,
+          value: `**[⬇ Open the latest release](${COMPANION_RELEASES_PAGE})** then click the \`.exe\` file under **Assets**.`,
           inline: false,
         },
         {

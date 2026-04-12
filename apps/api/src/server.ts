@@ -12,7 +12,9 @@ import { prisma } from "./lib/prisma.js";
 import { redis } from "./lib/redis.js";
 import { registerJwtPlugin } from "./plugins/jwt-auth.js";
 import { authRoutes } from "./routes/auth.js";
+import { charactersRoutes } from "./routes/characters.js";
 import { healthRoutes } from "./routes/health.js";
+import { leaderboardsRoutes } from "./routes/leaderboards.js";
 import { registerRoutes } from "./routes/register.js";
 import { runsRoutes } from "./routes/runs.js";
 import { telemetryRoutes } from "./routes/telemetry.js";
@@ -38,6 +40,8 @@ async function buildServer(): Promise<FastifyInstance> {
   await app.register(registerRoutes, { prefix: "/api/v1" });
   await app.register(runsRoutes, { prefix: "/api/v1" });
   await app.register(telemetryRoutes, { prefix: "/api/v1" });
+  await app.register(charactersRoutes, { prefix: "/api/v1" });
+  await app.register(leaderboardsRoutes, { prefix: "/api/v1" });
 
   // Future routes plug in here:
   // await app.register(authRoutes, { prefix: "/api/v1/auth" });
