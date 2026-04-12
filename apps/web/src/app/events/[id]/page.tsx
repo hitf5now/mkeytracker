@@ -26,7 +26,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventDetailPage({ params }: Props) {
-  const session = await auth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await auth() as any;
   if (!session) {
     redirect(`/api/auth/signin?callbackUrl=/events/${(await params).id}`);
   }
@@ -61,8 +62,7 @@ export default async function EventDetailPage({ params }: Props) {
 
       {/* Admin panel — only visible to event creator */}
       {(() => {
-        const sessionData = session as unknown as Record<string, unknown>;
-        const userId = sessionData.userId as number | undefined;
+        const userId = session.userId as number | undefined;
         const isCreator = userId && userId === event.createdByUserId;
         if (!isCreator) return null;
         return (

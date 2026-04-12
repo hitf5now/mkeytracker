@@ -36,8 +36,8 @@ export function UserMenu() {
     );
   }
 
-  const avatar = (session as Record<string, unknown>).avatar as string | null;
-  const displayName = (session as Record<string, unknown>).displayName as string | undefined;
+  const avatar = session.avatar ?? null;
+  const displayName = session.displayName;
 
   return (
     <div className="relative" ref={menuRef}>

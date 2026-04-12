@@ -14,7 +14,8 @@ const API_BASE =
 const API_SECRET = process.env.API_INTERNAL_SECRET ?? "";
 
 export async function POST(request: Request) {
-  const session = await auth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await auth() as any;
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   const body = await request.json();
 
   // Add the creating user's Discord ID from the session
-  const discordId = (session as Record<string, unknown>).discordId as string;
+  const discordId = session.discordId as string;
   if (!discordId) {
     return NextResponse.json({ error: "No Discord ID in session" }, { status: 401 });
   }

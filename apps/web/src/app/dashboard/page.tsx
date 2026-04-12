@@ -22,12 +22,13 @@ const API_BASE =
 const API_SECRET = process.env.API_INTERNAL_SECRET ?? "";
 
 export default async function DashboardPage() {
-  const session = await auth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await auth() as any;
   if (!session) {
     redirect("/api/auth/signin?callbackUrl=/dashboard");
   }
 
-  const userId = (session as Record<string, unknown>).userId as number | undefined;
+  const userId = session.userId as number | undefined;
   if (!userId) {
     redirect("/api/auth/signin?callbackUrl=/dashboard");
   }
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const displayName = (session as Record<string, unknown>).displayName as string | undefined;
+  const displayName = sessionData.displayName as string | undefined;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
