@@ -56,6 +56,15 @@ const MemberSchema = z.object({
  * spec) and again from the group roster scan. We deduplicate after
  * schema validation.
  */
+const PlayerStatsSchema = z.object({
+  damage: z.number().nonnegative().default(0),
+  healing: z.number().nonnegative().default(0),
+  damageTaken: z.number().nonnegative().default(0),
+  deaths: z.number().int().nonnegative().default(0),
+  interrupts: z.number().int().nonnegative().default(0),
+  dispels: z.number().int().nonnegative().default(0),
+});
+
 const RunSubmissionSchemaRaw = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2),
@@ -70,6 +79,20 @@ const RunSubmissionSchemaRaw = z.object({
   members: z.array(MemberSchema).min(5).max(10),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
   eventId: z.number().int().positive().optional(),
+  // New: dynamic dungeon metadata
+  dungeonName: z.string().optional(),
+  dungeonTimeLimitSec: z.number().int().positive().optional(),
+  // New: rating data (local player only)
+  oldRating: z.number().int().nonnegative().optional().nullable(),
+  newRating: z.number().int().nonnegative().optional().nullable(),
+  ratingGained: z.number().int().optional(),
+  isMapRecord: z.boolean().optional(),
+  isAffixRecord: z.boolean().optional(),
+  isEligibleForScore: z.boolean().optional(),
+  // New: season tracking
+  wowSeasonId: z.number().int().optional().nullable(),
+  // New: per-player combat stats (keyed by "Name-realm")
+  playerStats: z.record(z.string(), PlayerStatsSchema).optional().nullable(),
 });
 
 type RawRun = z.infer<typeof RunSubmissionSchemaRaw>;

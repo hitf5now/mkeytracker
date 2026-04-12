@@ -34,6 +34,15 @@ const MemberPayloadSchema = z.object({
   role: z.enum(["tank", "healer", "dps"]),
 });
 
+const PlayerStatsSchema = z.object({
+  damage: z.number().nonnegative().default(0),
+  healing: z.number().nonnegative().default(0),
+  damageTaken: z.number().nonnegative().default(0),
+  deaths: z.number().int().nonnegative().default(0),
+  interrupts: z.number().int().nonnegative().default(0),
+  dispels: z.number().int().nonnegative().default(0),
+});
+
 const RunSubmissionSchema = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2).max(40),
@@ -45,12 +54,24 @@ const RunSubmissionSchema = z.object({
   serverTime: z.number().int().positive(),
   affixes: z.array(z.number().int()).default([]),
   region: RegionSchema,
-  members: z.array(MemberPayloadSchema).length(5, "A Mythic+ run has exactly 5 members"),
+  members: z.array(MemberPayloadSchema).min(5).max(6),
   eventId: z.number().int().positive().optional(),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
-  /// The submitting player's character name — used for auto-claim.
-  /// The companion app knows the logged-in player's character.
   submitterCharacterName: z.string().min(2).max(12).optional(),
+  // Dynamic dungeon metadata from addon
+  dungeonName: z.string().optional(),
+  dungeonTimeLimitSec: z.number().int().positive().optional(),
+  // Rating data (local player only)
+  oldRating: z.number().int().nonnegative().optional().nullable(),
+  newRating: z.number().int().nonnegative().optional().nullable(),
+  ratingGained: z.number().int().optional(),
+  isMapRecord: z.boolean().optional(),
+  isAffixRecord: z.boolean().optional(),
+  isEligibleForScore: z.boolean().optional(),
+  // Season tracking (dynamic WoW season ID)
+  wowSeasonId: z.number().int().optional().nullable(),
+  // Per-player combat stats (keyed by "Name-realm")
+  playerStats: z.record(z.string(), PlayerStatsSchema).optional().nullable(),
 });
 
 type RunSubmissionBody = z.infer<typeof RunSubmissionSchema>;
@@ -155,11 +176,23 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // 2. Normalize realms and look up all 5 Character rows, auto-creating
-      //    unclaimed stubs for any member we haven't seen before. An
-      //    unclaimed character has userId = null and can be later "claimed"
-      //    when its owner registers via the Discord bot.
-      const normalizedMembers = body.members.map((m) => ({
+      // 2. Deduplicate members (addon may include player twice) and normalize.
+      const seen = new Set<string>();
+      const dedupedMembers = body.members.filter((m) => {
+        const key = `${m.name.toLowerCase()}|${m.realm.toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 5);
+
+      if (dedupedMembers.length !== 5) {
+        return reply.code(400).send({
+          error: "invalid_members",
+          message: `Expected 5 unique members, got ${dedupedMembers.length}.`,
+        });
+      }
+
+      const normalizedMembers = dedupedMembers.map((m) => ({
         ...m,
         realmSlug: toRealmSlug(m.realm),
       }));
@@ -301,6 +334,15 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               dedupHash,
               points: breakdown.total,
               eventId: body.eventId ?? null,
+              // Enhanced data from addon v0.2.0
+              dungeonName: body.dungeonName ?? null,
+              wowSeasonId: body.wowSeasonId ?? null,
+              oldRating: body.oldRating ?? null,
+              newRating: body.newRating ?? null,
+              ratingGained: body.ratingGained ?? null,
+              isMapRecord: body.isMapRecord ?? false,
+              isAffixRecord: body.isAffixRecord ?? false,
+              playerStats: body.playerStats ?? undefined,
               members: {
                 create: normalizedMembers.map((m, i) => ({
                   userId: characters[i]!.userId, // nullable — unclaimed members

@@ -176,6 +176,21 @@ model Run {
   dedupHash       String    @unique @map("dedup_hash")
   /// Computed points — written by scoring service on insert
   points          Int       @default(0)
+  /// Dynamic dungeon name from addon (used for auto-discovery)
+  dungeonName     String?   @map("dungeon_name")
+  /// WoW season ID (dynamic, from C_MythicPlus.GetCurrentSeason)
+  wowSeasonId     Int?      @map("wow_season_id")
+  /// Submitter's M+ rating before this run
+  oldRating       Int?      @map("old_rating")
+  /// Submitter's M+ rating after this run
+  newRating       Int?      @map("new_rating")
+  /// Rating gained from this run
+  ratingGained    Int?      @map("rating_gained")
+  /// Personal best flags
+  isMapRecord     Boolean   @default(false) @map("is_map_record")
+  isAffixRecord   Boolean   @default(false) @map("is_affix_record")
+  /// Per-player combat stats (JSON: { "Name-realm": { damage, healing, deaths, interrupts, ... } })
+  playerStats     Json?     @map("player_stats")
   /// Optional event association
   eventId         Int?       @map("event_id")
   event           Event?     @relation(fields: [eventId], references: [id])

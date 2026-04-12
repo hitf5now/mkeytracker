@@ -246,6 +246,38 @@ function ns.Capture.OnCompleted(overrideInfo)
 
     local serverTime = GetServerTime and GetServerTime() or time()
 
+    local members = BuildMembers(info)
+
+    -- Apply inspected specs to other members (from CombatLog module)
+    if ns.CombatLog and ns.CombatLog.GetPartySpecs then
+        local partySpecs = ns.CombatLog.GetPartySpecs()
+        for _, m in ipairs(members) do
+            if m.spec == "Unknown" and partySpecs[m.name] then
+                m.spec = partySpecs[m.name]
+            end
+        end
+    end
+
+    -- Dynamic dungeon metadata from WoW API
+    local dungeonName, _, dungeonTimeLimitSec = C_ChallengeMode.GetMapUIInfo(mapID)
+
+    -- Rating data (local player only)
+    local oldRating = info.oldOverallDungeonScore
+    local newRating = info.newOverallDungeonScore
+    local ratingGained = 0
+    if oldRating and newRating then
+        ratingGained = newRating - oldRating
+    end
+
+    -- Season ID (dynamic — changes each season, no static mapping)
+    local wowSeasonId = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason() or nil
+
+    -- Per-player combat stats from CombatLog module
+    local playerStats = nil
+    if ns.CombatLog and ns.CombatLog.GetPlayerStats then
+        playerStats = ns.CombatLog.GetPlayerStats()
+    end
+
     local payload = {
         challengeModeId = mapID,
         keystoneLevel = level,
@@ -257,8 +289,22 @@ function ns.Capture.OnCompleted(overrideInfo)
         serverTime = serverTime,
         affixes = GetActiveAffixIds(),
         region = ns.Utils.RegionCode(),
-        members = BuildMembers(info),
+        members = members,
         source = "addon",
+        -- Dynamic dungeon metadata
+        dungeonName = dungeonName or nil,
+        dungeonTimeLimitSec = dungeonTimeLimitSec or nil,
+        -- Rating (local player only)
+        oldRating = oldRating,
+        newRating = newRating,
+        ratingGained = ratingGained,
+        isMapRecord = info.isMapRecord or false,
+        isAffixRecord = info.isAffixRecord or false,
+        isEligibleForScore = info.isEligibleForScore or false,
+        -- Season (dynamic)
+        wowSeasonId = wowSeasonId,
+        -- Per-player combat stats
+        playerStats = playerStats,
     }
 
     -- Client-side dedup

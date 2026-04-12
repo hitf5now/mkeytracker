@@ -35,7 +35,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.1.0"
+ns.version = "0.2.0"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -69,12 +69,24 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
     elseif event == "PLAYER_LOGIN" then
         ns.Utils.Debug("PLAYER_LOGIN fired")
     elseif event == "CHALLENGE_MODE_START" then
+        -- Start combat log tracking for per-player stats + spec detection
+        if ns.CombatLog and ns.CombatLog.Start then
+            ns.CombatLog.Start()
+        end
         if ns.Capture and ns.Capture.OnStart then
             ns.Capture.OnStart()
         end
     elseif event == "CHALLENGE_MODE_COMPLETED" then
+        -- Stop combat log before capture reads the stats
+        if ns.CombatLog and ns.CombatLog.Stop then
+            ns.CombatLog.Stop()
+        end
         if ns.Capture and ns.Capture.OnCompleted then
             ns.Capture.OnCompleted()
+        end
+        -- Clear combat log state after capture
+        if ns.CombatLog and ns.CombatLog.Clear then
+            ns.CombatLog.Clear()
         end
     end
 end)
