@@ -1,148 +1,128 @@
 /**
  * Auto-update integration via electron-updater.
  *
- * Update feed: GitHub Releases at hitf5now/mkeytracker. electron-builder
- * publishes the installer + a `latest.yml` manifest; electron-updater
- * reads that manifest and compares against app.getVersion().
- *
- * UX (per user choice: Option B — banner + manual button, not seamless):
+ * UX (Option B — banner + manual button):
  *   - On app start, silently check for an update
  *   - If one is available, push an IPC event so the dashboard shows a
- *     "Update available — v1.2.3" banner with a Download button
- *   - User clicks Download → electron-updater downloads in the background
- *   - When download completes, push another event so the banner becomes
- *     "Update ready — Restart to install"
+ *     "Update available" banner with a Download button
+ *   - User clicks Download → downloads in background
+ *   - When download completes, banner becomes "Restart to install"
  *   - User clicks Restart → autoUpdater.quitAndInstall()
  *
- * This module is a no-op in dev (when the app isn't packaged) because
- * electron-updater only works against signed / versioned releases.
+ * Feed: GitHub Releases at hitf5now/mkeytracker (configured in
+ * package.json build.publish).
+ *
+ * IMPORTANT: electron-updater MUST be in `dependencies` (not
+ * devDependencies) because electron-builder prunes devDeps before
+ * packaging. Using a static import here — if the module were missing,
+ * the app would crash loudly at startup instead of silently disabling
+ * updates (which is what happened with the old dynamic import pattern).
  */
 
 import { app, BrowserWindow } from "electron";
+import { autoUpdater } from "electron-updater";
 
 export interface UpdateState {
-    status:
-        | "idle"
-        | "checking"
-        | "up-to-date"
-        | "available"
-        | "downloading"
-        | "ready"
-        | "error";
-    version?: string;
-    progress?: number;
-    notes?: string;
-    error?: string;
+  status:
+    | "idle"
+    | "checking"
+    | "up-to-date"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "error";
+  version?: string;
+  progress?: number;
+  notes?: string;
+  error?: string;
 }
 
 let currentState: UpdateState = { status: "idle" };
 let mainWindow: BrowserWindow | null = null;
-let updaterInstance: unknown = null;
 
 function emitState(state: UpdateState): void {
-    currentState = state;
-    mainWindow?.webContents.send("mplus:events:updateState", state);
+  currentState = state;
+  mainWindow?.webContents.send("mplus:events:updateState", state);
 }
 
-/**
- * Wires up electron-updater if it's available. Fails gracefully if the
- * package isn't installed (we still ship without it — it's only pulled
- * in during packaging).
- */
 export async function initAutoUpdater(win: BrowserWindow): Promise<void> {
-    mainWindow = win;
+  mainWindow = win;
 
-    if (!app.isPackaged) {
-        console.log("[updater] skipping — running unpackaged (dev mode)");
-        emitState({ status: "idle" });
-        return;
-    }
+  if (!app.isPackaged) {
+    console.log("[updater] dev mode (unpackaged) — skipping update check");
+    emitState({ status: "idle" });
+    return;
+  }
 
-    try {
-        // Dynamic import so the dep is only required in production builds.
-        // Using string concatenation prevents bundlers from statically
-        // resolving the package when it's not present in dev.
-        const moduleName = "electron-" + "updater";
-        const { autoUpdater } = (await import(moduleName)) as {
-            autoUpdater: {
-                on: (event: string, listener: (...args: unknown[]) => void) => void;
-                autoDownload: boolean;
-                autoInstallOnAppQuit: boolean;
-                checkForUpdates: () => Promise<unknown>;
-                downloadUpdate: () => Promise<unknown>;
-                quitAndInstall: () => void;
-            };
-        };
+  console.log(`[updater] packaged app v${app.getVersion()} — configuring auto-updater`);
 
-        autoUpdater.autoDownload = false; // user-initiated per UX spec
-        autoUpdater.autoInstallOnAppQuit = true;
-        updaterInstance = autoUpdater;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
 
-        autoUpdater.on("checking-for-update", () => {
-            emitState({ status: "checking" });
-        });
-        autoUpdater.on("update-available", (info: unknown) => {
-            const i = info as { version?: string; releaseNotes?: string };
-            emitState({
-                status: "available",
-                version: i.version,
-                notes:
-                    typeof i.releaseNotes === "string"
-                        ? i.releaseNotes.slice(0, 400)
-                        : undefined,
-            });
-        });
-        autoUpdater.on("update-not-available", () => {
-            emitState({ status: "up-to-date" });
-        });
-        autoUpdater.on("download-progress", (prog: unknown) => {
-            const p = prog as { percent?: number };
-            emitState({
-                status: "downloading",
-                progress: typeof p.percent === "number" ? p.percent : 0,
-            });
-        });
-        autoUpdater.on("update-downloaded", (info: unknown) => {
-            const i = info as { version?: string };
-            emitState({ status: "ready", version: i.version });
-        });
-        autoUpdater.on("error", (err: unknown) => {
-            const message =
-                err instanceof Error ? err.message : String(err);
-            console.error("[updater] error:", message);
-            emitState({ status: "error", error: message });
-        });
+  autoUpdater.on("checking-for-update", () => {
+    console.log("[updater] checking for updates…");
+    emitState({ status: "checking" });
+  });
 
-        // Fire the initial check. Wrapped in catch because
-        // checkForUpdates() rejects if the feed isn't reachable.
-        try {
-            await autoUpdater.checkForUpdates();
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            console.warn("[updater] initial check failed:", message);
-        }
-    } catch (err) {
-        console.warn("[updater] electron-updater not installed — skipping", err);
-    }
+  autoUpdater.on("update-available", (info) => {
+    console.log(`[updater] update available: ${info.version}`);
+    emitState({
+      status: "available",
+      version: info.version,
+      notes:
+        typeof info.releaseNotes === "string"
+          ? info.releaseNotes.slice(0, 400)
+          : undefined,
+    });
+  });
+
+  autoUpdater.on("update-not-available", (info) => {
+    console.log(`[updater] up to date (current: ${app.getVersion()}, latest: ${info.version})`);
+    emitState({ status: "up-to-date" });
+  });
+
+  autoUpdater.on("download-progress", (prog) => {
+    emitState({
+      status: "downloading",
+      progress: typeof prog.percent === "number" ? prog.percent : 0,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    console.log(`[updater] update downloaded: ${info.version} — ready to install`);
+    emitState({ status: "ready", version: info.version });
+  });
+
+  autoUpdater.on("error", (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[updater] error:", message);
+    emitState({ status: "error", error: message });
+  });
+
+  // Fire the initial check
+  try {
+    console.log("[updater] firing initial checkForUpdates…");
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[updater] initial check failed:", message);
+    emitState({ status: "error", error: message });
+  }
 }
 
 export function getUpdateState(): UpdateState {
-    return currentState;
+  return currentState;
 }
 
 export async function downloadUpdate(): Promise<void> {
-    if (!updaterInstance) return;
-    const u = updaterInstance as { downloadUpdate: () => Promise<unknown> };
-    try {
-        await u.downloadUpdate();
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        emitState({ status: "error", error: message });
-    }
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    emitState({ status: "error", error: message });
+  }
 }
 
 export function quitAndInstall(): void {
-    if (!updaterInstance) return;
-    const u = updaterInstance as { quitAndInstall: () => void };
-    u.quitAndInstall();
+  autoUpdater.quitAndInstall();
 }

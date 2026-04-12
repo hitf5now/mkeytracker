@@ -172,12 +172,31 @@ function renderUpdateState(state) {
     }
 }
 
+function renderUpdaterStatusLine(state) {
+    const el = document.getElementById("updater-status-line");
+    if (!el) return;
+    const labels = {
+        idle: "Updates: idle",
+        checking: "Updates: checking…",
+        "up-to-date": "Updates: up to date ✓",
+        available: `Updates: v${state.version || "?"} available`,
+        downloading: `Updates: downloading ${Math.floor(state.progress || 0)}%`,
+        ready: `Updates: v${state.version || "?"} ready — restart to install`,
+        error: `Updates: error — ${(state.error || "unknown").slice(0, 80)}`,
+    };
+    el.textContent = labels[state.status] || `Updates: ${state.status}`;
+}
+
 async function fetchUpdateState() {
     const state = await window.mplus.updateGet();
     renderUpdateState(state);
+    renderUpdaterStatusLine(state);
 }
 
-window.mplus.onUpdateState((state) => renderUpdateState(state));
+window.mplus.onUpdateState((state) => {
+    renderUpdateState(state);
+    renderUpdaterStatusLine(state);
+});
 void fetchUpdateState();
 
 // Listen for push events from main process
