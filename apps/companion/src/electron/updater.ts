@@ -20,7 +20,11 @@
  */
 
 import { app, BrowserWindow } from "electron";
-import { autoUpdater } from "electron-updater";
+// electron-updater is CJS; our app is ESM ("type": "module"). Node's
+// ESM loader can't extract named exports from CJS modules, so we use
+// a default import and destructure from it.
+import electronUpdater from "electron-updater";
+const autoUpdater = electronUpdater.autoUpdater;
 
 export interface UpdateState {
   status:
