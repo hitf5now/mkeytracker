@@ -18,7 +18,7 @@
 import { CompanionApiClient, CompanionApiError } from "./api-client.js";
 import { addPostedHash, loadConfig } from "./config.js";
 import { computeClientRunHash } from "./run-hash.js";
-import { parseSavedVariablesFile, type ParsedRun } from "./sv-parser.js";
+import { parseSavedVariablesFile, removeSubmittedRuns, type ParsedRun } from "./sv-parser.js";
 
 export interface QueueResult {
   newRuns: number;
@@ -113,6 +113,29 @@ export class RunQueue {
         }
       }
     }
+
+    // Clean up submitted runs from the SavedVariables file so it
+    // doesn't grow forever. Only remove runs we successfully posted.
+    if (result.submitted > 0 || result.deduplicated > 0) {
+      try {
+        const allPosted = new Set(loadConfig().postedRunHashes);
+        const cleanup = removeSubmittedRuns(
+          savedVariablesPath,
+          allPosted,
+          computeClientRunHash,
+        );
+        if (cleanup.removed > 0) {
+          this.log.log(
+            `[queue] cleaned ${cleanup.removed} submitted run(s) from SavedVariables (${cleanup.remaining} remaining)`,
+          );
+        }
+      } catch (err) {
+        // Non-fatal — the file cleanup is best-effort. The dedup
+        // hashes prevent re-submission even if cleanup fails.
+        this.log.warn(`[queue] failed to clean SavedVariables: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     return result;
   }
 

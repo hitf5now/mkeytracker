@@ -26,7 +26,7 @@
  * validate each entry against a zod schema matching RunSubmission.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import * as luaparse from "luaparse";
 import type {
   Chunk,
@@ -279,4 +279,78 @@ export function parseSavedVariablesSource(source: string): ParseResult {
   }
 
   return { runs, rejected, errors, lastCapturedHash };
+}
+
+// ─── Lua serializer (for writing back cleaned SavedVariables) ────────
+
+function jsToLua(value: unknown, indent = 1): string {
+  const pad = "\t".repeat(indent);
+  const padOuter = "\t".repeat(indent - 1);
+
+  if (value === null || value === undefined) return "nil";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    // Escape backslashes, quotes, and newlines
+    const escaped = value
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, "\\n");
+    return `"${escaped}"`;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "{}";
+    const items = value.map((v) => `${pad}${jsToLua(v, indent + 1)},`);
+    return `{\n${items.join("\n")}\n${padOuter}}`;
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return "{}";
+    const items = entries.map(
+      ([k, v]) => `${pad}["${k}"] = ${jsToLua(v, indent + 1)},`,
+    );
+    return `{\n${items.join("\n")}\n${padOuter}}`;
+  }
+
+  return "nil";
+}
+
+/**
+ * Remove submitted runs from the SavedVariables file.
+ *
+ * Reads the current file, parses it, removes runs whose client hashes
+ * are in the `submittedHashes` set, and writes the file back as valid
+ * Lua. Preserves other top-level keys like lastCapturedHash.
+ *
+ * This keeps the file small and prevents re-parsing old runs.
+ */
+export function removeSubmittedRuns(
+  filePath: string,
+  submittedHashes: Set<string>,
+  computeHash: (run: ParsedRun) => string,
+): { removed: number; remaining: number } {
+  const parse = parseSavedVariablesFile(filePath);
+
+  // Filter out submitted runs
+  const remaining = parse.runs.filter((run) => !submittedHashes.has(computeHash(run)));
+  const removed = parse.runs.length - remaining.length;
+
+  if (removed === 0) {
+    return { removed: 0, remaining: remaining.length };
+  }
+
+  // Rebuild the MKeyTrackerDB Lua table
+  const db: Record<string, unknown> = {
+    pendingRuns: remaining,
+  };
+  if (parse.lastCapturedHash) {
+    db.lastCapturedHash = parse.lastCapturedHash;
+  }
+
+  const lua = `MKeyTrackerDB = ${jsToLua(db)}\n`;
+  writeFileSync(filePath, lua, "utf-8");
+
+  return { removed, remaining: remaining.length };
 }
