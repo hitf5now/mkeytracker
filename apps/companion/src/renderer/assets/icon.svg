@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffcc00"/>
+      <stop offset="100%" stop-color="#ff9500"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a1f2e"/>
+      <stop offset="100%" stop-color="#0f1115"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffcc00" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffcc00" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- rounded background tile -->
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#glow)"/>
+
+  <!-- stylized keystone: a diamond with a key hole -->
+  <g transform="translate(128 128)">
+    <!-- outer diamond ring -->
+    <path d="M 0 -84 L 70 0 L 0 84 L -70 0 Z"
+          fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linejoin="round"/>
+    <!-- inner diamond fill -->
+    <path d="M 0 -64 L 52 0 L 0 64 L -52 0 Z"
+          fill="url(#goldGrad)" opacity="0.2"/>
+    <!-- central "M" (for mythic) -->
+    <path d="M -30 28 L -30 -28 L 0 10 L 30 -28 L 30 28"
+          fill="none" stroke="url(#goldGrad)" stroke-width="8"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- subtle edge highlight -->
+  <rect x="0" y="0" width="256" height="256" rx="56"
+        fill="none" stroke="#2a3142" stroke-width="2"/>
+</svg>

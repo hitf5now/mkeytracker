@@ -1,0 +1,68 @@
+{
+  "$comment": "Real WoW Midnight Season 1 dungeon data captured via C_ChallengeMode.GetMapTable() on 2026-04-11. Par times from C_ChallengeMode.GetMapUIInfo (seconds).",
+  "season": {
+    "slug": "midnight-s1",
+    "name": "Midnight Season 1",
+    "patch": "12.0.0",
+    "startsAt": "2026-03-10T00:00:00Z",
+    "isActive": true
+  },
+  "dungeons": [
+    {
+      "challengeModeId": 239,
+      "slug": "seat-of-the-triumvirate",
+      "name": "Seat of the Triumvirate",
+      "shortCode": "SOTT",
+      "parTimeSec": 2040
+    },
+    {
+      "challengeModeId": 161,
+      "slug": "skyreach",
+      "name": "Skyreach",
+      "shortCode": "SKY",
+      "parTimeSec": 1680
+    },
+    {
+      "challengeModeId": 560,
+      "slug": "maisara-caverns",
+      "name": "Maisara Caverns",
+      "shortCode": "MC",
+      "parTimeSec": 1980
+    },
+    {
+      "challengeModeId": 402,
+      "slug": "algethar-academy",
+      "name": "Algeth'ar Academy",
+      "shortCode": "AA",
+      "parTimeSec": 1800
+    },
+    {
+      "challengeModeId": 556,
+      "slug": "pit-of-saron",
+      "name": "Pit of Saron",
+      "shortCode": "POS",
+      "parTimeSec": 2040
+    },
+    {
+      "challengeModeId": 558,
+      "slug": "magisters-terrace",
+      "name": "Magisters' Terrace",
+      "shortCode": "MGT",
+      "parTimeSec": 2040
+    },
+    {
+      "challengeModeId": 559,
+      "slug": "nexus-point-xenas",
+      "name": "Nexus-Point Xenas",
+      "shortCode": "NPX",
+      "parTimeSec": 1800
+    },
+    {
+      "challengeModeId": 557,
+      "slug": "windrunner-spire",
+      "name": "Windrunner Spire",
+      "shortCode": "WRS",
+      "parTimeSec": 1980
+    }
+  ]
+}

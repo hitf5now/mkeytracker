@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        env:
+          # Placeholder — we're not hitting a DB, only running generate
+          DATABASE_URL: postgresql://user:pass@localhost:5432/placeholder
+
+      - name: Typecheck (all workspaces)
+        run: npm run typecheck
+
+      # Lint is wired up in each workspace's package.json but no eslint
+      # config yet — will enable once the first workspace adds one.
+      # - name: Lint
+      #   run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: typecheck-and-lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mplus
+          POSTGRES_PASSWORD: mplus_ci_password
+          POSTGRES_DB: mplus_platform_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mplus -d mplus_platform_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://mplus:mplus_ci_password@localhost:5432/mplus_platform_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret-32-bytes-minimum-xxxxxxxx
+      API_INTERNAL_SECRET: ci-internal-secret-16
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Apply migrations
+        run: npm run prisma:deploy --workspace=@mplus/api
+        continue-on-error: true # no migrations committed yet on first CI run
+
+      - name: Run tests
+        run: npm test

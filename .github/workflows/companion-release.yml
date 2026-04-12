@@ -1,0 +1,55 @@
+name: Companion Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # Create a dummy .env so the dotenv-cli-wrapped prisma/postinstall
+      # scripts don't choke on a missing file. No real secrets go here —
+      # this file is only used for `prisma generate` which reads the
+      # schema, not the DB.
+      - name: Seed dummy env for prisma generate
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql://ci:ci@localhost:5432/ci?schema=public
+          REDIS_URL=redis://localhost:6379
+          JWT_SECRET=ci-dummy-jwt-secret-32-bytes-minimum-xxxxxxxx
+          API_INTERNAL_SECRET=ci-dummy-internal-secret-16
+          EOF
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build + publish Windows installer
+        working-directory: apps/companion
+        env:
+          # electron-builder reads GH_TOKEN to create/update the GitHub Release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run electron:release
+
+      - name: Upload installer as workflow artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MKeyTracker-Setup
+          path: apps/companion/release/*.exe
+          retention-days: 14

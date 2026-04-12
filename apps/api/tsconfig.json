@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@mplus/types": ["../../packages/types/src/index.ts"],
+      "@mplus/types/*": ["../../packages/types/src/*"],
+      "@mplus/wow-constants": ["../../packages/wow-constants/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

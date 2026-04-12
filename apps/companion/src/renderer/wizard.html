@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+        />
+        <title>M+ Tracker — Setup</title>
+        <link rel="stylesheet" href="./styles.css" />
+    </head>
+    <body>
+        <div class="app">
+            <div class="steps" id="steps">
+                <div class="step-pip current" data-step="welcome"></div>
+                <div class="step-pip" data-step="wow"></div>
+                <div class="step-pip" data-step="account"></div>
+                <div class="step-pip" data-step="pair"></div>
+                <div class="step-pip" data-step="done"></div>
+            </div>
+
+            <!-- ─── Screen 1: Welcome ─── -->
+            <section class="screen" data-screen="welcome">
+                <div class="screen-header text-center">
+                    <div
+                        class="brand"
+                        style="justify-content: center; margin-bottom: var(--sp-6)"
+                    >
+                        <div class="brand-logo">MK</div>
+                        <div>
+                            <div class="brand-title">M+ Tracker</div>
+                            <div class="brand-sub">Companion App</div>
+                        </div>
+                    </div>
+                    <h1>Welcome!</h1>
+                    <p class="text-muted">
+                        Let's get you set up to automatically track your Mythic+ runs.
+                    </p>
+                </div>
+
+                <div class="screen-body">
+                    <div class="card">
+                        <div class="stack">
+                            <div class="row">
+                                <span class="text-gold text-mono">01</span>
+                                <div>
+                                    <div class="card-title">
+                                        Install the WoW addon
+                                    </div>
+                                    <div class="card-subtitle">
+                                        We'll detect your WoW install and copy the MKeyTracker addon for you.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <span class="text-gold text-mono">02</span>
+                                <div>
+                                    <div class="card-title">
+                                        Link your Discord account
+                                    </div>
+                                    <div class="card-subtitle">
+                                        Run <span class="text-mono text-gold">/link</span> in Discord and paste the 6-digit code.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <span class="text-gold text-mono">03</span>
+                                <div>
+                                    <div class="card-title">
+                                        Play WoW normally
+                                    </div>
+                                    <div class="card-subtitle">
+                                        Your runs sync automatically. No clicks needed.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-footer">
+                    <div></div>
+                    <button class="btn btn-primary btn-lg" id="welcome-next">
+                        Get Started →
+                    </button>
+                </div>
+            </section>
+
+            <!-- ─── Screen 2: WoW location ─── -->
+            <section class="screen hidden" data-screen="wow">
+                <div class="screen-header">
+                    <h1>Find your WoW install</h1>
+                    <p class="text-muted">
+                        We'll copy the MKeyTracker addon into
+                        <span class="text-mono">_retail_\Interface\AddOns</span>.
+                    </p>
+                </div>
+
+                <div class="screen-body">
+                    <div class="card" id="wow-detect-card">
+                        <div class="stack">
+                            <div id="wow-detect-status" class="row text-muted">
+                                <span class="loading"></span>
+                                <span>Searching for WoW install…</span>
+                            </div>
+                            <div id="wow-detect-path" class="text-mono text-sm hidden" style="word-break: break-all"></div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <button class="btn btn-secondary" id="wow-browse">
+                            Browse for folder…
+                        </button>
+                        <div class="text-xs text-dim" style="flex: 1">
+                            Use this if WoW isn't installed in the default location.
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div id="addon-status" class="hidden">
+                        <div class="card">
+                            <div class="stack">
+                                <div class="row">
+                                    <div class="badge success"><span class="badge-dot"></span>Addon installed</div>
+                                </div>
+                                <div class="text-xs text-dim text-mono" id="addon-status-path" style="word-break: break-all"></div>
+                                <div class="text-xs text-muted" id="addon-status-files"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen-footer">
+                    <button class="btn btn-ghost" data-back="welcome">← Back</button>
+                    <div class="row">
+                        <button class="btn btn-secondary" id="addon-install" disabled>
+                            Install addon
+                        </button>
+                        <button class="btn btn-primary" id="wow-next" disabled>
+                            Next →
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── Screen 3: Account picker ─── -->
+            <section class="screen hidden" data-screen="account">
+                <div class="screen-header">
+                    <h1>Which WoW account?</h1>
+                    <p class="text-muted">
+                        This is your Battle.net account folder — we'll watch its SavedVariables for new runs.
+                    </p>
+                </div>
+
+                <div class="screen-body">
+                    <div id="account-loading" class="card">
+                        <div class="row text-muted">
+                            <span class="loading"></span>
+                            <span>Scanning account folders…</span>
+                        </div>
+                    </div>
+
+                    <div id="account-empty" class="card error hidden">
+                        <div class="card-title text-error">No accounts found</div>
+                        <div class="card-subtitle">
+                            We didn't find any account folders under
+                            <span class="text-mono text-xs">_retail_\WTF\Account\</span>.
+                            This usually means WoW hasn't been launched on this PC yet.
+                            Launch WoW and log in once, then click Retry.
+                        </div>
+                        <div style="margin-top: var(--sp-4)">
+                            <button class="btn btn-secondary" id="account-retry">Retry scan</button>
+                        </div>
+                    </div>
+
+                    <div id="account-list" class="choice-list hidden"></div>
+                </div>
+
+                <div class="screen-footer">
+                    <button class="btn btn-ghost" data-back="wow">← Back</button>
+                    <button class="btn btn-primary" id="account-next" disabled>
+                        Next →
+                    </button>
+                </div>
+            </section>
+
+            <!-- ─── Screen 4: Pair ─── -->
+            <section class="screen hidden" data-screen="pair">
+                <div class="screen-header">
+                    <h1>Link your Discord</h1>
+                    <p class="text-muted">
+                        Run <span class="text-mono text-gold">/link</span> in your M+ Tracker Discord server, then paste the 6-digit code below.
+                    </p>
+                </div>
+
+                <div class="screen-body">
+                    <div class="card">
+                        <div class="stack">
+                            <label for="pair-code" class="text-sm text-muted">
+                                Pairing code from Discord
+                            </label>
+                            <input
+                                id="pair-code"
+                                class="input input-code"
+                                maxlength="6"
+                                inputmode="numeric"
+                                pattern="[0-9]{6}"
+                                placeholder="● ● ● ● ● ●"
+                                autocomplete="off"
+                            />
+                            <button class="btn btn-primary btn-lg btn-block" id="pair-submit" disabled>
+                                Pair with Discord
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="pair-result" class="hidden"></div>
+
+                    <div class="text-xs text-dim text-center">
+                        Code expires 5 minutes after you run <span class="text-mono">/link</span>. Run it again if it expired.
+                    </div>
+                </div>
+
+                <div class="screen-footer">
+                    <button class="btn btn-ghost" data-back="account">← Back</button>
+                    <div></div>
+                </div>
+            </section>
+
+            <!-- ─── Screen 5: Done ─── -->
+            <section class="screen hidden" data-screen="done">
+                <div class="screen-header text-center">
+                    <div
+                        class="brand-logo"
+                        style="
+                            width: 64px;
+                            height: 64px;
+                            margin: 0 auto var(--sp-5);
+                            font-size: 28px;
+                        "
+                    >
+                        ✓
+                    </div>
+                    <h1>You're all set!</h1>
+                    <p class="text-muted">
+                        M+ Tracker is running in the background. Play WoW normally — runs will sync to Discord automatically.
+                    </p>
+                </div>
+
+                <div class="screen-body">
+                    <div class="card success">
+                        <div class="card-title text-success">What happens next</div>
+                        <div class="stack" style="margin-top: var(--sp-3)">
+                            <div class="text-sm text-muted">
+                                • Complete a Mythic+ key in-game
+                            </div>
+                            <div class="text-sm text-muted">
+                                • Click <b>Sync & Reload</b> on the in-game toast (or let WoW reload naturally)
+                            </div>
+                            <div class="text-sm text-muted">
+                                • Your run appears in your Discord results channel
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="checkbox">
+                        <input type="checkbox" id="launch-on-startup" />
+                        Launch M+ Tracker when Windows starts
+                    </label>
+                </div>
+
+                <div class="screen-footer">
+                    <div></div>
+                    <button class="btn btn-primary btn-lg" id="done-finish">
+                        Start Tracking
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <script type="module" src="./wizard.js"></script>
+    </body>
+</html>

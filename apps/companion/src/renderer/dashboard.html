@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+        />
+        <title>M+ Tracker</title>
+        <link rel="stylesheet" href="./styles.css" />
+    </head>
+    <body>
+        <div class="app">
+            <!-- top bar -->
+            <header class="topbar">
+                <div class="brand">
+                    <div class="brand-logo">MK</div>
+                    <div>
+                        <div class="brand-title">M+ Tracker</div>
+                        <div class="brand-sub" id="brand-sub">Companion</div>
+                    </div>
+                </div>
+                <div class="actions row">
+                    <button class="btn btn-ghost btn-sm" id="resync-btn" title="Re-scan your SavedVariables file and post any pending runs">
+                        ↻ Re-sync
+                    </button>
+                </div>
+            </header>
+
+            <section class="screen">
+                <!-- update banner (shown only when an update is available) -->
+                <div class="banner hidden" id="update-banner">
+                    <svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    <div class="banner-body">
+                        <div class="banner-title">Update available — v<span id="update-version">x.y.z</span></div>
+                        <div class="banner-sub" id="update-notes">A new version of the companion app is ready to install.</div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="update-download">Download</button>
+                    <button class="btn btn-ghost btn-sm" id="update-dismiss">Later</button>
+                </div>
+
+                <!-- status grid -->
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-label">Pairing</div>
+                        <div class="stat-value row" id="stat-pairing">
+                            <span class="badge success"><span class="badge-dot"></span>Paired</span>
+                        </div>
+                        <div class="stat-detail" id="stat-pairing-detail">Discord linked</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Watcher</div>
+                        <div class="stat-value row" id="stat-watcher">
+                            <span class="badge success"><span class="badge-dot"></span>Running</span>
+                        </div>
+                        <div class="stat-detail" id="stat-watcher-detail">Listening for SavedVariables changes</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Runs synced</div>
+                        <div class="stat-value" id="stat-synced">0</div>
+                        <div class="stat-detail" id="stat-synced-detail">Lifetime count</div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="stat-label">Last sync</div>
+                        <div class="stat-value" id="stat-last">Never</div>
+                        <div class="stat-detail" id="stat-last-detail">—</div>
+                    </div>
+                </div>
+
+                <!-- file path card -->
+                <div class="card" id="sv-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">SavedVariables</div>
+                            <div class="card-subtitle">File the watcher is listening to</div>
+                        </div>
+                        <div id="sv-status" style="margin-left: auto"></div>
+                    </div>
+                    <div class="text-xs text-mono text-dim" id="sv-path" style="word-break: break-all"></div>
+                </div>
+
+                <!-- actions -->
+                <div class="row" style="justify-content: flex-end">
+                    <button class="btn btn-ghost btn-sm" id="open-wizard">Re-run setup wizard</button>
+                </div>
+            </section>
+        </div>
+
+        <script type="module" src="./dashboard.js"></script>
+    </body>
+</html>

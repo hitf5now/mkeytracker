@@ -1,0 +1,111 @@
+##
+## M+ Platform — Unraid production stack (192.168.1.4)
+##
+## Joins the existing external `tech-stack-net` Docker bridge so all
+## containers can talk by name. Nginx Proxy Manager lives on a SEPARATE
+## host (192.168.1.2) and proxies `api.hitf5now.com` to 192.168.1.4:3020.
+##
+## ─── Port map (see memory/reference_unraid_resources.md) ───
+##   mplus-api                host 3020 → container 3001
+##   mplus-platform-postgres  host 5434 → container 5432
+##   mplus-platform-redis     host 6379 → container 6379
+##
+## ⚠️ mplus-platform-postgres and mplus-platform-redis are RESERVED for
+## this project. Do not connect other projects to these instances.
+##
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mplus-platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mplus
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: mplus_platform
+    ports:
+      - "5434:5432"
+    volumes:
+      - /mnt/user/appdata/mplus-platform/postgres:/var/lib/postgresql/data
+    networks:
+      - tech-stack-net
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mplus -d mplus_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: mplus-platform-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
+    ports:
+      - "6379:6379"
+    volumes:
+      - /mnt/user/appdata/mplus-platform/redis:/data
+    networks:
+      - tech-stack-net
+    mem_limit: 640m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/hitf5now/mplus-api:${IMAGE_TAG:-latest}
+    container_name: mplus-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+      # Container-to-container connection via shared network — no host ports needed
+      DATABASE_URL: postgresql://mplus:${DB_PASSWORD}@mplus-platform-postgres:5432/mplus_platform?schema=public
+      REDIS_URL: redis://mplus-platform-redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      API_INTERNAL_SECRET: ${API_INTERNAL_SECRET:?API_INTERNAL_SECRET is required}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_WEBHOOK_RESULTS: ${DISCORD_WEBHOOK_RESULTS}
+      DISCORD_WEBHOOK_EVENTS: ${DISCORD_WEBHOOK_EVENTS}
+    ports:
+      - "3020:3001"
+    networks:
+      - tech-stack-net
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    image: ghcr.io/hitf5now/mplus-bot:${IMAGE_TAG:-latest}
+    container_name: mplus-bot
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://mplus-api:3001
+      API_INTERNAL_SECRET: ${API_INTERNAL_SECRET}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:?DISCORD_BOT_TOKEN is required}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+    networks:
+      - tech-stack-net
+    mem_limit: 512m
+
+networks:
+  tech-stack-net:
+    external: true

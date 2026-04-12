@@ -1,0 +1,94 @@
+{
+  "name": "@mplus/companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Companion app for the M+ Platform — watches WoW SavedVariables and posts runs to the API.",
+  "author": {
+    "name": "hitf5now",
+    "email": "hitf5now@users.noreply.github.com"
+  },
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- tsx watch src/cli.ts",
+    "cli": "dotenv -e ../../.env -- tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json && node ./scripts/generate-icons.mjs && node ./scripts/copy-static.mjs",
+    "icons": "node ./scripts/generate-icons.mjs",
+    "electron:dev": "npm run build && dotenv -e ../../.env -- electron dist/electron/main.js",
+    "electron:start": "electron dist/electron/main.js",
+    "electron:package": "npm run build && electron-builder --win --publish never",
+    "electron:release": "npm run build && electron-builder --win --publish always",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "build": {
+    "appId": "com.hitf5now.mkeytracker",
+    "productName": "M+ Tracker",
+    "copyright": "Copyright © 2026 hitf5now",
+    "electronVersion": "41.2.0",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/addon/MKeyTracker",
+        "to": "addon/MKeyTracker",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "MKeyTracker-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "M+ Tracker",
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hitf5now",
+        "repo": "mkeytracker",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "@mplus/types": "*",
+    "chokidar": "^4.0.1",
+    "luaparse": "^0.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "dotenv-cli": "^8.0.0",
+    "electron": "^41.2.0",
+    "electron-builder": "^26.8.1",
+    "electron-updater": "^6.3.9",
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.34.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.4"
+  }
+}

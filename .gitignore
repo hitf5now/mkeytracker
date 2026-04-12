@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+apps/api/prisma/dev.db*
+
+# Next.js (web frontend, future)
+apps/web/.next/
+apps/web/out/
+
+# Electron (companion app, future)
+apps/companion/dist-electron/
+apps/companion/release/
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Docker volumes (if someone bind-mounts locally)
+.docker-data/

@@ -1,0 +1,32 @@
+{
+  "name": "mplus-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-guild WoW Mythic+ competitive platform — API, Discord bot, web, companion app, and addon.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=@mplus/api",
+    "db:up": "docker compose up -d postgres redis",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d postgres redis",
+    "prisma:generate": "npm run prisma:generate --workspace=@mplus/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@mplus/api",
+    "prisma:seed": "npm run prisma:seed --workspace=@mplus/api",
+    "prisma:studio": "npm run prisma:studio --workspace=@mplus/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^20.17.6"
+  }
+}

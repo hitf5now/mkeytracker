@@ -1,0 +1,234 @@
+//
+// M+ Platform — Prisma schema
+//
+// Sprint 1 scope: reference data, identity, runs.
+// Later sprints will add events, scoring, leaderboards, badges, mentorship.
+//
+// Naming convention:
+//   - snake_case for database columns/tables (@@map, @map)
+//   - camelCase for Prisma/TypeScript
+//
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reference data
+// ─────────────────────────────────────────────────────────────
+
+model Season {
+  id        Int      @id @default(autoincrement())
+  /// Short slug, e.g. "midnight-s1"
+  slug      String   @unique
+  /// Display name, e.g. "Midnight Season 1"
+  name      String
+  /// WoW patch this season corresponds to, e.g. "12.0.0"
+  patch     String
+  startsAt  DateTime @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  isActive  Boolean  @default(false) @map("is_active")
+
+  dungeons Dungeon[]
+  runs     Run[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("seasons")
+}
+
+model Dungeon {
+  id              Int    @id @default(autoincrement())
+  /// WoW internal challenge_mode_id used by C_ChallengeMode API
+  challengeModeId Int    @map("challenge_mode_id")
+  /// Short slug, e.g. "halls-of-atonement"
+  slug            String
+  name            String
+  /// Par time in seconds — used for on_time calculation and scoring
+  parTimeSec      Int    @map("par_time_sec")
+  /// Short 3-5 letter abbreviation for compact leaderboard display
+  shortCode       String @map("short_code")
+
+  seasonId Int    @map("season_id")
+  season   Season @relation(fields: [seasonId], references: [id])
+
+  runs Run[]
+
+  @@unique([seasonId, challengeModeId])
+  @@unique([seasonId, slug])
+  @@map("dungeons")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Identity
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id            Int     @id @default(autoincrement())
+  /// Discord user snowflake — primary identity anchor
+  discordId     String  @unique @map("discord_id")
+  /// Opt-in BattleTag for cross-realm group formation
+  battleTag     String? @map("battle_tag")
+  /// IANA timezone, e.g. "America/New_York"
+  timezone      String?
+  /// Mentor program opt-in
+  isMentor      Boolean @default(false) @map("is_mentor")
+  mentorPoints  Int     @default(0) @map("mentor_points")
+
+  characters  Character[]
+  runMembers  RunMember[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Character {
+  id       Int    @id @default(autoincrement())
+  name     String
+  /// Realm slug, lowercase-hyphenated, e.g. "area-52"
+  realm    String
+  /// us, eu, kr, tw, cn
+  region   String
+  /// WoW class slug, e.g. "shaman". This is permanent for the character —
+  /// a shaman is always a shaman. Join with packages/wow-constants to
+  /// resolve display name, color, and valid specs/roles.
+  class    String
+  /// DEFAULT spec. The character's last-known active spec from RaiderIO
+  /// or manual refresh. This is just a hint — NOT a constraint. Players
+  /// pick their actual role per event at signup time, and the addon
+  /// records what was actually played into run_members.spec_snapshot.
+  spec     String
+  /// DEFAULT role, matching the default spec. Same caveat as `spec`.
+  role     String
+  /// Latest RaiderIO overall score — refreshed on submission + nightly
+  rioScore Int    @default(0) @map("rio_score")
+
+  /// Nullable: an "unclaimed" character exists in our DB because someone
+  /// else ran a key with them. When the actual player registers via the
+  /// Discord bot, /register will claim the row by setting userId.
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Timestamp when this character was claimed by a registered user.
+  /// NULL until /register links it.
+  claimedAt DateTime? @map("claimed_at")
+
+  runMembers RunMember[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// A WoW character is unique by (name, realm, region)
+  @@unique([region, realm, name])
+  @@index([userId])
+  @@map("characters")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Runs
+// ─────────────────────────────────────────────────────────────
+
+enum RunSource {
+  addon
+  manual
+  raiderio
+}
+
+model Run {
+  id              Int       @id @default(autoincrement())
+  dungeonId       Int       @map("dungeon_id")
+  seasonId        Int       @map("season_id")
+  keystoneLevel   Int       @map("keystone_level")
+  completionMs    Int       @map("completion_ms")
+  parMs           Int       @map("par_ms")
+  onTime          Boolean   @map("on_time")
+  /// Keystone upgrade level: 0 (depleted/no upgrade), 1 (+1), 2 (+2), 3 (+3)
+  upgrades        Int       @default(0)
+  deaths          Int       @default(0)
+  timeLostSec     Int       @default(0) @map("time_lost_sec")
+  /// Active affix ids from C_MythicPlus.GetCurrentAffixes()
+  affixes         Int[]     @default([])
+  /// Unix seconds at run completion, from the WoW server
+  serverTime      BigInt    @map("server_time")
+  /// When the API received the run
+  recordedAt      DateTime  @default(now()) @map("recorded_at")
+  source          RunSource @default(addon)
+  /// True after RaiderIO cross-verification job confirms this run
+  verified        Boolean   @default(false)
+  /// Dedup hash — see services/run-dedup.ts
+  dedupHash       String    @unique @map("dedup_hash")
+  /// Computed points — written by scoring service on insert
+  points          Int       @default(0)
+  /// Optional event association
+  eventId         Int?      @map("event_id")
+  teamId          Int?      @map("team_id")
+
+  dungeon Dungeon     @relation(fields: [dungeonId], references: [id])
+  season  Season      @relation(fields: [seasonId], references: [id])
+  members RunMember[]
+
+  @@index([seasonId, dungeonId, completionMs])
+  @@index([seasonId, keystoneLevel])
+  @@index([recordedAt])
+  @@index([eventId])
+  @@map("runs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Telemetry — anonymous usage + error events from the companion
+// ─────────────────────────────────────────────────────────────
+
+model TelemetryEvent {
+  id          BigInt   @id @default(autoincrement())
+  /// Anonymous install UUID from the companion's config. Persists
+  /// across app restarts on one machine but reveals nothing about
+  /// the player. Not a FK — the companion generates it locally.
+  installId   String   @map("install_id")
+  /// Event name enum from the companion's telemetry.ts module.
+  name        String
+  /// Companion app version that sent the event, e.g. "0.1.0".
+  appVersion  String   @map("app_version")
+  /// OS + release string, e.g. "win32 10.0.26200".
+  platform    String
+  /// Free-form JSON bag, caller's responsibility to keep PII-free.
+  meta        Json?
+  /// Timestamp from the companion (may lag when sent in a batch).
+  occurredAt  DateTime @map("occurred_at")
+  /// Timestamp the API persisted the row.
+  receivedAt  DateTime @default(now()) @map("received_at")
+
+  @@index([installId, occurredAt])
+  @@index([name, occurredAt])
+  @@map("telemetry_events")
+}
+
+model RunMember {
+  id          Int  @id @default(autoincrement())
+  runId       Int  @map("run_id")
+  /// Nullable: unclaimed characters participate in runs too. Resolved
+  /// later when the character gets claimed via /register.
+  userId      Int? @map("user_id")
+  characterId Int  @map("character_id")
+
+  /// Snapshotted at submission time — a character's class/spec/role may
+  /// change later, but the run's record stays accurate.
+  classSnapshot String @map("class_snapshot")
+  specSnapshot  String @map("spec_snapshot")
+  roleSnapshot  String @map("role_snapshot")
+
+  run       Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+  character Character @relation(fields: [characterId], references: [id])
+
+  @@unique([runId, characterId])
+  @@index([userId])
+  @@index([characterId])
+  @@map("run_members")
+}
