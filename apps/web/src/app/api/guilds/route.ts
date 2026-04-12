@@ -7,8 +7,6 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
-import { headers } from "next/headers";
 
 const API_BASE =
   process.env.API_INTERNAL_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
@@ -20,18 +18,17 @@ interface DiscordGuild {
   icon: string | null;
 }
 
-export async function GET(request: Request) {
-  const session = await auth();
+export async function GET() {
+  // auth() in NextAuth v5 App Router returns the full server-side token fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await auth() as any;
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // Get the JWT token which has the Discord access token (server-side only)
-  const token = await getToken({
-    req: { headers: Object.fromEntries(request.headers) } as never,
-    secret: process.env.NEXTAUTH_SECRET!,
-  });
-  const discordAccessToken = token?.discordAccessToken as string | undefined;
+  // discordAccessToken is set in the jwt() callback and exposed via the
+  // session() callback on the server side only (not sent to the client).
+  const discordAccessToken = session.discordAccessToken as string | undefined;
 
   if (!discordAccessToken) {
     return NextResponse.json(

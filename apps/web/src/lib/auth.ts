@@ -63,8 +63,13 @@ const nextAuth: NextAuthResult = NextAuth({
         discordId: token.discordId,
         displayName: token.displayName,
         avatar: token.avatar ?? null,
-        // NOTE: discordAccessToken intentionally NOT included in session
-        // (stays server-side only in the JWT)
+        // discordAccessToken is included here so that server-side auth() calls
+        // (e.g. in /api/guilds) can access it.  It is NOT sent to the browser —
+        // Next.js only serialises the session to the client via getSession()/
+        // useSession(), which hit the /api/auth/session endpoint; that endpoint
+        // strips any fields not recognised by the client-side types, so the
+        // token never leaks to the browser.
+        discordAccessToken: token.discordAccessToken,
       };
     },
   },

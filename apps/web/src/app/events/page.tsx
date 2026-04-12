@@ -8,8 +8,6 @@ import type { EventSummary } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { EventFilters } from "@/components/event-filters";
 import { formatEventType, formatDateTime } from "@/lib/format";
-import { getToken } from "next-auth/jwt";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +18,11 @@ export const metadata: Metadata = {
 
 async function getUserGuildIds(): Promise<string[]> {
   try {
-    const cookieStore = await cookies();
-    const sessionToken =
-      cookieStore.get("__Secure-authjs.session-token")?.value ??
-      cookieStore.get("authjs.session-token")?.value;
-
-    if (!sessionToken) return [];
-
-    const token = await getToken({
-      req: { headers: { cookie: `authjs.session-token=${sessionToken}` } } as never,
-      secret: process.env.NEXTAUTH_SECRET!,
-    });
-
-    const discordAccessToken = token?.discordAccessToken as string | undefined;
+    // auth() in NextAuth v5 returns the full server-side session including
+    // discordAccessToken (set in jwt() callback, exposed in session() callback).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const session = await auth() as any;
+    const discordAccessToken = session?.discordAccessToken as string | undefined;
     if (!discordAccessToken) return [];
 
     const res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
