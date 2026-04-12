@@ -58,14 +58,22 @@ export default function Home() {
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden py-24 sm:py-32">
-        <div className="mx-auto max-w-6xl px-4 text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+      <section className="relative overflow-hidden py-28 sm:py-40">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/hero-bg.jpg')" }}
+        />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+
+        <div className="relative mx-auto max-w-6xl px-4 text-center">
+          <h1 className="text-4xl font-bold tracking-tight drop-shadow-lg sm:text-6xl">
             <span className="text-gold">Track.</span>{" "}
-            <span className="text-foreground">Compete.</span>{" "}
+            <span className="text-white">Compete.</span>{" "}
             <span className="text-gold">Improve.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-200 drop-shadow">
             The cross-guild Mythic+ competitive platform for WoW. Instant run
             tracking, automated matchmaking, and leaderboards that reward more
             than just raw score.
