@@ -5,13 +5,13 @@
  * upsert the User row and get the userId. Session uses JWT strategy.
  */
 
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthResult } from "next-auth";
 import Discord from "next-auth/providers/discord";
 
 const API_BASE =
   process.env.API_INTERNAL_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const nextAuth: NextAuthResult = NextAuth({
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
@@ -48,17 +48,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token;
     },
-    async session({ session, token }) {
-      if (token.userId) {
-        (session as Record<string, unknown>).userId = token.userId;
-        (session as Record<string, unknown>).discordId = token.discordId;
-        (session as Record<string, unknown>).displayName = token.displayName;
-        (session as Record<string, unknown>).avatar = token.avatar;
-      }
-      return session;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async session({ session, token }): Promise<any> {
+      return {
+        ...session,
+        userId: token.userId,
+        discordId: token.discordId,
+        displayName: token.displayName,
+        avatar: token.avatar ?? null,
+      };
     },
   },
   pages: {
     signIn: "/auth/signin",
   },
 });
+
+export const { handlers, signIn, signOut, auth } = nextAuth;
