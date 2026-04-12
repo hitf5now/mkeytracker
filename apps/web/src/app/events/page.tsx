@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { fetchApi } from "@/lib/api";
 import type { EventSummary } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
+import { EventFilters } from "@/components/event-filters";
 import { formatEventType, formatDateTime } from "@/lib/format";
 import { getToken } from "next-auth/jwt";
 import { cookies } from "next/headers";
@@ -18,7 +20,6 @@ export const metadata: Metadata = {
 
 async function getUserGuildIds(): Promise<string[]> {
   try {
-    // Read the JWT to get the Discord access token
     const cookieStore = await cookies();
     const sessionToken =
       cookieStore.get("__Secure-authjs.session-token")?.value ??
@@ -34,7 +35,6 @@ async function getUserGuildIds(): Promise<string[]> {
     const discordAccessToken = token?.discordAccessToken as string | undefined;
     if (!discordAccessToken) return [];
 
-    // Fetch user's guilds from Discord
     const res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
       headers: { Authorization: `Bearer ${discordAccessToken}` },
       next: { revalidate: 300 },
@@ -48,17 +48,28 @@ async function getUserGuildIds(): Promise<string[]> {
   }
 }
 
-export default async function EventsPage() {
+interface Props {
+  searchParams: Promise<{ status?: string; type?: string }>;
+}
+
+export default async function EventsPage({ searchParams }: Props) {
   const session = await auth();
   if (!session) {
     redirect("/api/auth/signin?callbackUrl=/events");
   }
 
+  const params = await searchParams;
   const guildIds = await getUserGuildIds();
-  const guildFilter = guildIds.length > 0 ? `?guildIds=${guildIds.join(",")}` : "";
 
+  // Build API query string with all filters
+  const apiParams = new URLSearchParams();
+  if (guildIds.length > 0) apiParams.set("guildIds", guildIds.join(","));
+  if (params.status) apiParams.set("status", params.status);
+  if (params.type) apiParams.set("type", params.type);
+
+  const queryString = apiParams.toString();
   const { events } = await fetchApi<{ events: EventSummary[] }>(
-    `/api/v1/events${guildFilter}`,
+    `/api/v1/events${queryString ? `?${queryString}` : ""}`,
   );
 
   return (
@@ -67,7 +78,7 @@ export default async function EventsPage() {
         <div>
           <h1 className="text-3xl font-bold">Events</h1>
           <p className="mt-2 text-muted-foreground">
-            Active and upcoming competitions from your servers.
+            Competitions from your servers.
           </p>
         </div>
         <Link
@@ -78,12 +89,19 @@ export default async function EventsPage() {
         </Link>
       </div>
 
+      {/* Filters */}
+      <div className="mt-6">
+        <Suspense fallback={null}>
+          <EventFilters />
+        </Suspense>
+      </div>
+
       {events.length === 0 ? (
         <p className="mt-12 text-center text-muted-foreground">
-          No active events in your servers. Create one to get started!
+          No events match your filters. Try changing the filters or create a new event.
         </p>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => (
             <Link
               key={event.id}

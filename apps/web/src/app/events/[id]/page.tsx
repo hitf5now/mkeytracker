@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { fetchApi, ApiError } from "@/lib/api";
 import type { EventDetail, EventSignup } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
+import { EventAdminPanel } from "@/components/event-admin-panel";
 import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
 import { formatEventType, formatDateTime } from "@/lib/format";
@@ -57,6 +58,28 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
         <EventStatusBadge status={event.status} />
       </div>
+
+      {/* Admin panel — only visible to event creator */}
+      {(() => {
+        const sessionData = session as unknown as Record<string, unknown>;
+        const userId = sessionData.userId as number | undefined;
+        const isCreator = userId && userId === event.createdByUserId;
+        if (!isCreator) return null;
+        return (
+          <div className="mt-4">
+            <EventAdminPanel
+              eventId={event.id}
+              currentStatus={event.status}
+              eventName={event.name}
+              eventDescription={event.description}
+              startsAt={event.startsAt}
+              endsAt={event.endsAt}
+              minKeyLevel={event.minKeyLevel}
+              maxKeyLevel={event.maxKeyLevel}
+            />
+          </div>
+        );
+      })()}
 
       {/* Details */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">

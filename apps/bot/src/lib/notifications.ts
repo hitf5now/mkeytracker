@@ -49,6 +49,8 @@ export function startNotificationSubscriber(client: Client): void {
 
       if (notification.type === "event_created" && notification.eventId) {
         await handleEventCreated(client, notification.eventId);
+      } else if (notification.type === "event_updated" && notification.eventId) {
+        await handleEventUpdated(client, notification.eventId);
       }
     } catch (err) {
       console.error("Error handling Redis notification:", err);
@@ -131,5 +133,86 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
     console.log(`Posted event #${event.id} embed to channel ${channelId}`);
   } catch (err) {
     console.error(`Failed to post event #${eventId} embed:`, err);
+  }
+}
+
+async function handleEventUpdated(client: Client, eventId: number): Promise<void> {
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+
+    if (!event.discordMessageId || !event.discordChannelId) {
+      console.log(`Event #${eventId} has no Discord message to update`);
+      return;
+    }
+
+    const startTs = Math.floor(new Date(event.startsAt).getTime() / 1000);
+    const endTs = Math.floor(new Date(event.endsAt).getTime() / 1000);
+
+    const statusLabels: Record<string, string> = {
+      open: "Signups Open",
+      signups_closed: "Group Assignments",
+      in_progress: "Active Event",
+      completed: "Completed",
+      cancelled: "Cancelled",
+    };
+
+    // Build roster from signups
+    const signups = event.signups || [];
+    const confirmed = signups.filter((s) => s.signupStatus === "confirmed");
+    const tentative = signups.filter((s) => s.signupStatus === "tentative");
+    const tanks = confirmed.filter((s) => s.rolePreference === "tank");
+    const healers = confirmed.filter((s) => s.rolePreference === "healer");
+    const dps = confirmed.filter((s) => s.rolePreference === "dps");
+
+    const formatMember = (s: typeof signups[number], i: number): string => {
+      const mention = s.discordUserId ? `<@${s.discordUserId}>` : s.character.name;
+      const tag = s.character.hasCompanionApp ? " ⚡" : "";
+      return `${i + 1}. ${mention} — ${s.character.name}${tag}`;
+    };
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 ${event.name}`)
+      .setColor(event.status === "open" ? 0x3ba55d : event.status === "in_progress" ? 0xffcc00 : 0x888888)
+      .setDescription(event.description || "_No description_")
+      .addFields(
+        { name: "Dungeon", value: event.dungeon?.name ?? "Any", inline: true },
+        { name: "Key Range", value: `+${event.minKeyLevel} – +${event.maxKeyLevel}`, inline: true },
+        { name: "Status", value: statusLabels[event.status] ?? event.status, inline: true },
+        { name: "Time", value: `<t:${startTs}:F> — <t:${endTs}:t>`, inline: false },
+        { name: `🛡 Tanks (${tanks.length})`, value: tanks.length > 0 ? tanks.map(formatMember).join("\n") : "_None yet_", inline: false },
+        { name: `💚 Healers (${healers.length})`, value: healers.length > 0 ? healers.map(formatMember).join("\n") : "_None yet_", inline: false },
+        { name: `⚔ DPS (${dps.length})`, value: dps.length > 0 ? dps.map(formatMember).join("\n") : "_None yet_", inline: false },
+      );
+
+    if (tentative.length > 0) {
+      embed.addFields({
+        name: `❓ Tentative (${tentative.length})`,
+        value: tentative.map(formatMember).join("\n"),
+        inline: false,
+      });
+    }
+
+    embed.setFooter({ text: `Event #${event.id} · ${confirmed.length} confirmed` });
+
+    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-signup:${event.id}`)
+        .setLabel("Sign Up")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`event-tentative:${event.id}`)
+        .setLabel("Tentative")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    const channel = await client.channels.fetch(event.discordChannelId) as TextChannel | null;
+    if (!channel) return;
+
+    const message = await channel.messages.fetch(event.discordMessageId);
+    await message.edit({ embeds: [embed], components: [buttons] });
+
+    console.log(`Updated Discord embed for event #${eventId}`);
+  } catch (err) {
+    console.error(`Failed to update event #${eventId} embed:`, err);
   }
 }

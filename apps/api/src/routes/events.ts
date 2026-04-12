@@ -409,18 +409,82 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       });
       return reply.code(200).send({ event });
     });
+
+    // ── Edit event details ────────────────────────────────────
+    scope.patch<{ Params: { id: string } }>("/events/:id", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const body = req.body as {
+        name?: string;
+        description?: string | null;
+        startsAt?: string;
+        endsAt?: string;
+        minKeyLevel?: number;
+        maxKeyLevel?: number;
+      };
+
+      const data: Record<string, unknown> = {};
+      if (body.name !== undefined) data.name = body.name;
+      if (body.description !== undefined) data.description = body.description;
+      if (body.startsAt !== undefined) data.startsAt = new Date(body.startsAt);
+      if (body.endsAt !== undefined) data.endsAt = new Date(body.endsAt);
+      if (body.minKeyLevel !== undefined) data.minKeyLevel = body.minKeyLevel;
+      if (body.maxKeyLevel !== undefined) data.maxKeyLevel = body.maxKeyLevel;
+
+      const event = await prisma.event.update({
+        where: { id: eventId },
+        data,
+      });
+
+      req.log.info({ eventId }, "Event details updated");
+      return reply.code(200).send({ event });
+    });
+
+    // ── Sync Discord embed ────────────────────────────────────
+    // Publishes a notification to refresh the Discord embed with current data
+    scope.post<{ Params: { id: string } }>("/events/:id/sync-discord", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event) return reply.code(404).send({ error: "event_not_found" });
+
+      await redis.publish(
+        "mplus:bot-notifications",
+        JSON.stringify({ type: "event_updated", eventId }),
+      );
+
+      req.log.info({ eventId }, "Discord sync requested");
+      return reply.code(200).send({ synced: true });
+    });
   });
 
   // ── Public read routes ──────────────────────────────────────
   app.get("/events", async (req, reply) => {
-    const guildIdsParam = (req.query as { guildIds?: string }).guildIds;
-    const guildIds = guildIdsParam ? guildIdsParam.split(",").filter(Boolean) : undefined;
-
-    const where: Record<string, unknown> = {
-      status: { in: ["open", "signups_closed", "in_progress"] },
+    const query = req.query as {
+      guildIds?: string;
+      status?: string;
+      type?: string;
     };
 
-    // When guildIds provided, filter to only events from those servers
+    const guildIds = query.guildIds ? query.guildIds.split(",").filter(Boolean) : undefined;
+
+    const where: Record<string, unknown> = {};
+
+    // Status filter — default to active statuses if no filter specified
+    if (query.status) {
+      where.status = query.status;
+    } else {
+      where.status = { in: ["open", "signups_closed", "in_progress"] };
+    }
+
+    // Type filter
+    if (query.type) {
+      where.type = query.type;
+    }
+
+    // Guild filter
     if (guildIds && guildIds.length > 0) {
       where.discordGuildId = { in: guildIds };
     }
@@ -431,7 +495,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         dungeon: true,
         _count: { select: { signups: true, teams: true } },
       },
-      orderBy: { startsAt: "asc" },
+      orderBy: { startsAt: "desc" },
     });
     return reply.code(200).send({ events });
   });
