@@ -32,7 +32,7 @@ import { loadConfig, updateConfig } from "./config.js";
 
 const FLUSH_INTERVAL_MS = 30_000;
 const MAX_BATCH_SIZE = 20;
-const APP_VERSION = "0.1.0";
+const APP_VERSION = "0.1.1";
 
 export type TelemetryEventName =
     | "app_started"

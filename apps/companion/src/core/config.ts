@@ -21,10 +21,19 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
+/** Legacy default URLs that should auto-migrate to the current default. */
+const LEGACY_API_URLS = new Set<string>([
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+]);
+
+/** Current production default — set at the top so both the schema and migration see it. */
+const DEFAULT_API_BASE_URL = "https://api.mythicplustracker.com";
+
 const ConfigSchema = z.object({
   jwt: z.string().nullable().default(null),
   jwtExpiresAt: z.string().nullable().default(null),
-  apiBaseUrl: z.string().url().default("http://localhost:3001"),
+  apiBaseUrl: z.string().url().default(DEFAULT_API_BASE_URL),
 
   /**
    * Root of the WoW install — the folder CONTAINING _retail_ / _classic_.
@@ -107,7 +116,32 @@ export function loadConfig(): CompanionConfig {
       `Companion config at ${path} failed schema validation: ${result.error.issues.map((i) => i.message).join("; ")}`,
     );
   }
-  return result.data;
+  return applyMigrations(result.data);
+}
+
+/**
+ * Version-forward migrations applied to an already-parsed config.
+ *
+ * Runs on every load. Each migration is idempotent — if the state is
+ * already current, the migration is a no-op.
+ */
+function applyMigrations(cfg: CompanionConfig): CompanionConfig {
+  let changed = false;
+
+  // v0.1.0 → v0.1.1: the default apiBaseUrl moved from localhost to the
+  // production URL. Users who installed v0.1.0 have `http://localhost:3001`
+  // (or `127.0.0.1:3001`) in their stored config. Transparently upgrade
+  // them to the new default. If a user has deliberately set a custom URL
+  // (a LAN address, a private deploy, etc.), leave it alone.
+  if (LEGACY_API_URLS.has(cfg.apiBaseUrl)) {
+    cfg.apiBaseUrl = DEFAULT_API_BASE_URL;
+    changed = true;
+  }
+
+  if (changed) {
+    saveConfig(cfg);
+  }
+  return cfg;
 }
 
 export function saveConfig(cfg: CompanionConfig): void {
