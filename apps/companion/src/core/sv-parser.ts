@@ -50,7 +50,13 @@ const MemberSchema = z.object({
   role: z.enum(["tank", "healer", "dps"]),
 });
 
-const RunSubmissionSchema = z.object({
+/**
+ * Accept 5-10 members from the addon. The addon's BuildMembers() can
+ * include the player twice — once from BuildSelfMember() (with accurate
+ * spec) and again from the group roster scan. We deduplicate after
+ * schema validation.
+ */
+const RunSubmissionSchemaRaw = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2),
   completionMs: z.number().int().nonnegative(),
@@ -61,12 +67,29 @@ const RunSubmissionSchema = z.object({
   serverTime: z.number().int().positive(),
   affixes: z.array(z.number().int()).default([]),
   region: z.enum(["us", "eu", "kr", "tw", "cn"]),
-  members: z.array(MemberSchema).length(5),
+  members: z.array(MemberSchema).min(5).max(10),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
   eventId: z.number().int().positive().optional(),
 });
 
-export type ParsedRun = z.infer<typeof RunSubmissionSchema>;
+type RawRun = z.infer<typeof RunSubmissionSchemaRaw>;
+
+/**
+ * Deduplicate members by (name, realm), keeping the first entry
+ * (the self-member with correct spec/role). Then ensure exactly 5.
+ */
+function deduplicateMembers(run: RawRun): RawRun {
+  const seen = new Set<string>();
+  const deduped = run.members.filter((m) => {
+    const key = `${m.name.toLowerCase()}|${m.realm.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ...run, members: deduped.slice(0, 5) };
+}
+
+export type ParsedRun = RawRun;
 
 export interface ParseResult {
   /** Runs that passed schema validation and are ready to POST. */
@@ -230,9 +253,19 @@ export function parseSavedVariablesSource(source: string): ParseResult {
 
   if (Array.isArray(pending)) {
     for (let i = 0; i < pending.length; i++) {
-      const parsed = RunSubmissionSchema.safeParse(pending[i]);
+      const parsed = RunSubmissionSchemaRaw.safeParse(pending[i]);
       if (parsed.success) {
-        runs.push(parsed.data);
+        // Deduplicate members (addon can double-count the player)
+        const deduped = deduplicateMembers(parsed.data);
+        if (deduped.members.length === 5) {
+          runs.push(deduped);
+        } else {
+          rejected++;
+          errors.push({
+            index: i,
+            message: `Expected 5 unique members after dedup, got ${deduped.members.length}`,
+          });
+        }
       } else {
         rejected++;
         errors.push({

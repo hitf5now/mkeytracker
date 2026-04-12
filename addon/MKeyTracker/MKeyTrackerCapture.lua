@@ -139,8 +139,13 @@ local function BuildMembers(info)
     local fallbackRealm = GetRealmName() or ""
 
     if info and type(info.members) == "table" and #info.members > 0 then
+        -- The API may include the player in the members list.
+        -- Skip anyone matching the player's name to avoid duplicates.
+        local playerName = UnitName("player")
         for _, apiMember in ipairs(info.members) do
-            table.insert(members, ResolveOtherMember(apiMember, fallbackRealm))
+            if apiMember.name ~= playerName then
+                table.insert(members, ResolveOtherMember(apiMember, fallbackRealm))
+            end
         end
         return members
     end
