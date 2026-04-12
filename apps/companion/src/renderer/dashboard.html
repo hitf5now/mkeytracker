@@ -84,11 +84,33 @@
                     <div class="text-xs text-mono text-dim" id="sv-path" style="word-break: break-all"></div>
                 </div>
 
-                <!-- actions -->
-                <div class="row" style="justify-content: space-between; align-items: center">
-                    <div class="text-xs text-dim" id="updater-status-line">Updates: checking…</div>
-                    <button class="btn btn-ghost btn-sm" id="open-wizard">Re-run setup wizard</button>
+                <!-- quick links -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Quick Links</div>
+                    </div>
+                    <div class="row" style="flex-wrap: wrap; gap: var(--sp-2)">
+                        <button class="btn btn-secondary btn-sm" id="link-website">mythicplustracker.com</button>
+                        <button class="btn btn-secondary btn-sm" id="link-leaderboards">Leaderboards</button>
+                        <button class="btn btn-secondary btn-sm" id="link-profile">My Profile</button>
+                        <button class="btn btn-secondary btn-sm" id="link-discord">Discord Server</button>
+                    </div>
                 </div>
+
+                <!-- settings row -->
+                <div class="row" style="justify-content: space-between; align-items: center">
+                    <label class="checkbox">
+                        <input type="checkbox" id="auto-launch-check" />
+                        Launch on Windows startup
+                    </label>
+                    <div class="row">
+                        <button class="btn btn-ghost btn-sm" id="check-updates-btn">Check for updates</button>
+                        <button class="btn btn-ghost btn-sm" id="open-wizard">Re-run setup wizard</button>
+                    </div>
+                </div>
+
+                <!-- updater status -->
+                <div class="text-xs text-dim" id="updater-status-line" style="text-align: center">Updates: checking…</div>
             </section>
         </div>
 

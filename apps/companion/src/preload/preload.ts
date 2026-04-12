@@ -79,6 +79,20 @@ const api = {
   // App metadata — version, Electron/Node runtime info
   appInfo: (): Promise<AppInfo> => ipcRenderer.invoke(IPC.APP_INFO),
 
+  // Auto-launch on Windows startup
+  setAutoLaunch: (enabled: boolean): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.APP_SET_AUTO_LAUNCH, enabled),
+  getAutoLaunch: (): Promise<{ enabled: boolean }> =>
+    ipcRenderer.invoke(IPC.APP_GET_AUTO_LAUNCH),
+
+  // Manual update check
+  updateCheck: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.UPDATE_CHECK),
+
+  // Open URL in the default browser
+  openExternal: (url: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.SHELL_OPEN_EXTERNAL, url),
+
   // Push events from main → renderer
   onQueueUpdate: (cb: () => void): (() => void) => {
     const listener = (): void => cb();

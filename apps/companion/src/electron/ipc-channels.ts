@@ -43,6 +43,14 @@ export const IPC = {
   RESET_ONBOARDING: "mplus:config:resetOnboarding",
   /** Return { version, name, electronVersion, nodeVersion, platform } from main */
   APP_INFO: "mplus:app:info",
+  /** Set Windows auto-launch on/off */
+  APP_SET_AUTO_LAUNCH: "mplus:app:setAutoLaunch",
+  /** Get current auto-launch state */
+  APP_GET_AUTO_LAUNCH: "mplus:app:getAutoLaunch",
+  /** Manually trigger an update check */
+  UPDATE_CHECK: "mplus:update:check",
+  /** Open a URL in the default browser */
+  SHELL_OPEN_EXTERNAL: "mplus:shell:openExternal",
 } as const;
 
 // ─── Payload types ────────────────────────────────────────────────────

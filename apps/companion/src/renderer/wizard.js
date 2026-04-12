@@ -241,7 +241,8 @@ pairBtn.addEventListener("click", async () => {
 
 // ─── Screen 5: Done ──────────────────────────────────────────────
 document.getElementById("done-finish").addEventListener("click", async () => {
-    // TODO: handle launch-on-startup checkbox
+    const launchOnStartup = document.getElementById("launch-on-startup")?.checked ?? true;
+    await window.mplus.setAutoLaunch(launchOnStartup);
     await window.mplus.configCompleteOnboarding();
 });
 

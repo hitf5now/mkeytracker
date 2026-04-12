@@ -127,6 +127,22 @@ export async function downloadUpdate(): Promise<void> {
   }
 }
 
+export async function checkForUpdatesManually(): Promise<void> {
+  if (!app.isPackaged) {
+    emitState({ status: "idle" });
+    return;
+  }
+  try {
+    console.log("[updater] manual check for updates…");
+    emitState({ status: "checking" });
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[updater] manual check failed:", message);
+    emitState({ status: "error", error: message });
+  }
+}
+
 export function quitAndInstall(): void {
   autoUpdater.quitAndInstall();
 }

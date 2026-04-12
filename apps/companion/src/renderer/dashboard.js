@@ -123,6 +123,52 @@ document.getElementById("open-wizard").addEventListener("click", async () => {
     await window.mplus.resetOnboarding();
 });
 
+// ─── Quick links ─────────────────────────────────────────────────
+const WEBSITE_BASE = "https://mythicplustracker.com";
+
+document.getElementById("link-website")?.addEventListener("click", () => {
+    void window.mplus.openExternal(WEBSITE_BASE);
+});
+document.getElementById("link-leaderboards")?.addEventListener("click", () => {
+    void window.mplus.openExternal(`${WEBSITE_BASE}/leaderboards`);
+});
+document.getElementById("link-profile")?.addEventListener("click", () => {
+    void window.mplus.openExternal(`${WEBSITE_BASE}/profile`);
+});
+document.getElementById("link-discord")?.addEventListener("click", () => {
+    // Opens the Discord invite or server — update this URL when you have a permanent invite link
+    void window.mplus.openExternal("https://discord.gg/your-invite-here");
+});
+
+// ─── Auto-launch ────────────────────────────────────────────────
+const autoLaunchCheck = document.getElementById("auto-launch-check");
+async function loadAutoLaunchState() {
+    const result = await window.mplus.getAutoLaunch();
+    if (autoLaunchCheck) autoLaunchCheck.checked = result.enabled;
+}
+autoLaunchCheck?.addEventListener("change", async () => {
+    await window.mplus.setAutoLaunch(autoLaunchCheck.checked);
+});
+void loadAutoLaunchState();
+
+// ─── Check for updates button ───────────────────────────────────
+document.getElementById("check-updates-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("check-updates-btn");
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Checking…";
+    }
+    await window.mplus.updateCheck();
+    // Status line will update via the onUpdateState push event.
+    // Re-enable the button after a short delay.
+    setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Check for updates";
+        }
+    }, 3000);
+});
+
 // ─── Update banner ────────────────────────────────────────────────
 function renderUpdateState(state) {
     const banner = document.getElementById("update-banner");

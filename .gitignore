@@ -49,3 +49,8 @@ playwright-report/
 
 # Docker volumes (if someone bind-mounts locally)
 .docker-data/
+
+# Screenshots and temp images accidentally dropped in root
+*.png
+*.jpg
+*.bmp

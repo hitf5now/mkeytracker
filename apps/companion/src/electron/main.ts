@@ -13,7 +13,7 @@
  * preload's contextBridge.
  */
 
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,7 @@ import {
   wireCloseToTray,
 } from "./tray.js";
 import {
+  checkForUpdatesManually,
   downloadUpdate,
   getUpdateState,
   initAutoUpdater,
@@ -349,6 +350,30 @@ function registerIpcHandlers(): void {
     platform: process.platform,
     packaged: app.isPackaged,
   }));
+
+  ipcMain.handle(IPC.APP_SET_AUTO_LAUNCH, async (_e, enabled: boolean) => {
+    if (!app.isPackaged) return { ok: false, reason: "dev mode" };
+    app.setLoginItemSettings({ openAtLogin: enabled });
+    return { ok: true, enabled };
+  });
+
+  ipcMain.handle(IPC.APP_GET_AUTO_LAUNCH, async () => {
+    if (!app.isPackaged) return { enabled: false, devMode: true };
+    const settings = app.getLoginItemSettings();
+    return { enabled: settings.openAtLogin };
+  });
+
+  ipcMain.handle(IPC.UPDATE_CHECK, async () => {
+    await checkForUpdatesManually();
+    return { ok: true };
+  });
+
+  ipcMain.handle(IPC.SHELL_OPEN_EXTERNAL, async (_e, url: string) => {
+    // Only allow http/https URLs to prevent shell injection
+    if (!/^https?:\/\//i.test(url)) return { ok: false };
+    await shell.openExternal(url);
+    return { ok: true };
+  });
 }
 
 // ─── App lifecycle ────────────────────────────────────────────────────
