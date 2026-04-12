@@ -424,6 +424,7 @@ export const apiClient = {
     rolePreference: "tank" | "healer" | "dps";
     signupStatus?: "confirmed" | "tentative";
     spec?: string;
+    characterClass?: string;
   }): Promise<{ signup: { id: number }; updated: boolean }> =>
     apiPost(`/api/v1/events/${req.eventId}/signup`, req),
 

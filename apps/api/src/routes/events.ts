@@ -39,6 +39,7 @@ const SignupSchema = z.object({
   rolePreference: z.enum(["tank", "healer", "dps"]),
   signupStatus: z.enum(["confirmed", "tentative"]).default("confirmed"),
   spec: z.string().max(30).optional(),
+  characterClass: z.string().max(30).optional(),
 });
 
 /** Shared matchmaking logic used by close-signups (autoAssign) and assign-teams */
@@ -178,10 +179,17 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}, not accepting signups.` });
       }
 
-      const user = await prisma.user.findUnique({ where: { discordId: body.discordId } });
-      if (!user) return reply.code(404).send({ error: "user_not_registered", message: "Register with /register first." });
+      // Upsert user — auto-create if they don't have a User row yet.
+      // This enables manual signups from users who haven't run /register.
+      const user = await prisma.user.upsert({
+        where: { discordId: body.discordId },
+        create: { discordId: body.discordId },
+        update: {},
+      });
 
-      const character = await prisma.character.findUnique({
+      // Find or create the character. For manual signups via RaiderIO,
+      // the character may not exist in our DB yet.
+      let character = await prisma.character.findUnique({
         where: {
           region_realm_name: {
             region: body.characterRegion,
@@ -190,8 +198,37 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           },
         },
       });
-      if (!character) return reply.code(404).send({ error: "character_not_found" });
-      if (character.userId !== user.id) return reply.code(403).send({ error: "character_not_yours" });
+
+      if (!character) {
+        // Auto-create the character — RaiderIO already validated it exists.
+        // Class/spec/role come from the bot's RaiderIO lookup or from the
+        // signup payload. If unknown, store defaults.
+        character = await prisma.character.create({
+          data: {
+            name: body.characterName,
+            realm: body.characterRealm,
+            region: body.characterRegion,
+            class: body.characterClass ?? "unknown",
+            spec: body.spec ?? "Unknown",
+            role: body.rolePreference,
+            userId: user.id,
+            claimedAt: new Date(),
+          },
+        });
+        req.log.info(
+          { characterId: character.id, name: character.name, userId: user.id },
+          "Auto-created character from event signup",
+        );
+      } else if (character.userId === null) {
+        // Unclaimed character — claim it for this user
+        await prisma.character.update({
+          where: { id: character.id },
+          data: { userId: user.id, claimedAt: new Date() },
+        });
+        character = { ...character, userId: user.id };
+      }
+      // If character belongs to a different user, still allow the signup
+      // (they may be signing up someone else's known character manually)
 
       // Check for duplicate signup (keyed on discordUserId now)
       const existing = await prisma.eventSignup.findUnique({

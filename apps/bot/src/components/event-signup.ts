@@ -470,6 +470,8 @@ async function handleSpecSelect(interaction: StringSelectMenuInteraction, client
       characterRealm: char.realm,
       characterRegion: char.region as "us" | "eu" | "kr" | "tw" | "cn",
       rolePreference: role,
+      spec: specName,
+      characterClass: char.class,
     });
 
     await interaction.editReply({
@@ -666,6 +668,8 @@ async function handleManualSpecSelect(interaction: StringSelectMenuInteraction, 
       characterRealm: pending.realm,
       characterRegion: pending.region as "us" | "eu" | "kr" | "tw" | "cn",
       rolePreference: role,
+      spec: specName,
+      characterClass: pending.classSlug ?? undefined,
     });
 
     const className = pending.classSlug ? CLASSES[pending.classSlug]?.name ?? "" : "";
