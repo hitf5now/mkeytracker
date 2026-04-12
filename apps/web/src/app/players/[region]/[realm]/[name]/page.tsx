@@ -6,6 +6,7 @@ import { getClassColor, getClassName } from "@/lib/class-colors";
 import { formatDuration, formatNumber, formatUpgrades, formatDate } from "@/lib/format";
 import { RoleIcon } from "@/components/role-icon";
 import { PlayerSearch } from "@/components/player-search";
+import { RefreshPortraitButton } from "@/components/refresh-portrait-button";
 
 interface Props {
   params: Promise<{ region: string; realm: string; name: string }>;
@@ -46,14 +47,14 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       {/* Character header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {/* Portrait */}
-        {(character.insetUrl || character.avatarUrl || character.thumbnailUrl) && (
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+        {/* Portrait — use avatar (head) for compact view, inset (bust) for larger */}
+        {(character.avatarUrl || character.thumbnailUrl || character.insetUrl) && (
           <div className="shrink-0">
             <img
-              src={character.insetUrl ?? character.avatarUrl ?? character.thumbnailUrl ?? ""}
+              src={character.avatarUrl ?? character.thumbnailUrl ?? character.insetUrl ?? ""}
               alt={character.name}
-              className="h-24 w-24 rounded-lg border border-border object-cover sm:h-32 sm:w-32"
+              className="h-16 w-16 rounded-lg border border-border sm:h-20 sm:w-20"
               loading="eager"
             />
           </div>
@@ -73,6 +74,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                 RIO {formatNumber(character.rioScore)}
               </span>
             )}
+            <RefreshPortraitButton region={region} realm={realm} name={name} />
           </div>
         </div>
       </div>
