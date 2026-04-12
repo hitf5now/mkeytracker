@@ -48,6 +48,8 @@ export interface RaiderIOCharacter {
   name: string;
   /** Direct link to the RaiderIO profile */
   profileUrl: string;
+  /** Character portrait URL (96x96 avatar from Blizzard render CDN, cached by RaiderIO) */
+  thumbnailUrl: string | null;
 }
 
 interface RaiderIOProfileResponse {
@@ -58,6 +60,7 @@ interface RaiderIOProfileResponse {
   region: string;
   realm: string;
   profile_url: string;
+  thumbnail_url?: string;
   mythic_plus_scores_by_season?: Array<{
     season: string;
     scores: {
@@ -138,5 +141,6 @@ export async function fetchCharacter(
     realmSlug: toRealmSlug(data.realm),
     name: data.name,
     profileUrl: data.profile_url,
+    thumbnailUrl: data.thumbnail_url ?? null,
   };
 }

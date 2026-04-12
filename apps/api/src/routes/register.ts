@@ -108,6 +108,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
               spec: rioChar.specName,
               role: rioChar.role,
               rioScore: rioChar.rioScore,
+              thumbnailUrl: rioChar.thumbnailUrl,
               ...(claimingNow
                 ? { userId: user.id, claimedAt: new Date() }
                 : {}),
@@ -125,6 +126,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
               spec: rioChar.specName,
               role: rioChar.role,
               rioScore: rioChar.rioScore,
+              thumbnailUrl: rioChar.thumbnailUrl,
             },
           });
         }
