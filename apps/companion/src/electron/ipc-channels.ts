@@ -41,6 +41,8 @@ export const IPC = {
   UPDATE_INSTALL: "mplus:update:install",
   /** Unset jwt + wow config to re-run the wizard. */
   RESET_ONBOARDING: "mplus:config:resetOnboarding",
+  /** Return { version, name, electronVersion, nodeVersion, platform } from main */
+  APP_INFO: "mplus:app:info",
 } as const;
 
 // ─── Payload types ────────────────────────────────────────────────────
@@ -86,6 +88,21 @@ export interface UpdateStateSnapshot {
   progress?: number;
   notes?: string;
   error?: string;
+}
+
+export interface AppInfo {
+  /** Semver from package.json — e.g. "0.1.3" */
+  version: string;
+  /** Human product name — "M+ Tracker" */
+  name: string;
+  /** Electron runtime version */
+  electronVersion: string;
+  /** Node.js runtime version */
+  nodeVersion: string;
+  /** win32 / darwin / linux */
+  platform: string;
+  /** true when packaged, false in dev (`electron dist/…`) */
+  packaged: boolean;
 }
 
 // Re-exports for convenience (preload needs these types too)

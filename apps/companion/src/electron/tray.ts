@@ -72,7 +72,7 @@ export function updateMenu(
             : "No activity yet";
 
     const menu = Menu.buildFromTemplate([
-        { label: "M+ Tracker", enabled: false },
+        { label: `M+ Tracker v${app.getVersion()}`, enabled: false },
         { label: statusLabel, enabled: false },
         { label: queueLabel, enabled: false },
         { type: "separator" },

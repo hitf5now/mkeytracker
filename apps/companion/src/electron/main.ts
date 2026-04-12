@@ -46,6 +46,7 @@ import {
 import { detectWowInstall, hasRetailSubfolder, scanWowAccounts } from "./wow-detect.js";
 import {
   IPC,
+  type AppInfo,
   type PairRequest,
   type PairResponse,
   type ResyncResult,
@@ -339,6 +340,15 @@ function registerIpcHandlers(): void {
     }
     return { ok: true };
   });
+
+  ipcMain.handle(IPC.APP_INFO, async (): Promise<AppInfo> => ({
+    version: app.getVersion(),
+    name: app.getName(),
+    electronVersion: process.versions.electron,
+    nodeVersion: process.versions.node,
+    platform: process.platform,
+    packaged: app.isPackaged,
+  }));
 }
 
 // ─── App lifecycle ────────────────────────────────────────────────────

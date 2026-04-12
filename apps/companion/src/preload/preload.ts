@@ -16,6 +16,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   IPC,
   type AddonInstallResult,
+  type AppInfo,
   type PairRequest,
   type PairResponse,
   type ResyncResult,
@@ -74,6 +75,9 @@ const api = {
   // Re-run the wizard
   resetOnboarding: (): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.RESET_ONBOARDING),
+
+  // App metadata — version, Electron/Node runtime info
+  appInfo: (): Promise<AppInfo> => ipcRenderer.invoke(IPC.APP_INFO),
 
   // Push events from main → renderer
   onQueueUpdate: (cb: () => void): (() => void) => {

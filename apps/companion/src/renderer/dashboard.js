@@ -20,6 +20,22 @@ async function refresh() {
     }
 }
 
+async function renderAppInfo() {
+    try {
+        const info = await window.mplus.appInfo();
+        const subEl = document.getElementById("brand-sub");
+        if (subEl) {
+            const mode = info.packaged ? "" : " (dev)";
+            subEl.textContent = `v${info.version}${mode}`;
+            subEl.title = `Electron ${info.electronVersion} • Node ${info.nodeVersion} • ${info.platform}`;
+        }
+        // Tab title too, so alt-tab distinguishes versions
+        document.title = `M+ Tracker v${info.version}`;
+    } catch (err) {
+        console.error("app info fetch failed", err);
+    }
+}
+
 function renderStatus(cfg, status) {
     // Pairing
     const pairingEl = document.getElementById("stat-pairing");
@@ -179,6 +195,7 @@ function formatRelative(iso) {
 }
 
 // ─── Lifecycle ───────────────────────────────────────────────────
+void renderAppInfo();
 void refresh();
 pollTimer = setInterval(() => void refresh(), POLL_INTERVAL_MS);
 
