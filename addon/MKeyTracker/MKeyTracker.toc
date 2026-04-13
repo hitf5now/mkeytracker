@@ -2,7 +2,7 @@
 ## Title: MKey Tracker
 ## Notes: Captures Mythic+ runs for the M+ Challenge Platform.|nRuns are queued in SavedVariables and flushed by the companion app on /reload.
 ## Author: hitf5now
-## Version: 0.2.0
+## Version: 0.3.2
 ## SavedVariables: MKeyTrackerDB
 ## IconTexture: Interface\Icons\INV_Relics_Hourglass
 ## X-Category: Mythic+

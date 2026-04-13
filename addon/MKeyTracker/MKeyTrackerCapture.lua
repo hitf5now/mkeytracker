@@ -248,31 +248,46 @@ function ns.Capture.OnCompleted(overrideInfo)
 
     local members = BuildMembers(info)
 
+    -- All enhancement data below is best-effort. If any of it fails
+    -- due to Secret Values or API restrictions, the basic run data
+    -- is still captured and submitted.
+
     -- Apply inspected specs to other members (from CombatLog module)
-    if ns.CombatLog and ns.CombatLog.GetPartySpecs then
-        local partySpecs = ns.CombatLog.GetPartySpecs()
-        for _, m in ipairs(members) do
-            if m.spec == "Unknown" and partySpecs[m.name] then
-                m.spec = partySpecs[m.name]
+    pcall(function()
+        if ns.CombatLog and ns.CombatLog.GetPartySpecs then
+            local partySpecs = ns.CombatLog.GetPartySpecs()
+            for _, m in ipairs(members) do
+                if m.spec == "Unknown" and partySpecs[m.name] then
+                    m.spec = partySpecs[m.name]
+                end
             end
         end
-    end
+    end)
 
     -- Dynamic dungeon metadata from WoW API
-    local dungeonName, _, dungeonTimeLimitSec = C_ChallengeMode.GetMapUIInfo(mapID)
+    local dungeonName, _, dungeonTimeLimitSec
+    pcall(function()
+        dungeonName, _, dungeonTimeLimitSec = C_ChallengeMode.GetMapUIInfo(mapID)
+    end)
 
-    -- Rating data (local player only)
-    local oldRating = info.oldOverallDungeonScore
-    local newRating = info.newOverallDungeonScore
-    local ratingGained = 0
-    if oldRating and newRating then
-        ratingGained = newRating - oldRating
-    end
+    -- Rating data (local player only) — may be secret values
+    local oldRating, newRating, ratingGained
+    pcall(function()
+        oldRating = info.oldOverallDungeonScore
+        newRating = info.newOverallDungeonScore
+        ratingGained = 0
+        if oldRating and newRating then
+            ratingGained = newRating - oldRating
+        end
+    end)
 
-    -- Season ID (dynamic — changes each season, no static mapping)
-    local wowSeasonId = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason() or nil
+    -- Season ID (dynamic)
+    local wowSeasonId
+    pcall(function()
+        wowSeasonId = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason() or nil
+    end)
 
-    -- Per-player combat stats from CombatLog module
+    -- Per-player combat stats from CombatLog module (may fail due to Secret Values)
     local playerStats = nil
     if ns.CombatLog and ns.CombatLog.GetPlayerStats then
         playerStats = ns.CombatLog.GetPlayerStats()

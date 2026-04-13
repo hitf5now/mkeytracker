@@ -116,37 +116,47 @@ end
     instance (data doesn't survive logout/reload).
 ]]--
 function ns.CombatLog.GetPlayerStats()
+    -- C_DamageMeter data is wrapped in Secret Values during active M+
+    -- keys. We attempt to read it but gracefully return empty if the
+    -- data is still restricted. The run capture proceeds without stats.
+    local ok, stats = pcall(ns.CombatLog._queryAllStats)
+    if ok and stats then
+        return stats
+    end
+    ns.Utils.Debug("C_DamageMeter data is restricted (Secret Values) — skipping combat stats")
+    return {}
+end
+
+function ns.CombatLog._queryAllStats()
     if not C_DamageMeter or not C_DamageMeter.IsDamageMeterAvailable then
-        ns.Utils.Debug("C_DamageMeter not available")
         return {}
     end
 
     local available, reason = C_DamageMeter.IsDamageMeterAvailable()
     if not available then
-        ns.Utils.Debug("DamageMeter unavailable: " .. (reason or "unknown"))
         return {}
     end
 
-    -- Helper: query a metric and return { [guid] = amount }
+    -- Helper: query a metric and return { [name] = amount }
+    -- Uses name (not GUID) since GUID may be a secret value
     local function queryMetric(meterType)
         local result = {}
-        local ok, session = pcall(C_DamageMeter.GetCombatSessionFromType, SESSION_OVERALL, meterType)
-        if not ok or not session or not session.combatSources then
+        local session = C_DamageMeter.GetCombatSessionFromType(SESSION_OVERALL, meterType)
+        if not session or not session.combatSources then
             return result
         end
         for _, source in ipairs(session.combatSources) do
-            if source.sourceGUID and source.totalAmount then
-                result[source.sourceGUID] = {
-                    amount = source.totalAmount,
-                    name = source.name,
-                    classFilename = source.classFilename,
-                }
+            -- Try to read values — they may be secrets
+            local name = source.name
+            local amount = source.totalAmount
+            if name and amount then
+                result[name] = amount
             end
         end
         return result
     end
 
-    -- Query all metrics we care about
+    -- Query all metrics we care about (keyed by player name)
     local damage = queryMetric(METER_TYPES.DamageDone)
     local healing = queryMetric(METER_TYPES.HealingDone)
     local damageTaken = queryMetric(METER_TYPES.DamageTaken)
@@ -154,57 +164,42 @@ function ns.CombatLog.GetPlayerStats()
     local dispels = queryMetric(METER_TYPES.Dispels)
     local deaths = queryMetric(METER_TYPES.Deaths)
 
-    -- Merge all metrics into a per-player stats table
-    -- Collect all known GUIDs
-    local allGUIDs = {}
-    for guid in pairs(damage) do allGUIDs[guid] = true end
-    for guid in pairs(healing) do allGUIDs[guid] = true end
-    for guid in pairs(damageTaken) do allGUIDs[guid] = true end
+    -- Merge all metrics by player name
+    local allNames = {}
+    for name in pairs(damage) do allNames[name] = true end
+    for name in pairs(healing) do allNames[name] = true end
+    for name in pairs(damageTaken) do allNames[name] = true end
 
     local stats = {}
-    local fallbackRealm = GetRealmName() or ""
+    local fallbackRealm = ns.Utils.RealmSlug(GetRealmName() or "")
 
-    for guid in pairs(allGUIDs) do
-        -- Resolve name and realm from the damage meter data or unit tokens
-        local name, realm
-        local dmgEntry = damage[guid]
-        if dmgEntry and dmgEntry.name then
-            name = dmgEntry.name
-        end
-
-        -- Try to find the unit token for this GUID to get realm
-        local unit
-        if guid == UnitGUID("player") then
-            unit = "player"
+    for name in pairs(allNames) do
+        -- Try to find the realm for this player
+        local realm = fallbackRealm
+        if name == UnitName("player") then
+            realm = fallbackRealm
         else
             for i = 1, 4 do
                 local u = "party" .. i
-                if UnitExists(u) and UnitGUID(u) == guid then
-                    unit = u
-                    break
+                if UnitExists(u) then
+                    local uName, uRealm = UnitName(u)
+                    if uName == name then
+                        realm = ns.Utils.RealmSlug((uRealm and uRealm ~= "") and uRealm or fallbackRealm)
+                        break
+                    end
                 end
             end
         end
 
-        if unit then
-            local uName, uRealm = UnitName(unit)
-            name = name or uName
-            realm = (uRealm and uRealm ~= "") and uRealm or fallbackRealm
-        else
-            realm = fallbackRealm
-        end
-
-        if name then
-            local key = name .. "-" .. ns.Utils.RealmSlug(realm)
-            stats[key] = {
-                damage = damage[guid] and damage[guid].amount or 0,
-                healing = healing[guid] and healing[guid].amount or 0,
-                damageTaken = damageTaken[guid] and damageTaken[guid].amount or 0,
-                deaths = deaths[guid] and deaths[guid].amount or 0,
-                interrupts = interrupts[guid] and interrupts[guid].amount or 0,
-                dispels = dispels[guid] and dispels[guid].amount or 0,
-            }
-        end
+        local key = name .. "-" .. realm
+        stats[key] = {
+            damage = damage[name] or 0,
+            healing = healing[name] or 0,
+            damageTaken = damageTaken[name] or 0,
+            deaths = deaths[name] or 0,
+            interrupts = interrupts[name] or 0,
+            dispels = dispels[name] or 0,
+        }
     end
 
     return stats
