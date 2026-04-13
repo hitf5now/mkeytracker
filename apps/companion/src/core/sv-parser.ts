@@ -50,21 +50,6 @@ const MemberSchema = z.object({
   role: z.enum(["tank", "healer", "dps"]),
 });
 
-/**
- * Accept 5-10 members from the addon. The addon's BuildMembers() can
- * include the player twice — once from BuildSelfMember() (with accurate
- * spec) and again from the group roster scan. We deduplicate after
- * schema validation.
- */
-const PlayerStatsSchema = z.object({
-  damage: z.number().nonnegative().default(0),
-  healing: z.number().nonnegative().default(0),
-  damageTaken: z.number().nonnegative().default(0),
-  deaths: z.number().int().nonnegative().default(0),
-  interrupts: z.number().int().nonnegative().default(0),
-  dispels: z.number().int().nonnegative().default(0),
-});
-
 const RunSubmissionSchemaRaw = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2),
@@ -91,12 +76,6 @@ const RunSubmissionSchemaRaw = z.object({
   isEligibleForScore: z.boolean().optional(),
   // New: season tracking
   wowSeasonId: z.number().int().optional().nullable(),
-  // New: per-player combat stats (keyed by "Name-realm")
-  // Empty Lua tables `{}` are parsed as arrays by luaparse — convert to object.
-  playerStats: z.preprocess(
-    (val) => (Array.isArray(val) && val.length === 0 ? {} : val),
-    z.record(z.string(), PlayerStatsSchema).optional().nullable(),
-  ),
 });
 
 type RawRun = z.infer<typeof RunSubmissionSchemaRaw>;

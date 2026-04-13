@@ -6,23 +6,19 @@
     {
         pendingRuns = {               -- outbound queue, FIFO
             {
-                challengeModeId = 123,
-                keystoneLevel = 15,
-                completionMs = 1710000,
-                onTime = true,
-                upgrades = 2,
-                deaths = 0,
-                timeLostSec = 0,
-                serverTime = 1744500000,
-                affixes = { 9, 10, 11 },
-                region = "us",
+                challengeModeId = 123,  keystoneLevel = 15,
+                completionMs = 1710000, onTime = true, upgrades = 2,
+                deaths = 0, timeLostSec = 0, serverTime = 1744500000,
+                affixes = { 9, 10, 11 }, region = "us",
                 members = {
-                    { name = "Tanavast", realm = "trollbane", class = "shaman", spec = "Elemental", role = "dps" },
-                    ...
+                    { name, realm, class, spec, role },  -- 5 entries
                 },
                 source = "addon",
+                dungeonName = "...", dungeonTimeLimitSec = 600,
+                oldRating, newRating, ratingGained,
+                isMapRecord, isAffixRecord, isEligibleForScore,
+                wowSeasonId = 17,
             },
-            ...
         },
         inbound = {},                  -- populated by companion app, read on /reload
         settings = {
@@ -35,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.3.6"
+ns.version = "0.4.0"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -69,7 +65,7 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
     elseif event == "PLAYER_LOGIN" then
         ns.Utils.Debug("PLAYER_LOGIN fired")
     elseif event == "CHALLENGE_MODE_START" then
-        -- Start combat log tracking for per-player stats + spec detection
+        -- Snapshot the party roster + start spec detection via inspect
         if ns.CombatLog and ns.CombatLog.Start then
             ns.CombatLog.Start()
         end
@@ -77,14 +73,10 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
             ns.Capture.OnStart()
         end
     elseif event == "CHALLENGE_MODE_COMPLETED" then
-        -- Stop combat log before capture reads the stats
-        if ns.CombatLog and ns.CombatLog.Stop then
-            ns.CombatLog.Stop()
-        end
         if ns.Capture and ns.Capture.OnCompleted then
             ns.Capture.OnCompleted()
         end
-        -- Clear combat log state after capture
+        -- Clear inspect state after capture (snapshot persists intentionally)
         if ns.CombatLog and ns.CombatLog.Clear then
             ns.CombatLog.Clear()
         end

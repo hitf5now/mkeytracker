@@ -128,46 +128,119 @@ local function ResolveOtherMember(apiMember, fallbackRealm)
     }
 end
 
--- Build the full 5-member list.
--- Primary source is `info.members` (the 4 OTHER members from the API).
--- Player is always prepended from live unit queries.
--- If `info.members` is missing or empty, we fall back to enumerating
--- party1..4 units directly — the pre-refactor behavior, useful for the
--- natural event flow where party state is definitely live.
+--[[
+    Build the full 5-member list by merging three sources:
+
+    1. API completion data  — info.members from GetChallengeCompletionInfo()
+       (may include the player, may have Secret Value entries that won't
+       serialize). Enriched with live unit data when available.
+    2. Live party units     — party1..4 at completion time. May be missing
+       if someone DC'd or left right at the end.
+    3. Key-start snapshot   — recorded by PartyInfo.Start() when the key
+       began. Every member that was present at the start is guaranteed to
+       be a real, serializable value.
+
+    Members are keyed by name for dedup. Source 1 wins over 2, which wins
+    over 3. The player is always built from live "player" unit queries.
+]]--
 local function BuildMembers(info)
-    local members = { BuildSelfMember() }
+    local self = BuildSelfMember()
+    local playerName = UnitName("player") or self.name
     local fallbackRealm = GetRealmName() or ""
 
-    if info and type(info.members) == "table" and #info.members > 0 then
-        -- The API may include the player in the members list.
-        -- Skip anyone matching the player's name to avoid duplicates.
-        local playerName = UnitName("player")
-        for _, apiMember in ipairs(info.members) do
-            if apiMember.name ~= playerName then
-                table.insert(members, ResolveOtherMember(apiMember, fallbackRealm))
-            end
+    -- Accumulator keyed by lowercase name to deduplicate across sources.
+    -- Value = member table. Player entry is pre-seeded.
+    local byName = {}
+    byName[(playerName or ""):lower()] = self
+
+    -- ── Source 3 (lowest priority): key-start snapshot ──────────────
+    local snapshot = {}
+    if ns.CombatLog and ns.CombatLog.GetPartySnapshot then
+        snapshot = ns.CombatLog.GetPartySnapshot()
+    end
+    for _, m in ipairs(snapshot) do
+        local key = (m.name or ""):lower()
+        if key ~= "" and not byName[key] then
+            byName[key] = {
+                name  = m.name,
+                realm = m.realm,
+                class = m.class,
+                spec  = m.spec or "Unknown",
+                role  = m.role or "dps",
+            }
+            ns.Utils.Debug("BuildMembers: added from snapshot — " .. (m.name or "?"))
         end
-        return members
     end
 
-    -- No API members provided — enumerate live party units.
+    -- ── Source 2 (medium priority): live party units ────────────────
     for i = 1, 4 do
         local unit = "party" .. i
         if UnitExists(unit) then
             local uName, uRealm = UnitName(unit)
             if uName then
-                local _, classFile = UnitClass(unit)
+                local key = uName:lower()
                 if not uRealm or uRealm == "" then uRealm = fallbackRealm end
-                table.insert(members, {
-                    name = uName,
+                local _, classFile = UnitClass(unit)
+                local entry = {
+                    name  = uName,
                     realm = ns.Utils.RealmSlug(uRealm),
                     class = ClassSlug(classFile or ""),
-                    spec = "Unknown",
-                    role = NormalizeRole(UnitGroupRolesAssigned(unit)),
-                })
+                    spec  = "Unknown",
+                    role  = NormalizeRole(UnitGroupRolesAssigned(unit)),
+                }
+                -- Overwrite snapshot entry (better data), skip player
+                if key ~= (playerName or ""):lower() then
+                    byName[key] = entry
+                    ns.Utils.Debug("BuildMembers: added/updated from live unit — " .. uName)
+                end
             end
         end
     end
+
+    -- ── Source 1 (highest priority): API completion members ─────────
+    if info and type(info.members) == "table" then
+        ns.Utils.Debug(string.format("BuildMembers: API info.members has %d entries", #info.members))
+        for idx, apiMember in ipairs(info.members) do
+            local name = apiMember.name
+            -- Guard against Secret Values: name must be a real string
+            if type(name) ~= "string" or name == "" then
+                ns.Utils.Debug(string.format(
+                    "BuildMembers: skipping API member[%d] — name is %s (type=%s)",
+                    idx, tostring(name), type(name)))
+            else
+                local key = name:lower()
+                -- Skip the player (already have self-member with accurate spec)
+                if key ~= (playerName or ""):lower() then
+                    local resolved = ResolveOtherMember(apiMember, fallbackRealm)
+                    -- Preserve spec/role from lower-priority source if the API
+                    -- version has no data (Unknown/dps defaults)
+                    local existing = byName[key]
+                    if existing then
+                        if resolved.spec == "Unknown" and existing.spec ~= "Unknown" then
+                            resolved.spec = existing.spec
+                        end
+                        if resolved.role == "dps" and existing.role ~= "dps" then
+                            resolved.role = existing.role
+                        end
+                    end
+                    byName[key] = resolved
+                    ns.Utils.Debug("BuildMembers: added/updated from API — " .. name)
+                end
+            end
+        end
+    else
+        ns.Utils.Debug("BuildMembers: no API info.members available")
+    end
+
+    -- ── Assemble final list: player first, then others ──────────────
+    local members = { self }
+    for key, m in pairs(byName) do
+        if key ~= (playerName or ""):lower() then
+            table.insert(members, m)
+        end
+    end
+
+    ns.Utils.Debug(string.format("BuildMembers: final count = %d", #members))
     return members
 end
 
@@ -287,12 +360,6 @@ function ns.Capture.OnCompleted(overrideInfo)
         wowSeasonId = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason() or nil
     end)
 
-    -- Per-player combat stats from CombatLog module (may fail due to Secret Values)
-    local playerStats = nil
-    if ns.CombatLog and ns.CombatLog.GetPlayerStats then
-        playerStats = ns.CombatLog.GetPlayerStats()
-    end
-
     local payload = {
         challengeModeId = mapID,
         keystoneLevel = level,
@@ -318,8 +385,6 @@ function ns.Capture.OnCompleted(overrideInfo)
         isEligibleForScore = info.isEligibleForScore or false,
         -- Season (dynamic)
         wowSeasonId = wowSeasonId,
-        -- Per-player combat stats
-        playerStats = playerStats,
     }
 
     -- Client-side dedup

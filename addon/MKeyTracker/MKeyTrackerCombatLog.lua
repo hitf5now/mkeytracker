@@ -1,36 +1,20 @@
 --[[
-    MKeyTrackerCombatLog.lua — per-player combat stats via C_DamageMeter
+    MKeyTrackerCombatLog.lua — party info: spec detection via inspect
 
-    Uses Blizzard's built-in Damage Meter API (added in Midnight 12.0)
-    instead of parsing COMBAT_LOG_EVENT_UNFILTERED (which is restricted
-    during M+ keys by Secret Values).
-
-    Called after CHALLENGE_MODE_COMPLETED to snapshot the Overall session
-    data for all tracked metrics.
+    Inspects party members at key start to detect their specs.
+    Also snapshots the full party roster so BuildMembers() has a
+    reliable fallback if the completion API is missing entries.
 ]]--
 
 local addonName, ns = ...
 ns.CombatLog = {}
 
--- DamageMeterType enum values (from DamageMeterConstantsDocumentation.lua)
-local METER_TYPES = {
-    DamageDone = 0,
-    Dps = 1,
-    HealingDone = 2,
-    Hps = 3,
-    Absorbs = 4,
-    Interrupts = 5,
-    Dispels = 6,
-    DamageTaken = 7,
-    AvoidableDamageTaken = 8,
-    Deaths = 9,
-}
-
--- DamageMeterSessionType
-local SESSION_OVERALL = 0  -- Full run aggregate
-
 -- Cached party specs from inspect (best-effort, done at key start)
 local partySpecs = {}
+
+-- Party snapshot taken at CHALLENGE_MODE_START — every member that was
+-- present when the key began. Used as a tertiary source in BuildMembers().
+local partySnapshot = {}
 
 -- ─── Spec detection via inspect (still works in Midnight) ────────────
 local inspectQueue = {}
@@ -75,18 +59,75 @@ inspectFrame:SetScript("OnEvent", function(self, event, guid)
     C_Timer.After(1.2, ProcessNextInspect)
 end)
 
+-- ─── Class file name → slug (duplicated from Capture for snapshot use) ──
+local CLASS_SLUG_OVERRIDES = {
+    DEATHKNIGHT = "death-knight",
+    DEMONHUNTER = "demon-hunter",
+}
+
+local function ClassSlug(classFileName)
+    if not classFileName then return "" end
+    return CLASS_SLUG_OVERRIDES[classFileName] or classFileName:lower()
+end
+
+local function NormalizeRole(roleToken)
+    if not roleToken or roleToken == "" or roleToken == "NONE" then return "dps" end
+    local r = roleToken:upper()
+    if r == "TANK" then return "tank" end
+    if r == "HEALER" then return "healer" end
+    return "dps"
+end
+
 -- ─── Public API ──────────────────────────────────────────────────────
 
 function ns.CombatLog.Start()
     partySpecs = {}
+    partySnapshot = {}
     inspectQueue = {}
     inspectIndex = 0
 
-    -- Queue party members for spec inspection
-    -- Do this before combat starts if possible
+    local fallbackRealm = GetRealmName() or ""
+
+    -- Snapshot the player first
+    local pName = UnitName("player")
+    local _, pClassFile = UnitClass("player")
+    local pSpecName = "Unknown"
+    local pRoleToken = "dps"
+    local specIndex = GetSpecialization()
+    if specIndex then
+        local _, sName, _, _, sRole = GetSpecializationInfo(specIndex)
+        pSpecName = sName or "Unknown"
+        pRoleToken = sRole
+    end
+    table.insert(partySnapshot, {
+        name = pName or "Unknown",
+        realm = ns.Utils.RealmSlug(fallbackRealm),
+        class = ClassSlug(pClassFile or ""),
+        spec = pSpecName,
+        role = NormalizeRole(pRoleToken),
+    })
+    ns.Utils.Debug(string.format("Snapshot[player]: %s-%s %s %s",
+        pName or "?", fallbackRealm, ClassSlug(pClassFile or ""), NormalizeRole(pRoleToken)))
+
+    -- Snapshot party1..4 and queue for spec inspection
     for i = 1, 4 do
         local unit = "party" .. i
         if UnitExists(unit) then
+            local uName, uRealm = UnitName(unit)
+            if uName then
+                local _, classFile = UnitClass(unit)
+                if not uRealm or uRealm == "" then uRealm = fallbackRealm end
+                table.insert(partySnapshot, {
+                    name = uName,
+                    realm = ns.Utils.RealmSlug(uRealm),
+                    class = ClassSlug(classFile or ""),
+                    spec = "Unknown",
+                    role = NormalizeRole(UnitGroupRolesAssigned(unit)),
+                })
+                ns.Utils.Debug(string.format("Snapshot[%s]: %s-%s %s %s",
+                    unit, uName, uRealm, ClassSlug(classFile or ""),
+                    NormalizeRole(UnitGroupRolesAssigned(unit))))
+            end
             table.insert(inspectQueue, unit)
         end
     end
@@ -95,116 +136,22 @@ function ns.CombatLog.Start()
         C_Timer.After(1.0, ProcessNextInspect)
     end
 
-    ns.Utils.Debug("Combat tracking started (C_DamageMeter mode)")
-end
-
-function ns.CombatLog.Stop()
-    -- Nothing to unregister — we query C_DamageMeter on demand
+    ns.Utils.Debug(string.format("Party snapshot: %d member(s), %d queued for inspect",
+        #partySnapshot, #inspectQueue))
 end
 
 function ns.CombatLog.Clear()
     partySpecs = {}
     inspectQueue = {}
     inspectIndex = 0
-end
-
---[[
-    Query C_DamageMeter for per-player stats from the Overall session.
-    Returns a table keyed by "Name-realm" with damage, healing, etc.
-
-    Must be called after CHALLENGE_MODE_COMPLETED while still in the
-    instance (data doesn't survive logout/reload).
-]]--
-function ns.CombatLog.GetPlayerStats()
-    -- C_DamageMeter data is wrapped in Secret Values during active M+
-    -- keys. We attempt to read it but gracefully return empty if the
-    -- data is still restricted. The run capture proceeds without stats.
-    local ok, stats = pcall(ns.CombatLog._queryAllStats)
-    if ok and stats then
-        return stats
-    end
-    ns.Utils.Debug("C_DamageMeter data is restricted (Secret Values) — skipping combat stats")
-    return {}
-end
-
-function ns.CombatLog._queryAllStats()
-    if not C_DamageMeter or not C_DamageMeter.IsDamageMeterAvailable then
-        return {}
-    end
-
-    local available, reason = C_DamageMeter.IsDamageMeterAvailable()
-    if not available then
-        return {}
-    end
-
-    -- Helper: query a metric and return { [name] = amount }
-    -- Uses name (not GUID) since GUID may be a secret value
-    local function queryMetric(meterType)
-        local result = {}
-        local session = C_DamageMeter.GetCombatSessionFromType(SESSION_OVERALL, meterType)
-        if not session or not session.combatSources then
-            return result
-        end
-        for _, source in ipairs(session.combatSources) do
-            -- Try to read values — they may be secrets
-            local name = source.name
-            local amount = source.totalAmount
-            if name and amount then
-                result[name] = amount
-            end
-        end
-        return result
-    end
-
-    -- Query all metrics we care about (keyed by player name)
-    local damage = queryMetric(METER_TYPES.DamageDone)
-    local healing = queryMetric(METER_TYPES.HealingDone)
-    local damageTaken = queryMetric(METER_TYPES.DamageTaken)
-    local interrupts = queryMetric(METER_TYPES.Interrupts)
-    local dispels = queryMetric(METER_TYPES.Dispels)
-    local deaths = queryMetric(METER_TYPES.Deaths)
-
-    -- Merge all metrics by player name
-    local allNames = {}
-    for name in pairs(damage) do allNames[name] = true end
-    for name in pairs(healing) do allNames[name] = true end
-    for name in pairs(damageTaken) do allNames[name] = true end
-
-    local stats = {}
-    local fallbackRealm = ns.Utils.RealmSlug(GetRealmName() or "")
-
-    for name in pairs(allNames) do
-        -- Try to find the realm for this player
-        local realm = fallbackRealm
-        if name == UnitName("player") then
-            realm = fallbackRealm
-        else
-            for i = 1, 4 do
-                local u = "party" .. i
-                if UnitExists(u) then
-                    local uName, uRealm = UnitName(u)
-                    if uName == name then
-                        realm = ns.Utils.RealmSlug((uRealm and uRealm ~= "") and uRealm or fallbackRealm)
-                        break
-                    end
-                end
-            end
-        end
-
-        local key = name .. "-" .. realm
-        stats[key] = {
-            damage = damage[name] or 0,
-            healing = healing[name] or 0,
-            damageTaken = damageTaken[name] or 0,
-            deaths = deaths[name] or 0,
-            interrupts = interrupts[name] or 0,
-            dispels = dispels[name] or 0,
-        }
-    end
-
-    return stats
+    -- NOTE: partySnapshot is intentionally NOT cleared here.
+    -- It persists until the next key start so BuildMembers can use it.
 end
 
 function ns.CombatLog.GetPartySpecs()
     return partySpecs
+end
+
+function ns.CombatLog.GetPartySnapshot()
+    return partySnapshot
 end

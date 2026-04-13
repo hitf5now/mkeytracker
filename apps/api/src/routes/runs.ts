@@ -34,15 +34,6 @@ const MemberPayloadSchema = z.object({
   role: z.enum(["tank", "healer", "dps"]),
 });
 
-const PlayerStatsSchema = z.object({
-  damage: z.number().nonnegative().default(0),
-  healing: z.number().nonnegative().default(0),
-  damageTaken: z.number().nonnegative().default(0),
-  deaths: z.number().int().nonnegative().default(0),
-  interrupts: z.number().int().nonnegative().default(0),
-  dispels: z.number().int().nonnegative().default(0),
-});
-
 const RunSubmissionSchema = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2).max(40),
@@ -70,8 +61,6 @@ const RunSubmissionSchema = z.object({
   isEligibleForScore: z.boolean().optional(),
   // Season tracking (dynamic WoW season ID)
   wowSeasonId: z.number().int().optional().nullable(),
-  // Per-player combat stats (keyed by "Name-realm")
-  playerStats: z.record(z.string(), PlayerStatsSchema).optional().nullable(),
 });
 
 type RunSubmissionBody = z.infer<typeof RunSubmissionSchema>;
@@ -342,7 +331,6 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               ratingGained: body.ratingGained ?? null,
               isMapRecord: body.isMapRecord ?? false,
               isAffixRecord: body.isAffixRecord ?? false,
-              playerStats: body.playerStats ?? undefined,
               members: {
                 create: normalizedMembers.map((m, i) => ({
                   userId: characters[i]!.userId, // nullable — unclaimed members
