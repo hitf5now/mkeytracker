@@ -76,7 +76,7 @@ const RunSubmissionSchemaRaw = z.object({
   serverTime: z.number().int().positive(),
   affixes: z.array(z.number().int()).default([]),
   region: z.enum(["us", "eu", "kr", "tw", "cn"]),
-  members: z.array(MemberSchema).min(5).max(10),
+  members: z.array(MemberSchema).min(3).max(10),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
   eventId: z.number().int().positive().optional(),
   // New: dynamic dungeon metadata
@@ -280,13 +280,13 @@ export function parseSavedVariablesSource(source: string): ParseResult {
       if (parsed.success) {
         // Deduplicate members (addon can double-count the player)
         const deduped = deduplicateMembers(parsed.data);
-        if (deduped.members.length === 5) {
+        if (deduped.members.length >= 3 && deduped.members.length <= 5) {
           runs.push(deduped);
         } else {
           rejected++;
           errors.push({
             index: i,
-            message: `Expected 5 unique members after dedup, got ${deduped.members.length}`,
+            message: `Expected 3-5 unique members after dedup, got ${deduped.members.length}`,
           });
         }
       } else {

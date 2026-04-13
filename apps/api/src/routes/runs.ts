@@ -54,7 +54,7 @@ const RunSubmissionSchema = z.object({
   serverTime: z.number().int().positive(),
   affixes: z.array(z.number().int()).default([]),
   region: RegionSchema,
-  members: z.array(MemberPayloadSchema).min(5).max(6),
+  members: z.array(MemberPayloadSchema).min(3).max(6),
   eventId: z.number().int().positive().optional(),
   source: z.enum(["addon", "manual", "raiderio"]).default("addon"),
   submitterCharacterName: z.string().min(2).max(12).optional(),
@@ -185,10 +185,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         return true;
       }).slice(0, 5);
 
-      if (dedupedMembers.length !== 5) {
+      if (dedupedMembers.length < 3) {
         return reply.code(400).send({
           error: "invalid_members",
-          message: `Expected 5 unique members, got ${dedupedMembers.length}.`,
+          message: `Expected at least 3 members, got ${dedupedMembers.length}.`,
         });
       }
 
