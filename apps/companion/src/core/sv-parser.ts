@@ -92,7 +92,11 @@ const RunSubmissionSchemaRaw = z.object({
   // New: season tracking
   wowSeasonId: z.number().int().optional().nullable(),
   // New: per-player combat stats (keyed by "Name-realm")
-  playerStats: z.record(z.string(), PlayerStatsSchema).optional().nullable(),
+  // Empty Lua tables `{}` are parsed as arrays by luaparse — convert to object.
+  playerStats: z.preprocess(
+    (val) => (Array.isArray(val) && val.length === 0 ? {} : val),
+    z.record(z.string(), PlayerStatsSchema).optional().nullable(),
+  ),
 });
 
 type RawRun = z.infer<typeof RunSubmissionSchemaRaw>;
