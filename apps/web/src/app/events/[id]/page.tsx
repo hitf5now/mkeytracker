@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { EventDetail, EventSignup } from "@/types/api";
+import type { EventDetail, EventSignup, TeamEventSignup } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { EventAdminPanel } from "@/components/event-admin-panel";
 import { ClassBadge } from "@/components/class-badge";
@@ -108,8 +108,54 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Groups */}
-      {event.groups.length > 0 && (
+      {/* Team Signups (team-mode events) */}
+      {event.mode === "team" && (
+        <section className="mt-10">
+          <h2 className="text-xl font-bold">Registered Teams</h2>
+          {(!event.teamSignups || event.teamSignups.length === 0) ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              No teams have signed up yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {event.teamSignups.map((ts: TeamEventSignup) => (
+                <div
+                  key={ts.id}
+                  className="rounded-lg border border-border bg-card p-4"
+                >
+                  <h3 className="font-semibold text-gold">{ts.team.name}</h3>
+                  {ts.team.members && ts.team.members.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {ts.team.members.map((m) => (
+                        <li
+                          key={m.id}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="flex items-center gap-1">
+                            <ClassBadge
+                              name={m.character.name}
+                              realm={m.character.realm}
+                              region={m.character.region}
+                              classSlug={m.character.class}
+                            />
+                            {m.character.hasCompanionApp && (
+                              <span title="Companion app linked" className="text-gold">⚡</span>
+                            )}
+                          </span>
+                          <RoleIcon role={m.role} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Groups (group-mode events) */}
+      {event.mode !== "team" && event.groups.length > 0 && (
         <section className="mt-10">
           <h2 className="text-xl font-bold">Groups</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -148,8 +194,8 @@ export default async function EventDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* Signups — grouped by role */}
-      {event.signups.length > 0 && (() => {
+      {/* Signups — grouped by role (group-mode only) */}
+      {event.mode !== "team" && event.signups.length > 0 && (() => {
         const confirmed = event.signups.filter((s: EventSignup) => s.signupStatus !== "declined");
         const tanks = confirmed.filter((s: EventSignup) => s.rolePreference === "tank" && s.signupStatus === "confirmed");
         const healers = confirmed.filter((s: EventSignup) => s.rolePreference === "healer" && s.signupStatus === "confirmed");

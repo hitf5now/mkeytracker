@@ -84,6 +84,9 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
     const startTs = Math.floor(new Date(event.startsAt).getTime() / 1000);
     const endTs = Math.floor(new Date(event.endsAt).getTime() / 1000);
 
+    const isTeamMode = event.mode === "team";
+    const modeLabel = isTeamMode ? "Team Signup" : "Individual Signup";
+
     const embed = new EmbedBuilder()
       .setTitle(`🏆 ${event.name}`)
       .setColor(0x3ba55d)
@@ -95,25 +98,40 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
           value: `+${event.minKeyLevel} – +${event.maxKeyLevel}`,
           inline: true,
         },
-        { name: "Status", value: "Open", inline: true },
+        { name: "Mode", value: modeLabel, inline: true },
         { name: "Dungeon", value: event.dungeon?.name ?? "Any", inline: true },
         { name: "Time", value: `<t:${startTs}:F> — <t:${endTs}:t>`, inline: false },
+      );
+
+    if (isTeamMode) {
+      embed.addFields({ name: "Teams Registered", value: "_None yet_", inline: false });
+      embed.setFooter({ text: `Event #${event.id} · Team mode · 0 teams` });
+    } else {
+      embed.addFields(
         { name: "🛡 Tanks (0)", value: "_None yet_", inline: false },
         { name: "💚 Healers (0)", value: "_None yet_", inline: false },
         { name: "⚔ DPS (0)", value: "_None yet_", inline: false },
-      )
-      .setFooter({ text: `Event #${event.id} · 0 confirmed` });
+      );
+      embed.setFooter({ text: `Event #${event.id} · 0 confirmed` });
+    }
 
-    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`event-signup:${event.id}`)
-        .setLabel("Sign Up")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`event-tentative:${event.id}`)
-        .setLabel("Tentative")
-        .setStyle(ButtonStyle.Secondary),
-    );
+    const buttons = isTeamMode
+      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`team-signup:${event.id}`)
+            .setLabel("Sign Up Team")
+            .setStyle(ButtonStyle.Success),
+        )
+      : new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`event-signup:${event.id}`)
+            .setLabel("Sign Up")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`event-tentative:${event.id}`)
+            .setLabel("Tentative")
+            .setStyle(ButtonStyle.Secondary),
+        );
 
     const channel = await client.channels.fetch(channelId) as TextChannel | null;
     if (!channel) {
@@ -156,19 +174,8 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
       cancelled: "Cancelled",
     };
 
-    // Build roster from signups
-    const signups = event.signups || [];
-    const confirmed = signups.filter((s) => s.signupStatus === "confirmed");
-    const tentative = signups.filter((s) => s.signupStatus === "tentative");
-    const tanks = confirmed.filter((s) => s.rolePreference === "tank");
-    const healers = confirmed.filter((s) => s.rolePreference === "healer");
-    const dps = confirmed.filter((s) => s.rolePreference === "dps");
-
-    const formatMember = (s: typeof signups[number], i: number): string => {
-      const mention = s.discordUserId ? `<@${s.discordUserId}>` : s.character.name;
-      const tag = s.character.hasCompanionApp ? " ⚡" : "";
-      return `${i + 1}. ${mention} — ${s.character.name}${tag}`;
-    };
+    const isTeamMode = event.mode === "team";
+    const modeLabel = isTeamMode ? "Team Signup" : "Individual Signup";
 
     const embed = new EmbedBuilder()
       .setTitle(`🏆 ${event.name}`)
@@ -178,32 +185,78 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
         { name: "Dungeon", value: event.dungeon?.name ?? "Any", inline: true },
         { name: "Key Range", value: `+${event.minKeyLevel} – +${event.maxKeyLevel}`, inline: true },
         { name: "Status", value: statusLabels[event.status] ?? event.status, inline: true },
+        { name: "Mode", value: modeLabel, inline: true },
         { name: "Time", value: `<t:${startTs}:F> — <t:${endTs}:t>`, inline: false },
+      );
+
+    if (isTeamMode) {
+      // Show registered teams
+      const teamSignups = event.teamSignups || [];
+      const registered = teamSignups.filter((ts: { status: string }) => ts.status === "registered");
+      if (registered.length > 0) {
+        const teamList = registered.map((ts: { team: { name: string; members?: Array<{ role: string; character: { name: string } }> } }, i: number) => {
+          const members = (ts.team.members || [])
+            .map((m: { role: string; character: { name: string } }) => {
+              const icon = m.role === "tank" ? "🛡" : m.role === "healer" ? "💚" : "⚔";
+              return `${icon} ${m.character.name}`;
+            })
+            .join(", ");
+          return `${i + 1}. **${ts.team.name}** — ${members}`;
+        }).join("\n");
+        embed.addFields({ name: `Teams Registered (${registered.length})`, value: teamList, inline: false });
+      } else {
+        embed.addFields({ name: "Teams Registered", value: "_None yet_", inline: false });
+      }
+      embed.setFooter({ text: `Event #${event.id} · Team mode · ${registered.length} team(s)` });
+    } else {
+      // Show individual signups by role
+      const signups = event.signups || [];
+      const confirmed = signups.filter((s: { signupStatus: string }) => s.signupStatus === "confirmed");
+      const tentative = signups.filter((s: { signupStatus: string }) => s.signupStatus === "tentative");
+      const tanks = confirmed.filter((s: { rolePreference: string }) => s.rolePreference === "tank");
+      const healers = confirmed.filter((s: { rolePreference: string }) => s.rolePreference === "healer");
+      const dps = confirmed.filter((s: { rolePreference: string }) => s.rolePreference === "dps");
+
+      const formatMember = (s: { discordUserId: string | null; character: { name: string; hasCompanionApp: boolean } }, i: number): string => {
+        const mention = s.discordUserId ? `<@${s.discordUserId}>` : s.character.name;
+        const tag = s.character.hasCompanionApp ? " ⚡" : "";
+        return `${i + 1}. ${mention} — ${s.character.name}${tag}`;
+      };
+
+      embed.addFields(
         { name: `🛡 Tanks (${tanks.length})`, value: tanks.length > 0 ? tanks.map(formatMember).join("\n") : "_None yet_", inline: false },
         { name: `💚 Healers (${healers.length})`, value: healers.length > 0 ? healers.map(formatMember).join("\n") : "_None yet_", inline: false },
         { name: `⚔ DPS (${dps.length})`, value: dps.length > 0 ? dps.map(formatMember).join("\n") : "_None yet_", inline: false },
       );
 
-    if (tentative.length > 0) {
-      embed.addFields({
-        name: `❓ Tentative (${tentative.length})`,
-        value: tentative.map(formatMember).join("\n"),
-        inline: false,
-      });
+      if (tentative.length > 0) {
+        embed.addFields({
+          name: `❓ Tentative (${tentative.length})`,
+          value: tentative.map(formatMember).join("\n"),
+          inline: false,
+        });
+      }
+
+      embed.setFooter({ text: `Event #${event.id} · ${confirmed.length} confirmed` });
     }
 
-    embed.setFooter({ text: `Event #${event.id} · ${confirmed.length} confirmed` });
-
-    const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`event-signup:${event.id}`)
-        .setLabel("Sign Up")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`event-tentative:${event.id}`)
-        .setLabel("Tentative")
-        .setStyle(ButtonStyle.Secondary),
-    );
+    const buttons = isTeamMode
+      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`team-signup:${event.id}`)
+            .setLabel("Sign Up Team")
+            .setStyle(ButtonStyle.Success),
+        )
+      : new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`event-signup:${event.id}`)
+            .setLabel("Sign Up")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`event-tentative:${event.id}`)
+            .setLabel("Tentative")
+            .setStyle(ButtonStyle.Secondary),
+        );
 
     const channel = await client.channels.fetch(event.discordChannelId) as TextChannel | null;
     if (!channel) return;

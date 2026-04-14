@@ -174,6 +174,15 @@ export interface EventGroup {
   members?: EventSignup[];
 }
 
+export interface TeamEventSignup {
+  id: number;
+  eventId: number;
+  teamId: number;
+  status: string;
+  signedUpAt: string;
+  team: TeamSummary;
+}
+
 export interface EventDetail {
   id: number;
   name: string;
@@ -193,6 +202,7 @@ export interface EventDetail {
   description: string | null;
   signups: EventSignup[];
   groups: EventGroup[];
+  teamSignups: TeamEventSignup[];
   createdAt: string;
   updatedAt: string;
 }

@@ -298,6 +298,7 @@ model Event {
 
   signups         EventSignup[]
   groups          EventGroup[]
+  teamSignups     TeamEventSignup[]
   runs            Run[]
 
   createdAt       DateTime    @default(now()) @map("created_at")
@@ -388,6 +389,7 @@ model Team {
   active        Boolean      @default(true)
 
   members       TeamMember[]
+  eventSignups  TeamEventSignup[]
 
   createdAt     DateTime     @default(now()) @map("created_at")
 
@@ -412,6 +414,22 @@ model TeamMember {
   @@unique([teamId, characterId])
   @@index([characterId])
   @@map("team_members")
+}
+
+model TeamEventSignup {
+  id        Int      @id @default(autoincrement())
+  eventId   Int      @map("event_id")
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamId    Int      @map("team_id")
+  team      Team     @relation(fields: [teamId], references: [id])
+  /// Status: "registered" | "withdrawn" | "no_show" | "completed"
+  status    String   @default("registered")
+
+  signedUpAt DateTime @default(now()) @map("signed_up_at")
+
+  @@unique([eventId, teamId])
+  @@index([eventId])
+  @@map("team_event_signups")
 }
 
 // ─────────────────────────────────────────────────────────────

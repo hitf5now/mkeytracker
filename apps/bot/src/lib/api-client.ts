@@ -120,6 +120,7 @@ export interface EventResponse {
   id: number;
   name: string;
   type: string;
+  mode: "group" | "team";
   status: string;
   dungeonId: number | null;
   minKeyLevel: number;
@@ -158,6 +159,18 @@ export interface EventDetailResponse extends EventResponse {
   discordGuildId: string | null;
   signups: EventSignupDetail[];
   groups: EventGroupDetail[];
+  teamSignups: Array<{
+    id: number;
+    status: string;
+    team: {
+      id: number;
+      name: string;
+      members: Array<{
+        role: string;
+        character: { name: string; realm: string; class: string; hasCompanionApp: boolean };
+      }>;
+    };
+  }>;
 }
 
 export interface AssignGroupsResponse {

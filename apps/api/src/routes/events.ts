@@ -378,6 +378,108 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send(result);
     });
 
+    // ── Team signup (team-mode events) ──────────────────────────
+    scope.post<{ Params: { id: string } }>("/events/:id/team-signup", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+      const body = req.body as { teamId?: number; discordId?: string };
+      if (!body.teamId || !body.discordId) {
+        return reply.code(400).send({ error: "missing_fields", message: "teamId and discordId required" });
+      }
+
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event) return reply.code(404).send({ error: "event_not_found" });
+      if (event.mode !== "team") {
+        return reply.code(409).send({ error: "not_team_mode", message: "This event uses individual signups, not team signups." });
+      }
+      if (event.status !== "open") {
+        return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}, not accepting signups.` });
+      }
+
+      const team = await prisma.team.findUnique({
+        where: { id: body.teamId },
+        include: { captain: true },
+      });
+      if (!team) return reply.code(404).send({ error: "team_not_found" });
+      if (!team.active) {
+        return reply.code(409).send({ error: "team_inactive", message: "This team has been inactivated." });
+      }
+      if (team.captain.discordId !== body.discordId) {
+        return reply.code(403).send({ error: "not_captain", message: "Only the team captain can sign up for events." });
+      }
+
+      // Check for duplicate
+      const existing = await prisma.teamEventSignup.findUnique({
+        where: { eventId_teamId: { eventId, teamId: body.teamId } },
+      });
+      if (existing && existing.status === "registered") {
+        return reply.code(409).send({ error: "already_signed_up", message: "This team is already registered for this event." });
+      }
+
+      const signup = existing
+        ? await prisma.teamEventSignup.update({
+            where: { id: existing.id },
+            data: { status: "registered", signedUpAt: new Date() },
+          })
+        : await prisma.teamEventSignup.create({
+            data: { eventId, teamId: body.teamId },
+          });
+
+      req.log.info({ eventId, teamId: body.teamId }, "Team signed up for event");
+      return reply.code(201).send({ teamSignup: signup });
+    });
+
+    // ── Withdraw team from event ────────────────────────────────
+    scope.delete<{ Params: { id: string; teamId: string } }>("/events/:id/team-signup/:teamId", async (req, reply) => {
+      const eventId = parseInt(req.params.id, 10);
+      const teamId = parseInt(req.params.teamId, 10);
+      if (isNaN(eventId) || isNaN(teamId)) {
+        return reply.code(400).send({ error: "invalid_ids" });
+      }
+
+      const body = req.body as { discordId?: string };
+      const discordId = body?.discordId || (req.query as { discordId?: string }).discordId;
+      if (!discordId) {
+        return reply.code(400).send({ error: "missing_discord_id" });
+      }
+
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event) return reply.code(404).send({ error: "event_not_found" });
+
+      // Can only withdraw before event starts
+      if (event.status === "in_progress" || event.status === "completed") {
+        return reply.code(409).send({
+          error: "event_started",
+          message: "Cannot withdraw after the event has started.",
+        });
+      }
+
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        include: { captain: true },
+      });
+      if (!team) return reply.code(404).send({ error: "team_not_found" });
+      if (team.captain.discordId !== discordId) {
+        return reply.code(403).send({ error: "not_captain" });
+      }
+
+      const signup = await prisma.teamEventSignup.findUnique({
+        where: { eventId_teamId: { eventId, teamId } },
+      });
+      if (!signup || signup.status !== "registered") {
+        return reply.code(404).send({ error: "signup_not_found" });
+      }
+
+      await prisma.teamEventSignup.update({
+        where: { id: signup.id },
+        data: { status: "withdrawn" },
+      });
+
+      req.log.info({ eventId, teamId }, "Team withdrew from event");
+      return reply.code(200).send({ withdrawn: true });
+    });
+
     // ── Status transition ──────────────────────────────────────
     scope.post<{ Params: { id: string } }>("/events/:id/transition", async (req, reply) => {
       const eventId = parseInt(req.params.id, 10);
@@ -565,6 +667,18 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           include: {
             members: { include: { character: true } },
           },
+        },
+        teamSignups: {
+          where: { status: "registered" },
+          include: {
+            team: {
+              include: {
+                members: { include: { character: true } },
+                captain: true,
+              },
+            },
+          },
+          orderBy: { signedUpAt: "asc" },
         },
       },
     });
