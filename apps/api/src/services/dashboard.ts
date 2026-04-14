@@ -3,7 +3,7 @@
  *
  * Loads all of a user's characters and their runs in the active season,
  * then aggregates into sections for the personal dashboard:
- *   - Overview stats (total runs, timed, points, etc.)
+ *   - Overview stats (total runs, timed, Juice, etc.)
  *   - Per-character cards
  *   - Role breakdown (tank/healer/dps)
  *   - Dungeon breakdown (best key, fastest clear per dungeon)
@@ -21,8 +21,8 @@ export interface DashboardOverview {
   depletedRuns: number;
   totalDeaths: number;
   highestKeyCompleted: number;
-  totalPoints: number;
-  weeklyPoints: number;
+  totalJuice: number;
+  weeklyJuice: number;
   timedRate: number;
 }
 
@@ -39,7 +39,7 @@ export interface DashboardCharacter {
   totalRuns: number;
   timedRuns: number;
   highestKey: number;
-  totalPoints: number;
+  totalJuice: number;
 }
 
 export interface DashboardRoleBreakdown {
@@ -47,7 +47,7 @@ export interface DashboardRoleBreakdown {
   totalRuns: number;
   timedRuns: number;
   bestKey: number;
-  totalPoints: number;
+  totalJuice: number;
 }
 
 export interface DashboardDungeonBreakdown {
@@ -56,7 +56,7 @@ export interface DashboardDungeonBreakdown {
   dungeonShortCode: string;
   bestKeyLevel: number;
   fastestClearMs: number | null;
-  totalPoints: number;
+  totalJuice: number;
   timedCount: number;
   bestCharacterName: string;
   bestCharacterClass: string;
@@ -70,7 +70,7 @@ export interface DashboardRecentRun {
   onTime: boolean;
   upgrades: number;
   deaths: number;
-  points: number;
+  juice: number;
   recordedAt: string;
   characterName: string;
   characterClass: string;
@@ -130,7 +130,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
     return {
       overview: {
         totalRuns: 0, timedRuns: 0, depletedRuns: 0, totalDeaths: 0,
-        highestKeyCompleted: 0, totalPoints: 0, weeklyPoints: 0, timedRate: 0,
+        highestKeyCompleted: 0, totalJuice: 0, weeklyJuice: 0, timedRate: 0,
       },
       characters: [],
       roleBreakdown: [],
@@ -164,15 +164,15 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   const highestKeyCompleted = memberRuns
     .filter((rm) => rm.run.onTime)
     .reduce((max, rm) => Math.max(max, rm.run.keystoneLevel), 0);
-  const totalPoints = memberRuns.reduce((sum, rm) => sum + rm.run.points, 0);
-  const weeklyPoints = memberRuns
+  const totalJuice = memberRuns.reduce((sum, rm) => sum + rm.run.personalJuice, 0);
+  const weeklyJuice = memberRuns
     .filter((rm) => rm.run.recordedAt >= oneWeekAgo)
-    .reduce((sum, rm) => sum + rm.run.points, 0);
+    .reduce((sum, rm) => sum + rm.run.personalJuice, 0);
   const timedRate = totalRuns > 0 ? Math.round((timedRuns / totalRuns) * 100) : 0;
 
   const overview: DashboardOverview = {
     totalRuns, timedRuns, depletedRuns, totalDeaths,
-    highestKeyCompleted, totalPoints, weeklyPoints, timedRate,
+    highestKeyCompleted, totalJuice, weeklyJuice, timedRate,
   };
 
   // ── Per-character stats ───────────────────────────────────
@@ -193,28 +193,28 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       highestKey: charRuns
         .filter((rm) => rm.run.onTime)
         .reduce((max, rm) => Math.max(max, rm.run.keystoneLevel), 0),
-      totalPoints: charRuns.reduce((sum, rm) => sum + rm.run.points, 0),
+      totalJuice: charRuns.reduce((sum, rm) => sum + rm.run.personalJuice, 0),
     };
   });
 
   // ── Role breakdown ────────────────────────────────────────
-  const roleMap = new Map<string, { totalRuns: number; timedRuns: number; bestKey: number; totalPoints: number }>();
+  const roleMap = new Map<string, { totalRuns: number; timedRuns: number; bestKey: number; totalJuice: number }>();
   for (const rm of memberRuns) {
     const role = rm.roleSnapshot || "dps";
-    const entry = roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalPoints: 0 };
+    const entry = roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalJuice: 0 };
     entry.totalRuns++;
     if (rm.run.onTime) {
       entry.timedRuns++;
       entry.bestKey = Math.max(entry.bestKey, rm.run.keystoneLevel);
     }
-    entry.totalPoints += rm.run.points;
+    entry.totalJuice += rm.run.personalJuice;
     roleMap.set(role, entry);
   }
 
   const roleBreakdown: DashboardRoleBreakdown[] = ["tank", "healer", "dps"]
     .map((role) => ({
       role,
-      ...(roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalPoints: 0 }),
+      ...(roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalJuice: 0 }),
     }));
 
   // ── Dungeon breakdown ─────────────────────────────────────
@@ -222,9 +222,9 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
     dungeon: { slug: string; name: string; shortCode: string };
     bestKeyLevel: number;
     fastestClearMs: number | null;
-    totalPoints: number;
+    totalJuice: number;
     timedCount: number;
-    bestRunPoints: number;
+    bestRunJuice: number;
     bestCharId: number;
   }>();
 
@@ -232,11 +232,11 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
     const d = rm.run.dungeon;
     const entry = dungeonMap.get(rm.run.dungeonId) ?? {
       dungeon: { slug: d.slug, name: d.name, shortCode: d.shortCode },
-      bestKeyLevel: 0, fastestClearMs: null, totalPoints: 0, timedCount: 0,
-      bestRunPoints: 0, bestCharId: rm.characterId,
+      bestKeyLevel: 0, fastestClearMs: null, totalJuice: 0, timedCount: 0,
+      bestRunJuice: 0, bestCharId: rm.characterId,
     };
 
-    entry.totalPoints += rm.run.points;
+    entry.totalJuice += rm.run.personalJuice;
     if (rm.run.onTime) {
       entry.timedCount++;
       entry.bestKeyLevel = Math.max(entry.bestKeyLevel, rm.run.keystoneLevel);
@@ -244,8 +244,8 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
         entry.fastestClearMs = rm.run.completionMs;
       }
     }
-    if (rm.run.points > entry.bestRunPoints) {
-      entry.bestRunPoints = rm.run.points;
+    if (rm.run.personalJuice > entry.bestRunJuice) {
+      entry.bestRunJuice = rm.run.personalJuice;
       entry.bestCharId = rm.characterId;
     }
     dungeonMap.set(rm.run.dungeonId, entry);
@@ -260,13 +260,13 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
         dungeonShortCode: entry.dungeon.shortCode,
         bestKeyLevel: entry.bestKeyLevel,
         fastestClearMs: entry.fastestClearMs,
-        totalPoints: entry.totalPoints,
+        totalJuice: entry.totalJuice,
         timedCount: entry.timedCount,
         bestCharacterName: bestChar?.name ?? "Unknown",
         bestCharacterClass: bestChar?.class ?? "warrior",
       };
     })
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    .sort((a, b) => b.totalJuice - a.totalJuice);
 
   // ── Recent runs (20) ──────────────────────────────────────
   const recentRuns: DashboardRecentRun[] = memberRuns.slice(0, 20).map((rm) => {
@@ -279,7 +279,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       onTime: rm.run.onTime,
       upgrades: rm.run.upgrades,
       deaths: rm.run.deaths,
-      points: rm.run.points,
+      juice: rm.run.personalJuice,
       recordedAt: rm.run.recordedAt.toISOString(),
       characterName: char?.name ?? "Unknown",
       characterClass: char?.class ?? "warrior",

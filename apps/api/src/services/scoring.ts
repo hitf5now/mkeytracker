@@ -1,7 +1,7 @@
 /**
- * Individual run scoring — pure function.
+ * Personal Juice scoring — pure function.
  *
- * Derived directly from MPLUS_PLATFORM.md "Points Scoring Formula":
+ * Computes the Personal Juice (run-level score) for a single M+ run.
  *
  *   Base = keystoneLevel × 100
  *
@@ -13,12 +13,12 @@
  *     Timed +3:   × 1.5
  *
  *   Bonuses:
- *     0 deaths:                    +150 pts
- *     Personal dungeon record:     +200 pts
- *     Personal overall record:     +500 pts
- *     Event participation:         +100 pts
+ *     0 deaths:                    +150 Juice
+ *     Personal dungeon record:     +200 Juice
+ *     Personal overall record:     +500 Juice
+ *     Event participation:         +100 Juice
  *
- * Group score = sum of member scores. That lives in a different service
+ * Group score = sum of member Juice. That lives in a different service
  * because it needs DB state.
  *
  * This function is intentionally dependency-free: give it the facts,

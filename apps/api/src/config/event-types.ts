@@ -1,14 +1,14 @@
 /**
  * Event Type Registry — centralized definitions for all event types.
  *
- * Each type defines its rules, scoring description, point table, and
+ * Each type defines its rules, scoring description, Juice table, and
  * supported modes. The web create form and event detail pages read
  * from this registry to auto-generate rules displays.
  */
 
 export interface ScoringTableRow {
   label: string;
-  points: string;
+  juice: string;
 }
 
 export interface ConfigField {
@@ -27,7 +27,7 @@ export interface EventTypeConfig {
   rules: string[];
   winCondition: string;
   scoringDescription: string;
-  scoringTable: ScoringTableRow[];
+  juiceTable: ScoringTableRow[];
   supportedModes: ("group" | "team")[];
   configFields?: ConfigField[];
 }
@@ -46,12 +46,12 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     ],
     winCondition: "Lowest completion time among timed runs.",
     scoringDescription:
-      "Runs are scored using the standard point system. Rankings are determined by completion time, not points.",
-    scoringTable: [
-      { label: "Base score", points: "Key level x 100" },
-      { label: "Time modifier", points: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
-      { label: "No deaths bonus", points: "+150" },
-      { label: "Event participation", points: "+100" },
+      "Runs are scored using the standard Juice system. Rankings are determined by completion time, not Juice.",
+    juiceTable: [
+      { label: "Base score", juice: "Key level x 100" },
+      { label: "Time modifier", juice: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
+      { label: "No deaths bonus", juice: "+150" },
+      { label: "Event participation", juice: "+100" },
     ],
     supportedModes: ["group", "team"],
   },
@@ -70,11 +70,11 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     winCondition: "Highest single-run score.",
     scoringDescription:
       "Standard scoring applies. Only your first completed run counts — make it count.",
-    scoringTable: [
-      { label: "Base score", points: "Key level x 100" },
-      { label: "Time modifier", points: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
-      { label: "No deaths bonus", points: "+150" },
-      { label: "Event participation", points: "+100" },
+    juiceTable: [
+      { label: "Base score", juice: "Key level x 100" },
+      { label: "Time modifier", juice: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
+      { label: "No deaths bonus", juice: "+150" },
+      { label: "Event participation", juice: "+100" },
     ],
     supportedModes: ["group", "team"],
   },
@@ -93,12 +93,12 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     winCondition: "Group with the highest combined total score.",
     scoringDescription:
       "Each member's runs are scored individually. The group score is the sum of all member scores.",
-    scoringTable: [
-      { label: "Base score (per run)", points: "Key level x 100" },
-      { label: "Time modifier", points: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
-      { label: "No deaths bonus", points: "+150 per run" },
-      { label: "Event participation", points: "+100 per run" },
-      { label: "Group score", points: "Sum of all member run scores" },
+    juiceTable: [
+      { label: "Base score (per run)", juice: "Key level x 100" },
+      { label: "Time modifier", juice: "Depleted 0.5x, Timed 1.0x, +1 = 1.2x, +2 = 1.35x, +3 = 1.5x" },
+      { label: "No deaths bonus", juice: "+150 per run" },
+      { label: "Event participation", juice: "+100 per run" },
+      { label: "Group score", juice: "Sum of all member run scores" },
     ],
     supportedModes: ["group"],
   },
@@ -117,13 +117,13 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     ],
     winCondition: "Highest keystone level completed (timed or depleted).",
     scoringDescription:
-      "Ranking is based on the highest key completed. Bonus points reward timed completions and clean runs at your peak.",
-    scoringTable: [
-      { label: "Peak level score", points: "Highest key x 200" },
-      { label: "Timed at peak", points: "+500" },
-      { label: "Clean peak (0 deaths)", points: "+150" },
-      { label: "Progression bonus", points: "+50 per level above event minimum" },
-      { label: "Event participation", points: "+100" },
+      "Ranking is based on the highest key completed. Bonus Juice rewards timed completions and clean runs at your peak.",
+    juiceTable: [
+      { label: "Peak level score", juice: "Highest key x 200" },
+      { label: "Timed at peak", juice: "+500" },
+      { label: "Clean peak (0 deaths)", juice: "+150" },
+      { label: "Progression bonus", juice: "+50 per level above event minimum" },
+      { label: "Event participation", juice: "+100" },
     ],
     supportedModes: ["group", "team"],
   },
@@ -135,7 +135,7 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
       "Complete as many keys as possible. Every run counts — quantity and consistency win.",
     rules: [
       "Complete as many keys as possible within the event window.",
-      "Every timed run earns full points. Depleted runs earn half.",
+      "Every timed run earns full Juice. Depleted runs earn half.",
       "Consecutive timed runs build a streak bonus.",
       "Running different dungeons earns a variety bonus (if event allows any dungeon).",
       "Runs beyond your 5th earn an endurance bonus.",
@@ -143,13 +143,13 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     winCondition: "Highest total accumulated score across all runs.",
     scoringDescription:
       "Standard scoring applies to each run, plus marathon-specific bonuses for streaks, variety, and endurance.",
-    scoringTable: [
-      { label: "Base score (per run)", points: "Key level x 100 x time modifier" },
-      { label: "Streak bonus", points: "+100 per consecutive timed run (resets on deplete)" },
-      { label: "Variety bonus", points: "+200 per unique dungeon completed" },
-      { label: "Endurance bonus", points: "+50 per run beyond the 5th" },
-      { label: "No deaths bonus", points: "+150 per run" },
-      { label: "Event participation", points: "+100 per run" },
+    juiceTable: [
+      { label: "Base score (per run)", juice: "Key level x 100 x time modifier" },
+      { label: "Streak bonus", juice: "+100 per consecutive timed run (resets on deplete)" },
+      { label: "Variety bonus", juice: "+200 per unique dungeon completed" },
+      { label: "Endurance bonus", juice: "+50 per run beyond the 5th" },
+      { label: "No deaths bonus", juice: "+150 per run" },
+      { label: "Event participation", juice: "+100 per run" },
     ],
     supportedModes: ["group", "team"],
   },
@@ -169,13 +169,13 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     winCondition: "Highest average score across your best N runs.",
     scoringDescription:
       "Standard scoring per run. Your final score is the average of your best N runs, plus a consistency bonus for tight performance.",
-    scoringTable: [
-      { label: "Base score (per run)", points: "Key level x 100 x time modifier" },
-      { label: "Final score", points: "Average of top N run scores" },
-      { label: "Consistency bonus", points: "+300 if all N runs are timed" },
-      { label: "Range penalty", points: "No consistency bonus if score spread > 500" },
-      { label: "No deaths bonus", points: "+150 per run" },
-      { label: "Event participation", points: "+100 per run" },
+    juiceTable: [
+      { label: "Base score (per run)", juice: "Key level x 100 x time modifier" },
+      { label: "Final score", juice: "Average of top N run scores" },
+      { label: "Consistency bonus", juice: "+300 if all N runs are timed" },
+      { label: "Range penalty", juice: "No consistency bonus if score spread > 500" },
+      { label: "No deaths bonus", juice: "+150 per run" },
+      { label: "Event participation", juice: "+100 per run" },
     ],
     supportedModes: ["group", "team"],
     configFields: [
@@ -204,15 +204,15 @@ export const EVENT_TYPE_REGISTRY: Record<string, EventTypeConfig> = {
     ],
     winCondition: "Last group/team standing wins the tournament.",
     scoringDescription:
-      "Standard run scoring per matchup, plus tournament placement points based on how far you advance.",
-    scoringTable: [
-      { label: "Run score (per matchup)", points: "Key level x 100 x time modifier" },
-      { label: "Match win bonus", points: "+500 per round won" },
-      { label: "Margin bonus", points: "+100 if winning by 20%+" },
-      { label: "1st place", points: "2,000 tournament pts" },
-      { label: "2nd place", points: "1,200 tournament pts" },
-      { label: "3rd/4th place", points: "800 tournament pts" },
-      { label: "5th–8th place", points: "400 tournament pts" },
+      "Standard run scoring per matchup, plus tournament placement Juice based on how far you advance.",
+    juiceTable: [
+      { label: "Run score (per matchup)", juice: "Key level x 100 x time modifier" },
+      { label: "Match win bonus", juice: "+500 per round won" },
+      { label: "Margin bonus", juice: "+100 if winning by 20%+" },
+      { label: "1st place", juice: "2,000 tournament Juice" },
+      { label: "2nd place", juice: "1,200 tournament Juice" },
+      { label: "3rd/4th place", juice: "800 tournament Juice" },
+      { label: "5th–8th place", juice: "400 tournament Juice" },
     ],
     supportedModes: ["group", "team"],
   },

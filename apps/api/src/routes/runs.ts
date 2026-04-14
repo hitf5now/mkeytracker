@@ -321,7 +321,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               serverTime: BigInt(body.serverTime),
               source: body.source,
               dedupHash,
-              points: breakdown.total,
+              personalJuice: breakdown.total,
               eventId: body.eventId ?? null,
               // Enhanced data from addon v0.2.0
               dungeonName: body.dungeonName ?? null,
@@ -351,7 +351,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             runId: run.id,
             dungeon: dungeon.slug,
             level: body.keystoneLevel,
-            points: breakdown.total,
+            personalJuice: breakdown.total,
           },
           "Run recorded",
         );
@@ -370,7 +370,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               completionMs: body.completionMs,
               parMs: dungeon.parTimeSec * 1000,
               deaths: body.deaths,
-              points: breakdown.total,
+              juice: breakdown.total,
               affixes: body.affixes,
               members: normalizedMembers.map((m) => ({
                 name: m.name,

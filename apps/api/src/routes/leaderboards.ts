@@ -2,7 +2,7 @@
  * GET /api/v1/leaderboards/:category — public leaderboard endpoint.
  *
  * Supported categories:
- *   - season-points
+ *   - season-juice
  *   - highest-key
  *   - most-timed
  *   - fastest-clear-<dungeonSlug>  (e.g. fastest-clear-algethar-academy)
@@ -18,8 +18,8 @@ import { z } from "zod";
 import { getLeaderboard } from "../services/stats.js";
 
 const CategorySchema = z.string().regex(
-  /^(season-points|highest-key|most-timed|fastest-clear-[a-z0-9-]+)$/,
-  "category must be one of: season-points, highest-key, most-timed, fastest-clear-<dungeonSlug>",
+  /^(season-juice|highest-key|most-timed|fastest-clear-[a-z0-9-]+)$/,
+  "category must be one of: season-juice, highest-key, most-timed, fastest-clear-<dungeonSlug>",
 );
 
 const QuerySchema = z.object({

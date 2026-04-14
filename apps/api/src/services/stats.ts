@@ -40,7 +40,7 @@ export interface ProfileBestRun {
   parMs: number;
   onTime: boolean;
   upgrades: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -52,7 +52,7 @@ export interface ProfileRecentRun {
   onTime: boolean;
   upgrades: number;
   deaths: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -64,8 +64,8 @@ export interface CharacterProfile {
     depletedRuns: number;
     totalDeaths: number;
     highestKeyCompleted: number;
-    totalPoints: number;
-    weeklyPoints: number;
+    totalJuice: number;
+    weeklyJuice: number;
     bestRunPerDungeon: ProfileBestRun[];
     recentRuns: ProfileRecentRun[];
   };
@@ -153,19 +153,19 @@ export async function getCharacterProfile(
   const highestKeyCompleted = memberRuns
     .filter((rm) => rm.run.onTime)
     .reduce((max, rm) => Math.max(max, rm.run.keystoneLevel), 0);
-  const totalPoints = memberRuns.reduce((sum, rm) => sum + rm.run.points, 0);
+  const totalJuice = memberRuns.reduce((sum, rm) => sum + rm.run.personalJuice, 0);
 
   // Weekly scope: runs recorded in the last 7 days
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-  const weeklyPoints = memberRuns
+  const weeklyJuice = memberRuns
     .filter((rm) => rm.run.recordedAt >= oneWeekAgo)
-    .reduce((sum, rm) => sum + rm.run.points, 0);
+    .reduce((sum, rm) => sum + rm.run.personalJuice, 0);
 
-  // Best run per dungeon (highest points)
+  // Best run per dungeon (highest Juice)
   const bestPerDungeonMap = new Map<number, (typeof memberRuns)[number]>();
   for (const rm of memberRuns) {
     const existing = bestPerDungeonMap.get(rm.run.dungeonId);
-    if (!existing || rm.run.points > existing.run.points) {
+    if (!existing || rm.run.personalJuice > existing.run.personalJuice) {
       bestPerDungeonMap.set(rm.run.dungeonId, rm);
     }
   }
@@ -182,10 +182,10 @@ export async function getCharacterProfile(
       parMs: rm.run.parMs,
       onTime: rm.run.onTime,
       upgrades: rm.run.upgrades,
-      points: rm.run.points,
+      juice: rm.run.personalJuice,
       recordedAt: rm.run.recordedAt.toISOString(),
     }))
-    .sort((a, b) => b.points - a.points);
+    .sort((a, b) => b.juice - a.juice);
 
   const recentRuns: ProfileRecentRun[] = memberRuns.slice(0, 5).map((rm) => ({
     id: rm.run.id,
@@ -195,7 +195,7 @@ export async function getCharacterProfile(
     onTime: rm.run.onTime,
     upgrades: rm.run.upgrades,
     deaths: rm.run.deaths,
-    points: rm.run.points,
+    juice: rm.run.personalJuice,
     recordedAt: rm.run.recordedAt.toISOString(),
   }));
 
@@ -221,8 +221,8 @@ export async function getCharacterProfile(
       depletedRuns,
       totalDeaths,
       highestKeyCompleted,
-      totalPoints,
-      weeklyPoints,
+      totalJuice,
+      weeklyJuice,
       bestRunPerDungeon,
       recentRuns,
     },
@@ -256,7 +256,7 @@ export async function getFirstCharacterForDiscordUser(
 
 /**
  * A leaderboard category string. Predefined shapes:
- *   - "season-points"
+ *   - "season-juice"
  *   - "highest-key"
  *   - "most-timed"
  *   - "fastest-clear-<dungeonSlug>"
@@ -273,8 +273,8 @@ export async function getLeaderboard(
   let entries: LeaderboardEntry[] = [];
   let context: string | undefined;
 
-  if (category === "season-points") {
-    entries = await leaderboardSeasonPoints(season.id, limit);
+  if (category === "season-juice") {
+    entries = await leaderboardSeasonJuice(season.id, limit);
   } else if (category === "highest-key") {
     entries = await leaderboardHighestKey(season.id, limit);
   } else if (category === "most-timed") {
@@ -307,14 +307,14 @@ export async function getLeaderboard(
 
 // ─── Category queries ────────────────────────────────────────────────
 
-async function leaderboardSeasonPoints(
+async function leaderboardSeasonJuice(
   seasonId: number,
   limit: number,
 ): Promise<LeaderboardEntry[]> {
   const rows = await prisma.$queryRaw<
     Array<{ characterId: number; total: bigint }>
   >`
-    SELECT rm.character_id AS "characterId", SUM(r.points) AS total
+    SELECT rm.character_id AS "characterId", SUM(r.personal_juice) AS total
     FROM run_members rm
     JOIN runs r ON r.id = rm.run_id
     WHERE r.season_id = ${seasonId}
@@ -347,7 +347,7 @@ async function leaderboardSeasonPoints(
         claimed: c.userId !== null,
       },
       value: total,
-      displayValue: `${total.toLocaleString()} pts`,
+      displayValue: `${total.toLocaleString()} Juice`,
     };
   });
 }

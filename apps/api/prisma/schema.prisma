@@ -82,7 +82,7 @@ model User {
   timezone      String?
   /// Mentor program opt-in
   isMentor      Boolean @default(false) @map("is_mentor")
-  mentorPoints  Int     @default(0) @map("mentor_points")
+  mentorJuice   Int     @default(0) @map("mentor_juice")
 
   characters      Character[]
   runMembers      RunMember[]
@@ -182,8 +182,8 @@ model Run {
   verified        Boolean   @default(false)
   /// Dedup hash — see services/run-dedup.ts
   dedupHash       String    @unique @map("dedup_hash")
-  /// Computed points — written by scoring service on insert
-  points          Int       @default(0)
+  /// Personal Juice — computed by scoring service on insert
+  personalJuice   Int       @default(0) @map("personal_juice")
   /// Dynamic dungeon name from addon (used for auto-discovery)
   dungeonName     String?   @map("dungeon_name")
   /// WoW season ID (dynamic, from C_MythicPlus.GetCurrentSeason)

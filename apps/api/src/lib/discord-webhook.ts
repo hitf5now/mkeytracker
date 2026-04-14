@@ -93,7 +93,7 @@ export interface RunCompletedEmbedInput {
   completionMs: number;
   parMs: number;
   deaths: number;
-  points: number;
+  juice: number;
   affixes?: number[];
   /** Party members, ordered tank → healer → dps */
   members: Array<{
@@ -169,8 +169,8 @@ export function buildRunCompletedEmbed(input: RunCompletedEmbedInput): WebhookEm
         inline: true,
       },
       {
-        name: "Points",
-        value: input.points.toLocaleString(),
+        name: "Juice",
+        value: input.juice.toLocaleString(),
         inline: true,
       },
     ],
