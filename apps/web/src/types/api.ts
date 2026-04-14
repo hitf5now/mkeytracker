@@ -130,7 +130,7 @@ export interface EventSummary {
   description: string | null;
   _count: {
     signups: number;
-    teams: number;
+    groups: number;
   };
   createdAt: string;
   updatedAt: string;
@@ -146,7 +146,7 @@ export interface EventSignup {
   spec: string | null;
   signupSource: string;
   signupStatus: string;
-  teamId: number | null;
+  groupId: number | null;
   signedUpAt: string;
   character: {
     id: number;
@@ -159,10 +159,10 @@ export interface EventSignup {
     rioScore: number;
     hasCompanionApp: boolean;
   };
-  team: EventTeam | null;
+  group: EventGroup | null;
 }
 
-export interface EventTeam {
+export interface EventGroup {
   id: number;
   eventId: number;
   name: string;
@@ -188,7 +188,7 @@ export interface EventDetail {
   createdByUserId: number;
   description: string | null;
   signups: EventSignup[];
-  teams: EventTeam[];
+  groups: EventGroup[];
   createdAt: string;
   updatedAt: string;
 }

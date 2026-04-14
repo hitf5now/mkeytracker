@@ -105,20 +105,20 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Teams */}
-      {event.teams.length > 0 && (
+      {/* Groups */}
+      {event.groups.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-xl font-bold">Teams</h2>
+          <h2 className="text-xl font-bold">Groups</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {event.teams.map((team) => (
+            {event.groups.map((group) => (
               <div
-                key={team.id}
+                key={group.id}
                 className="rounded-lg border border-border bg-card p-4"
               >
-                <h3 className="font-semibold text-gold">{team.name}</h3>
-                {team.members && team.members.length > 0 && (
+                <h3 className="font-semibold text-gold">{group.name}</h3>
+                {group.members && group.members.length > 0 && (
                   <ul className="mt-3 space-y-2">
-                    {team.members.map((member) => (
+                    {group.members.map((member) => (
                       <li
                         key={member.id}
                         className="flex items-center justify-between text-sm"
@@ -171,7 +171,7 @@ export default async function EventDetailPage({ params }: Props) {
             </span>
             <span className="text-xs text-muted-foreground">
               {signup.character.realm}
-              {signup.team && ` · ${signup.team.name}`}
+              {signup.group && ` · ${signup.group.name}`}
             </span>
           </div>
         );

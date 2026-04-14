@@ -130,7 +130,7 @@ model Character {
   claimedAt DateTime? @map("claimed_at")
 
   /// True if this character has submitted at least one run via the
-  /// companion app. Used by matchmaking (prefer 1 per team) and as
+  /// companion app. Used by matchmaking (prefer 1 per group) and as
   /// a subtle tag in embeds/web (⚡ icon).
   hasCompanionApp Boolean @default(false) @map("has_companion_app")
 
@@ -199,8 +199,8 @@ model Run {
   /// Optional event association
   eventId         Int?       @map("event_id")
   event           Event?     @relation(fields: [eventId], references: [id])
-  teamId          Int?       @map("team_id")
-  eventTeam       EventTeam? @relation(fields: [teamId], references: [id])
+  groupId         Int?       @map("group_id")
+  eventGroup      EventGroup? @relation(fields: [groupId], references: [id])
 
   dungeon Dungeon     @relation(fields: [dungeonId], references: [id])
   season  Season      @relation(fields: [seasonId], references: [id])
@@ -220,16 +220,16 @@ model Run {
 enum EventStatus {
   draft          // created but not yet visible to players
   open           // accepting signups
-  signups_closed // signups locked, teams being formed
+  signups_closed // signups locked, groups being formed
   in_progress    // event window is active, runs count
   completed      // event finished, results final
   cancelled      // scrapped before completion
 }
 
 enum EventType {
-  fastest_clear_race   // All teams, same dungeon, fastest timed clear wins
-  speed_sprint         // 30-min window, single attempt per team
-  random_draft         // Bot assembles random role-balanced teams
+  fastest_clear_race   // All groups, same dungeon, fastest timed clear wins
+  speed_sprint         // 30-min window, single attempt per group
+  random_draft         // Bot assembles random role-balanced groups
   // Future types added here — schema migration only, no data loss
 }
 
@@ -288,7 +288,7 @@ model Event {
   description     String?
 
   signups         EventSignup[]
-  teams           EventTeam[]
+  groups          EventGroup[]
   runs            Run[]
 
   createdAt       DateTime    @default(now()) @map("created_at")
@@ -332,9 +332,9 @@ model EventSignup {
   /// Signup intent: confirmed, tentative, or declined
   signupStatus    SignupStatus @default(confirmed) @map("signup_status")
 
-  /// Which team was this player assigned to? Null until assign-teams runs.
-  teamId          Int?      @map("team_id")
-  team            EventTeam? @relation(fields: [teamId], references: [id])
+  /// Which group was this player assigned to? Null until assign-groups runs.
+  groupId         Int?      @map("group_id")
+  group           EventGroup? @relation(fields: [groupId], references: [id])
 
   signedUpAt      DateTime  @default(now()) @map("signed_up_at")
 
@@ -343,12 +343,12 @@ model EventSignup {
   @@map("event_signups")
 }
 
-model EventTeam {
+model EventGroup {
   id          Int       @id @default(autoincrement())
   eventId     Int       @map("event_id")
   event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  /// Display name, e.g. "Team Alpha", "Team 1", auto-generated
+  /// Display name, e.g. "Group Alpha", "Group 1", auto-generated
   name        String
 
   /// Status: "assigned" | "ready" | "completed"
@@ -360,7 +360,7 @@ model EventTeam {
   assignedAt  DateTime  @default(now()) @map("assigned_at")
 
   @@index([eventId])
-  @@map("event_teams")
+  @@map("event_groups")
 }
 
 // ─────────────────────────────────────────────────────────────

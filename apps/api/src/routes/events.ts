@@ -3,7 +3,7 @@
  *
  * POST   /events              — create a new event (internal auth)
  * GET    /events              — list active/upcoming events (public)
- * GET    /events/:id          — event detail + signups + teams (public)
+ * GET    /events/:id          — event detail + signups + groups (public)
  * POST   /events/:id/signup   — sign up for an event (internal auth, bot forwards)
  * POST   /events/:id/close-signups — lock signups + trigger matchmaking (internal)
  * POST   /events/:id/start    — mark event in_progress (internal)
@@ -15,7 +15,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
-import { assignTeams, type SignupForMatching } from "../services/matchmaking.js";
+import { assignGroups, type SignupForMatching } from "../services/matchmaking.js";
 
 const CreateEventSchema = z.object({
   name: z.string().min(3).max(100),
@@ -42,7 +42,7 @@ const SignupSchema = z.object({
   characterClass: z.string().max(30).optional(),
 });
 
-/** Shared matchmaking logic used by close-signups (autoAssign) and assign-teams */
+/** Shared matchmaking logic used by close-signups (autoAssign) and assign-groups */
 async function runMatchmaking(eventId: number, req: { log: { info: (...args: unknown[]) => void } }) {
   const signups = await prisma.eventSignup.findMany({
     where: { eventId, signupStatus: "confirmed" },
@@ -63,17 +63,17 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
     hasCompanionApp: s.character.hasCompanionApp,
   }));
 
-  const result = assignTeams(pool);
+  const result = assignGroups(pool);
 
   await prisma.$transaction(async (tx) => {
-    for (const team of result.teams) {
-      const created = await tx.eventTeam.create({
-        data: { eventId, name: team.name, status: "assigned" },
+    for (const group of result.groups) {
+      const created = await tx.eventGroup.create({
+        data: { eventId, name: group.name, status: "assigned" },
       });
-      for (const member of team.members) {
+      for (const member of group.members) {
         await tx.eventSignup.update({
           where: { id: member.signupId },
-          data: { teamId: created.id },
+          data: { groupId: created.id },
         });
       }
     }
@@ -84,14 +84,14 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
   });
 
   req.log.info(
-    { eventId, teams: result.stats.teamsFormed, benched: result.stats.benchedCount },
-    "Teams assigned",
+    { eventId, groups: result.stats.groupsFormed, benched: result.stats.benchedCount },
+    "Groups assigned",
   );
 
   return {
-    teams: result.teams.map((t) => ({
-      name: t.name,
-      members: t.members.map((m) => ({
+    groups: result.groups.map((g) => ({
+      name: g.name,
+      members: g.members.map((m) => ({
         characterName: m.characterName,
         realm: m.realm,
         role: m.rolePreference,
@@ -349,8 +349,8 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send({ status: "signups_closed" });
     });
 
-    // ── Assign teams (matchmaking during Group Assignments) ─────
-    scope.post<{ Params: { id: string } }>("/events/:id/assign-teams", async (req, reply) => {
+    // ── Assign groups (matchmaking during Group Assignments) ─────
+    scope.post<{ Params: { id: string } }>("/events/:id/assign-groups", async (req, reply) => {
       const eventId = parseInt(req.params.id, 10);
       if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
 
@@ -530,7 +530,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       where,
       include: {
         dungeon: true,
-        _count: { select: { signups: true, teams: true } },
+        _count: { select: { signups: true, groups: true } },
       },
       orderBy: { startsAt: "desc" },
     });
@@ -547,10 +547,10 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         dungeon: true,
         season: true,
         signups: {
-          include: { character: true, team: true },
+          include: { character: true, group: true },
           orderBy: { signedUpAt: "asc" },
         },
-        teams: {
+        groups: {
           include: {
             members: { include: { character: true } },
           },

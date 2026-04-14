@@ -60,6 +60,6 @@ export interface RunRecord extends RunSubmission {
   parMs: number;
   recordedAt: string;
   verified: boolean;
-  teamId: number | null;
+  groupId: number | null;
   points: number;
 }

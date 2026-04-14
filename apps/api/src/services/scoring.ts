@@ -18,7 +18,7 @@
  *     Personal overall record:     +500 pts
  *     Event participation:         +100 pts
  *
- * Team score = sum of member scores. That lives in a different service
+ * Group score = sum of member scores. That lives in a different service
  * because it needs DB state.
  *
  * This function is intentionally dependency-free: give it the facts,

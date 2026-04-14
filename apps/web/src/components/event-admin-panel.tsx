@@ -20,7 +20,7 @@ const STATUS_TRANSITIONS: Record<string, { label: string; target: string; style:
     { label: "Cancel Event", target: "cancelled", style: "bg-red-600 hover:bg-red-700" },
   ],
   signups_closed: [
-    { label: "Assign Teams", target: "_assign_teams", style: "bg-gold hover:bg-gold-dark text-background" },
+    { label: "Assign Groups", target: "_assign_groups", style: "bg-gold hover:bg-gold-dark text-background" },
     { label: "Reopen Signups", target: "open", style: "bg-green-600 hover:bg-green-700" },
     { label: "Start Event", target: "in_progress", style: "bg-blue-600 hover:bg-blue-700" },
     { label: "Cancel Event", target: "cancelled", style: "bg-red-600 hover:bg-red-700" },
@@ -54,8 +54,8 @@ export function EventAdminPanel({
 
     try {
       const endpoint =
-        target === "_assign_teams"
-          ? `/api/event-actions?eventId=${eventId}&action=assign-teams`
+        target === "_assign_groups"
+          ? `/api/event-actions?eventId=${eventId}&action=assign-groups`
           : `/api/event-actions?eventId=${eventId}&action=transition&target=${target}`;
 
       const res = await fetch(endpoint, { method: "POST" });

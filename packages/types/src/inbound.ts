@@ -21,17 +21,17 @@ export interface MyRankEntry {
   total: number;
 }
 
-export interface RivalTeam {
-  teamId: number;
-  teamName: string;
+export interface RivalGroup {
+  groupId: number;
+  groupName: string;
   bestCompletionMs: number;
   bestKeystoneLevel: number;
 }
 
 export interface ActiveCompetition {
   eventId: number;
-  teamName: string;
-  rivals: RivalTeam[];
+  groupName: string;
+  rivals: RivalGroup[];
   /** Unix timestamp (seconds) */
   eventWindowEnds: number;
 }

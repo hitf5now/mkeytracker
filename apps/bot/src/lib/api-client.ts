@@ -131,7 +131,7 @@ export interface EventResponse {
 
 export interface EventListItem extends EventResponse {
   dungeon: { name: string; slug: string } | null;
-  _count: { signups: number; teams: number };
+  _count: { signups: number; groups: number };
 }
 
 export interface EventSignupDetail {
@@ -141,10 +141,10 @@ export interface EventSignupDetail {
   signupStatus: string;
   discordUserId: string | null;
   character: { name: string; realm: string; region: string; class: string; hasCompanionApp: boolean };
-  team: { id: number; name: string } | null;
+  group: { id: number; name: string } | null;
 }
 
-export interface EventTeamDetail {
+export interface EventGroupDetail {
   id: number;
   name: string;
   members: EventSignupDetail[];
@@ -157,18 +157,18 @@ export interface EventDetailResponse extends EventResponse {
   discordChannelId: string | null;
   discordGuildId: string | null;
   signups: EventSignupDetail[];
-  teams: EventTeamDetail[];
+  groups: EventGroupDetail[];
 }
 
-export interface CloseSignupsResponse {
-  teams: Array<{
+export interface AssignGroupsResponse {
+  groups: Array<{
     name: string;
     members: Array<{ characterName: string; realm: string; role: string }>;
   }>;
   benched: Array<{ characterName: string; realm: string; role: string }>;
   stats: {
     totalSignups: number;
-    teamsFormed: number;
+    groupsFormed: number;
     benchedCount: number;
     limitingRole: string;
   };
@@ -430,7 +430,7 @@ export const apiClient = {
 
   closeSignups: (
     eventId: number,
-  ): Promise<CloseSignupsResponse> => apiPost(`/api/v1/events/${eventId}/close-signups`, {}),
+  ): Promise<AssignGroupsResponse> => apiPost(`/api/v1/events/${eventId}/close-signups`, {}),
 
   // ── Phase 2: Bot interaction endpoints ─────────────────────────
   getUserCharacters: (discordId: string): Promise<UserCharactersResponse> =>
@@ -459,8 +459,8 @@ export const apiClient = {
   removeSignup: (eventId: number, discordId: string): Promise<{ removed: boolean }> =>
     apiDelete(`/api/v1/events/${eventId}/signup?discordId=${encodeURIComponent(discordId)}`),
 
-  assignTeams: (eventId: number): Promise<CloseSignupsResponse> =>
-    apiPost(`/api/v1/events/${eventId}/assign-teams`, {}),
+  assignGroups: (eventId: number): Promise<AssignGroupsResponse> =>
+    apiPost(`/api/v1/events/${eventId}/assign-groups`, {}),
 
   transitionEvent: (eventId: number, targetStatus: string): Promise<{ event: EventResponse }> =>
     apiPost(`/api/v1/events/${eventId}/transition`, { targetStatus }),

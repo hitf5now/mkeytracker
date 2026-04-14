@@ -112,7 +112,7 @@ export default async function EventsPage({ searchParams }: Props) {
                 <span>{formatDateTime(event.startsAt)}</span>
                 <span>
                   {event._count.signups} signup{event._count.signups !== 1 ? "s" : ""}
-                  {event._count.teams > 0 && ` / ${event._count.teams} teams`}
+                  {event._count.groups > 0 && ` / ${event._count.groups} groups`}
                 </span>
               </div>
               {event.minKeyLevel > 2 || event.maxKeyLevel < 40 ? (

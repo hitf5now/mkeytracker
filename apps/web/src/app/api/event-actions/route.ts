@@ -3,7 +3,7 @@
  *
  * Query params:
  *   eventId: number
- *   action: "transition" | "assign-teams" | "edit" | "sync-discord"
+ *   action: "transition" | "assign-groups" | "edit" | "sync-discord"
  *   target: string (for transition action)
  */
 
@@ -44,8 +44,8 @@ export async function POST(request: Request) {
       body = JSON.stringify({ targetStatus: target });
       break;
     }
-    case "assign-teams":
-      apiUrl = `${API_BASE}/api/v1/events/${eventId}/assign-teams`;
+    case "assign-groups":
+      apiUrl = `${API_BASE}/api/v1/events/${eventId}/assign-groups`;
       body = "{}";
       break;
     case "edit": {
