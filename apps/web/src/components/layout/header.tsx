@@ -14,6 +14,7 @@ const PUBLIC_NAV = [
 
 const AUTH_NAV = [
   { href: "/events", label: "Events" },
+  { href: "/teams", label: "Teams" },
 ];
 
 export function Header() {

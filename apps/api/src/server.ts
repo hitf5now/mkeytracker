@@ -24,6 +24,7 @@ import { usersRoutes } from "./routes/users.js";
 import { dungeonsRoutes } from "./routes/dungeons.js";
 import { guildsRoutes } from "./routes/guilds.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
+import { teamsRoutes } from "./routes/teams.js";
 
 async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -56,6 +57,7 @@ async function buildServer(): Promise<FastifyInstance> {
   await app.register(dungeonsRoutes, { prefix: "/api/v1" });
   await app.register(guildsRoutes, { prefix: "/api/v1" });
   await app.register(dashboardRoutes, { prefix: "/api/v1" });
+  await app.register(teamsRoutes, { prefix: "/api/v1" });
 
   app.addHook("onClose", async () => {
     await prisma.$disconnect();

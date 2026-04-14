@@ -197,6 +197,39 @@ export interface EventDetail {
   updatedAt: string;
 }
 
+// ─── Teams ─────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  id: number;
+  characterId: number;
+  role: "tank" | "healer" | "dps";
+  joinedAt: string;
+  character: {
+    id: number;
+    name: string;
+    realm: string;
+    region: string;
+    class: string;
+    spec: string;
+    rioScore: number;
+    hasCompanionApp: boolean;
+  };
+}
+
+export interface TeamSummary {
+  id: number;
+  name: string;
+  active: boolean;
+  seasonId: number;
+  captainUserId: number;
+  captain: { id: number; discordId: string };
+  season: { slug: string; name: string };
+  members: TeamMember[];
+  createdAt: string;
+}
+
+export interface TeamDetail extends TeamSummary {}
+
 // ─── Download ────────────────────────────────────────────��──────────
 
 export interface ReleaseInfo {

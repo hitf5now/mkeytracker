@@ -38,6 +38,7 @@ model Season {
   dungeons Dungeon[]
   runs     Run[]
   events   Event[]
+  teams    Team[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -83,10 +84,11 @@ model User {
   isMentor      Boolean @default(false) @map("is_mentor")
   mentorPoints  Int     @default(0) @map("mentor_points")
 
-  characters    Character[]
-  runMembers    RunMember[]
-  eventSignups  EventSignup[]
-  eventsCreated Event[]       @relation("eventsCreated")
+  characters      Character[]
+  runMembers      RunMember[]
+  eventSignups    EventSignup[]
+  eventsCreated   Event[]       @relation("eventsCreated")
+  teamsCaptained  Team[]        @relation("teamsCaptained")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -136,6 +138,7 @@ model Character {
 
   runMembers   RunMember[]
   eventSignups EventSignup[]
+  teamMembers  TeamMember[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -367,6 +370,48 @@ model EventGroup {
 
   @@index([eventId])
   @@map("event_groups")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Teams — persistent pre-made rosters
+// ─────────────────────────────────────────────────────────────
+
+model Team {
+  id            Int          @id @default(autoincrement())
+  name          String
+  /// User who created the team — only they can inactivate it
+  captainUserId Int          @map("captain_user_id")
+  captain       User         @relation("teamsCaptained", fields: [captainUserId], references: [id])
+  seasonId      Int          @map("season_id")
+  season        Season       @relation(fields: [seasonId], references: [id])
+  /// Soft-delete: inactive teams don't appear in signup lists
+  active        Boolean      @default(true)
+
+  members       TeamMember[]
+
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  /// Team names are unique per season
+  @@unique([seasonId, name])
+  @@index([captainUserId])
+  @@index([active])
+  @@map("teams")
+}
+
+model TeamMember {
+  id          Int       @id @default(autoincrement())
+  teamId      Int       @map("team_id")
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  characterId Int       @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id])
+  /// Role this member fills on the team: "tank" | "healer" | "dps"
+  role        String
+
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+
+  @@unique([teamId, characterId])
+  @@index([characterId])
+  @@map("team_members")
 }
 
 // ─────────────────────────────────────────────────────────────
