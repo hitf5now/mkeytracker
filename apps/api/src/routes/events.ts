@@ -16,10 +16,11 @@ import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { assignGroups, type SignupForMatching } from "../services/matchmaking.js";
+import { getAllEventTypes, getEventTypeConfig } from "../config/event-types.js";
 
 const CreateEventSchema = z.object({
   name: z.string().min(3).max(100),
-  type: z.enum(["fastest_clear_race", "speed_sprint", "random_draft"]).default("fastest_clear_race"),
+  type: z.enum(["fastest_clear_race", "speed_sprint", "random_draft", "key_climbing", "marathon", "best_average", "bracket_tournament"]).default("fastest_clear_race"),
   mode: z.enum(["group", "team"]).default("group"),
   dungeonSlug: z.string().optional(),
   minKeyLevel: z.number().int().min(2).max(40).default(2),
@@ -28,6 +29,7 @@ const CreateEventSchema = z.object({
   endsAt: z.string().datetime({ offset: true }),
   signupClosesAt: z.string().datetime({ offset: true }).optional(),
   description: z.string().max(1000).optional(),
+  typeConfig: z.record(z.string(), z.unknown()).optional(),
   createdByDiscordId: z.string().regex(/^\d{17,20}$/),
   discordGuildId: z.string().regex(/^\d{17,20}$/).optional(),
 });
@@ -148,6 +150,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           endsAt: new Date(body.endsAt),
           signupClosesAt: body.signupClosesAt ? new Date(body.signupClosesAt) : null,
           description: body.description,
+          typeConfig: body.typeConfig ? JSON.parse(JSON.stringify(body.typeConfig)) : undefined,
           createdByUserId: creator.id,
           discordGuildId: body.discordGuildId ?? null,
         },
@@ -611,6 +614,12 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── Public read routes ──────────────────────────────────────
+
+  // Event type registry — returns rules, scoring, and config for all types
+  app.get("/event-types", async (_req, reply) => {
+    return reply.code(200).send({ eventTypes: getAllEventTypes() });
+  });
+
   app.get("/events", async (req, reply) => {
     const query = req.query as {
       guildIds?: string;
@@ -684,6 +693,9 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!event) return reply.code(404).send({ error: "event_not_found" });
 
-    return reply.code(200).send({ event });
+    // Include the type config from the registry
+    const typeInfo = getEventTypeConfig(event.type);
+
+    return reply.code(200).send({ event, typeInfo });
   });
 }

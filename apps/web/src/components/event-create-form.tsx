@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { EventTypeConfig } from "@/types/api";
 
 interface Dungeon {
   id: number;
@@ -20,12 +21,6 @@ interface Props {
   dungeons: Dungeon[];
 }
 
-const EVENT_TYPES = [
-  { value: "fastest_clear_race", label: "Fastest Clear Race" },
-  { value: "speed_sprint", label: "Speed Sprint" },
-  { value: "random_draft", label: "Random Draft" },
-];
-
 const EVENT_MODES = [
   { value: "group", label: "Individual Signup (Groups)", description: "Players sign up individually and are auto-matched into balanced groups." },
   { value: "team", label: "Team Signup", description: "Pre-made teams sign up as a unit. No matchmaking." },
@@ -37,16 +32,43 @@ export function EventCreateForm({ dungeons }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildsLoading, setGuildsLoading] = useState(true);
+  const [eventTypes, setEventTypes] = useState<EventTypeConfig[]>([]);
+  const [selectedType, setSelectedType] = useState<string>("fastest_clear_race");
+  const [typeConfig, setTypeConfig] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetch("/api/guilds")
       .then((res) => res.json())
-      .then((data: { guilds?: Guild[] }) => {
-        setGuilds(data.guilds ?? []);
-      })
+      .then((data: { guilds?: Guild[] }) => setGuilds(data.guilds ?? []))
       .catch(() => setGuilds([]))
       .finally(() => setGuildsLoading(false));
+
+    // Fetch event type definitions from API
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "https://api.mythicplustracker.com";
+    fetch(`${apiBase}/api/v1/event-types`)
+      .then((res) => res.json())
+      .then((data: { eventTypes?: EventTypeConfig[] }) => {
+        setEventTypes(data.eventTypes ?? []);
+      })
+      .catch(() => setEventTypes([]));
   }, []);
+
+  const activeTypeConfig = eventTypes.find((t) => t.slug === selectedType);
+
+  function handleTypeChange(newType: string) {
+    setSelectedType(newType);
+    // Reset config fields for the new type
+    const config = eventTypes.find((t) => t.slug === newType);
+    if (config?.configFields) {
+      const defaults: Record<string, number> = {};
+      for (const f of config.configFields) {
+        defaults[f.key] = f.default;
+      }
+      setTypeConfig(defaults);
+    } else {
+      setTypeConfig({});
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,9 +77,9 @@ export function EventCreateForm({ dungeons }: Props) {
 
     const form = new FormData(e.currentTarget);
 
-    const body = {
+    const body: Record<string, unknown> = {
       name: form.get("name") as string,
-      type: form.get("type") as string,
+      type: selectedType,
       mode: form.get("mode") as string,
       dungeonSlug: (form.get("dungeon") as string) || undefined,
       minKeyLevel: parseInt(form.get("minKey") as string) || 2,
@@ -67,6 +89,10 @@ export function EventCreateForm({ dungeons }: Props) {
       description: (form.get("description") as string) || undefined,
       discordGuildId: (form.get("server") as string) || undefined,
     };
+
+    if (Object.keys(typeConfig).length > 0) {
+      body.typeConfig = typeConfig;
+    }
 
     try {
       const res = await fetch("/api/events", {
@@ -139,14 +165,83 @@ export function EventCreateForm({ dungeons }: Props) {
         <label htmlFor="type" className={labelClass}>
           Event Type
         </label>
-        <select id="type" name="type" className={inputClass}>
-          {EVENT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
+        <select
+          id="type"
+          name="type"
+          value={selectedType}
+          onChange={(e) => handleTypeChange(e.target.value)}
+          className={inputClass}
+        >
+          {eventTypes.length > 0
+            ? eventTypes.map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {t.label}
+                </option>
+              ))
+            : (
+              <>
+                <option value="fastest_clear_race">Fastest Clear Race</option>
+                <option value="speed_sprint">Speed Sprint</option>
+                <option value="random_draft">Random Draft</option>
+                <option value="key_climbing">Key Climbing</option>
+                <option value="marathon">Marathon</option>
+                <option value="best_average">Best Average</option>
+                <option value="bracket_tournament">Bracket Tournament</option>
+              </>
+            )}
         </select>
       </div>
+
+      {/* Type Rules Preview */}
+      {activeTypeConfig && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-sm font-medium text-gold">{activeTypeConfig.label}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{activeTypeConfig.description}</p>
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rules</p>
+            <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+              {activeTypeConfig.rules.map((rule, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-gold">-</span>
+                  <span>{rule}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scoring</p>
+            <div className="mt-1 space-y-0.5">
+              {activeTypeConfig.scoringTable.map((row, i) => (
+                <div key={i} className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="font-mono text-foreground">{row.points}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Type-specific config fields */}
+      {activeTypeConfig?.configFields && activeTypeConfig.configFields.length > 0 && (
+        <div className="space-y-3">
+          {activeTypeConfig.configFields.map((field) => (
+            <div key={field.key}>
+              <label className={labelClass}>{field.label}</label>
+              <input
+                type="number"
+                min={field.min}
+                max={field.max}
+                value={typeConfig[field.key] ?? field.default}
+                onChange={(e) =>
+                  setTypeConfig((prev) => ({ ...prev, [field.key]: parseInt(e.target.value) || field.default }))
+                }
+                className={inputClass}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Mode */}
       <div>
@@ -243,13 +338,13 @@ export function EventCreateForm({ dungeons }: Props) {
       {/* Description */}
       <div>
         <label htmlFor="description" className={labelClass}>
-          Description
+          Additional Notes
         </label>
         <textarea
           id="description"
           name="description"
           rows={3}
-          placeholder="Event rules, details, or anything participants should know..."
+          placeholder="Custom rules, house rules, or anything participants should know..."
           className={inputClass}
         />
       </div>

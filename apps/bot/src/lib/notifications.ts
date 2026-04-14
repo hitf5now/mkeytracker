@@ -17,6 +17,17 @@ import {
 import { env } from "../config/env.js";
 import { apiClient } from "./api-client.js";
 
+/** Short rules summary for Discord embeds, keyed by event type slug. */
+const TYPE_SUMMARIES: Record<string, string> = {
+  fastest_clear_race: "Fastest timed clear wins. Depleted runs don't count.",
+  speed_sprint: "Single attempt per group/team. Best score wins.",
+  random_draft: "Random groups compete on combined total score.",
+  key_climbing: "Push the highest key you can. Peak level wins.",
+  marathon: "Complete as many keys as possible. Total score wins.",
+  best_average: "Best average across your top runs. Consistency wins.",
+  bracket_tournament: "Single-elimination bracket. Better score advances.",
+};
+
 const CHANNEL = "mplus:bot-notifications";
 
 interface BotNotification {
@@ -86,11 +97,15 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
 
     const isTeamMode = event.mode === "team";
     const modeLabel = isTeamMode ? "Team Signup" : "Individual Signup";
+    const typeSummary = TYPE_SUMMARIES[event.type] ?? "";
+    const descriptionText = [event.description, typeSummary ? `**How it works:** ${typeSummary}` : ""]
+      .filter(Boolean)
+      .join("\n\n") || "_No description_";
 
     const embed = new EmbedBuilder()
       .setTitle(`🏆 ${event.name}`)
       .setColor(0x3ba55d)
-      .setDescription(event.description || "_No description_")
+      .setDescription(descriptionText)
       .addFields(
         { name: "Type", value: event.type.replace(/_/g, " "), inline: true },
         {

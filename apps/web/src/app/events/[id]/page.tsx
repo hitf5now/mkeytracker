@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { EventDetail, EventSignup, TeamEventSignup } from "@/types/api";
+import type { EventDetail, EventSignup, TeamEventSignup, EventTypeConfig } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { EventAdminPanel } from "@/components/event-admin-panel";
 import { ClassBadge } from "@/components/class-badge";
@@ -34,9 +34,9 @@ export default async function EventDetailPage({ params }: Props) {
 
   const { id } = await params;
 
-  let data: { event: EventDetail };
+  let data: { event: EventDetail; typeInfo?: EventTypeConfig | null };
   try {
-    data = await fetchApi<{ event: EventDetail }>(`/api/v1/events/${id}`);
+    data = await fetchApi<{ event: EventDetail; typeInfo?: EventTypeConfig | null }>(`/api/v1/events/${id}`);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       notFound();
@@ -44,7 +44,7 @@ export default async function EventDetailPage({ params }: Props) {
     throw err;
   }
 
-  const { event } = data;
+  const { event, typeInfo } = data;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -105,6 +105,52 @@ export default async function EventDetailPage({ params }: Props) {
       {event.description && (
         <div className="mt-6 rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">{event.description}</p>
+        </div>
+      )}
+
+      {/* Auto-generated Rules & Scoring */}
+      {typeInfo && (
+        <div className="mt-6 rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Rules & Scoring</h2>
+            <span className="rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
+              {typeInfo.label}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">{typeInfo.description}</p>
+
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Win Condition</p>
+            <p className="mt-1 text-sm text-foreground">{typeInfo.winCondition}</p>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rules</p>
+            <ul className="mt-2 space-y-1.5">
+              {typeInfo.rules.map((rule, i) => (
+                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                  <span className="text-gold shrink-0">-</span>
+                  <span>{rule}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Point System</p>
+            <p className="mt-1 text-xs text-muted-foreground">{typeInfo.scoringDescription}</p>
+            <div className="mt-2 rounded-md border border-border/50 bg-background">
+              {typeInfo.scoringTable.map((row, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""}`}
+                >
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="font-mono text-xs text-foreground">{row.points}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

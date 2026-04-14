@@ -101,7 +101,23 @@ export type EventStatus =
 export type EventType =
   | "fastest_clear_race"
   | "speed_sprint"
-  | "random_draft";
+  | "random_draft"
+  | "key_climbing"
+  | "marathon"
+  | "best_average"
+  | "bracket_tournament";
+
+export interface EventTypeConfig {
+  slug: string;
+  label: string;
+  description: string;
+  rules: string[];
+  winCondition: string;
+  scoringDescription: string;
+  scoringTable: Array<{ label: string; points: string }>;
+  supportedModes: ("group" | "team")[];
+  configFields?: Array<{ key: string; label: string; type: "number"; default: number; min: number; max: number }>;
+}
 
 export type EventMode = "group" | "team";
 

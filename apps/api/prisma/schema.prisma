@@ -233,7 +233,10 @@ enum EventType {
   fastest_clear_race   // All groups, same dungeon, fastest timed clear wins
   speed_sprint         // 30-min window, single attempt per group
   random_draft         // Bot assembles random role-balanced groups
-  // Future types added here — schema migration only, no data loss
+  key_climbing         // Push highest key possible, peak level wins
+  marathon             // Most runs in time window, accumulated score wins
+  best_average         // Best average score across top N runs
+  bracket_tournament   // Single-elimination bracket, head-to-head matchups
 }
 
 enum EventMode {
@@ -261,6 +264,8 @@ model Event {
   type            EventType   @default(fastest_clear_race)
   mode            EventMode   @default(group)
   status          EventStatus @default(draft)
+  /// Type-specific config (e.g., runsToCount for best_average)
+  typeConfig      Json?       @map("type_config")
 
   /// Discord message ID of the event embed (for in-place updates)
   discordMessageId String?    @map("discord_message_id")
