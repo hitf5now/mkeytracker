@@ -26,6 +26,11 @@ const EVENT_TYPES = [
   { value: "random_draft", label: "Random Draft" },
 ];
 
+const EVENT_MODES = [
+  { value: "group", label: "Individual Signup (Groups)", description: "Players sign up individually and are auto-matched into balanced groups." },
+  { value: "team", label: "Team Signup", description: "Pre-made teams sign up as a unit. No matchmaking." },
+];
+
 export function EventCreateForm({ dungeons }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +58,7 @@ export function EventCreateForm({ dungeons }: Props) {
     const body = {
       name: form.get("name") as string,
       type: form.get("type") as string,
+      mode: form.get("mode") as string,
       dungeonSlug: (form.get("dungeon") as string) || undefined,
       minKeyLevel: parseInt(form.get("minKey") as string) || 2,
       maxKeyLevel: parseInt(form.get("maxKey") as string) || 40,
@@ -140,6 +146,23 @@ export function EventCreateForm({ dungeons }: Props) {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Mode */}
+      <div>
+        <label htmlFor="mode" className={labelClass}>
+          Signup Mode
+        </label>
+        <select id="mode" name="mode" className={inputClass}>
+          {EVENT_MODES.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {EVENT_MODES[0]?.description}
+        </p>
       </div>
 
       {/* Dungeon */}

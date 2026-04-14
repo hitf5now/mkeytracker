@@ -58,6 +58,9 @@ export default async function EventDetailPage({ params }: Props) {
           </p>
         </div>
         <EventStatusBadge status={event.status} />
+        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+          {event.mode === "team" ? "Team Signup" : "Individual Signup"}
+        </span>
       </div>
 
       {/* Admin panel — only visible to event creator */}

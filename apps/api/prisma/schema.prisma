@@ -233,6 +233,11 @@ enum EventType {
   // Future types added here — schema migration only, no data loss
 }
 
+enum EventMode {
+  group   // Individual signup + auto-matchmaking into groups
+  team    // Pre-made team signup (no matchmaking)
+}
+
 /// How the signup was created
 enum SignupSource {
   discord_verified   // user has a linked Character, clicked button
@@ -251,6 +256,7 @@ model Event {
   id              Int         @id @default(autoincrement())
   name            String
   type            EventType   @default(fastest_clear_race)
+  mode            EventMode   @default(group)
   status          EventStatus @default(draft)
 
   /// Discord message ID of the event embed (for in-place updates)

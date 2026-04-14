@@ -20,6 +20,7 @@ import { assignGroups, type SignupForMatching } from "../services/matchmaking.js
 const CreateEventSchema = z.object({
   name: z.string().min(3).max(100),
   type: z.enum(["fastest_clear_race", "speed_sprint", "random_draft"]).default("fastest_clear_race"),
+  mode: z.enum(["group", "team"]).default("group"),
   dungeonSlug: z.string().optional(),
   minKeyLevel: z.number().int().min(2).max(40).default(2),
   maxKeyLevel: z.number().int().min(2).max(40).default(40),
@@ -137,6 +138,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         data: {
           name: body.name,
           type: body.type,
+          mode: body.mode,
           status: "open",
           seasonId: season.id,
           dungeonId,
@@ -177,6 +179,9 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       if (!event) return reply.code(404).send({ error: "event_not_found" });
       if (event.status !== "open") {
         return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}, not accepting signups.` });
+      }
+      if (event.mode === "team") {
+        return reply.code(409).send({ error: "team_mode_event", message: "This is a team-mode event. Sign up your team instead of individually." });
       }
 
       // Upsert user — auto-create if they don't have a User row yet.
@@ -360,6 +365,12 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({
           error: "wrong_status",
           message: `Event must be in Group Assignments phase (signups_closed). Currently: ${event.status}.`,
+        });
+      }
+      if (event.mode === "team") {
+        return reply.code(409).send({
+          error: "team_mode_event",
+          message: "Cannot assign groups for a team-mode event. Teams sign up directly.",
         });
       }
 

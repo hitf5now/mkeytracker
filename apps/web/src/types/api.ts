@@ -103,6 +103,8 @@ export type EventType =
   | "speed_sprint"
   | "random_draft";
 
+export type EventMode = "group" | "team";
+
 export interface EventDungeon {
   id: number;
   challengeModeId: number;
@@ -116,6 +118,7 @@ export interface EventSummary {
   id: number;
   name: string;
   type: EventType;
+  mode: EventMode;
   status: EventStatus;
   dungeonId: number | null;
   dungeon: EventDungeon | null;
@@ -175,6 +178,7 @@ export interface EventDetail {
   id: number;
   name: string;
   type: EventType;
+  mode: EventMode;
   status: EventStatus;
   dungeonId: number | null;
   dungeon: EventDungeon | null;
