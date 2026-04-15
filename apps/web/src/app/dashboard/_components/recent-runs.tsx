@@ -17,7 +17,7 @@ export function RecentRuns({ runs }: { runs: DashboardRecentRun[] }) {
             <th className="px-4 py-3 font-medium">Level</th>
             <th className="px-4 py-3 font-medium">Result</th>
             <th className="px-4 py-3 font-medium">Deaths</th>
-            <th className="px-4 py-3 font-medium">Points</th>
+            <th className="px-4 py-3 font-medium">Juice</th>
             <th className="px-4 py-3 text-right font-medium">Date</th>
           </tr>
         </thead>
@@ -37,7 +37,7 @@ export function RecentRuns({ runs }: { runs: DashboardRecentRun[] }) {
                 </span>
               </td>
               <td className="px-4 py-3 text-muted-foreground">{run.deaths}</td>
-              <td className="px-4 py-3 font-semibold">{formatNumber(run.points)}</td>
+              <td className="px-4 py-3 font-semibold">{formatNumber(run.juice)}</td>
               <td className="px-4 py-3 text-right text-muted-foreground">{formatDate(run.recordedAt)}</td>
             </tr>
           ))}

@@ -35,8 +35,8 @@ export function RoleBreakdown({ roles }: { roles: DashboardRoleBreakdown[] }) {
                 <span className="font-medium">{role.timedRuns}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Points</span>
-                <span className="font-medium">{formatNumber(role.totalPoints)}</span>
+                <span className="text-muted-foreground">Juice</span>
+                <span className="font-medium">{formatNumber(role.totalJuice)}</span>
               </div>
             </div>
           </div>

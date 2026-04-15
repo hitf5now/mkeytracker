@@ -39,7 +39,7 @@ export interface ProfileBestRun {
   parMs: number;
   onTime: boolean;
   upgrades: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -51,7 +51,7 @@ export interface ProfileRecentRun {
   onTime: boolean;
   upgrades: number;
   deaths: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -77,8 +77,8 @@ export interface CharacterProfile {
     depletedRuns: number;
     totalDeaths: number;
     highestKeyCompleted: number;
-    totalPoints: number;
-    weeklyPoints: number;
+    totalJuice: number;
+    weeklyJuice: number;
     bestRunPerDungeon: ProfileBestRun[];
     recentRuns: ProfileRecentRun[];
   };
@@ -114,7 +114,7 @@ export interface EventTypeConfig {
   rules: string[];
   winCondition: string;
   scoringDescription: string;
-  scoringTable: Array<{ label: string; points: string }>;
+  scoringTable: Array<{ label: string; juice: string }>;
   supportedModes: ("group" | "team")[];
   configFields?: Array<{ key: string; label: string; type: "number"; default: number; min: number; max: number }>;
 }
@@ -274,8 +274,8 @@ export interface DashboardOverview {
   depletedRuns: number;
   totalDeaths: number;
   highestKeyCompleted: number;
-  totalPoints: number;
-  weeklyPoints: number;
+  totalJuice: number;
+  weeklyJuice: number;
   timedRate: number;
 }
 
@@ -292,7 +292,7 @@ export interface DashboardCharacter {
   totalRuns: number;
   timedRuns: number;
   highestKey: number;
-  totalPoints: number;
+  totalJuice: number;
 }
 
 export interface DashboardRoleBreakdown {
@@ -300,7 +300,7 @@ export interface DashboardRoleBreakdown {
   totalRuns: number;
   timedRuns: number;
   bestKey: number;
-  totalPoints: number;
+  totalJuice: number;
 }
 
 export interface DashboardDungeonBreakdown {
@@ -309,7 +309,7 @@ export interface DashboardDungeonBreakdown {
   dungeonShortCode: string;
   bestKeyLevel: number;
   fastestClearMs: number | null;
-  totalPoints: number;
+  totalJuice: number;
   timedCount: number;
   bestCharacterName: string;
   bestCharacterClass: string;
@@ -323,7 +323,7 @@ export interface DashboardRecentRun {
   onTime: boolean;
   upgrades: number;
   deaths: number;
-  points: number;
+  juice: number;
   recordedAt: string;
   characterName: string;
   characterClass: string;

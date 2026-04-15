@@ -8,8 +8,8 @@ export function OverviewStats({ overview }: { overview: DashboardOverview }) {
     { label: "Depleted", value: overview.depletedRuns },
     { label: "Deaths", value: overview.totalDeaths },
     { label: "Highest Key", value: overview.highestKeyCompleted > 0 ? `+${overview.highestKeyCompleted}` : "—" },
-    { label: "Season Points", value: formatNumber(overview.totalPoints) },
-    { label: "Weekly Points", value: formatNumber(overview.weeklyPoints) },
+    { label: "Season Juice", value: formatNumber(overview.totalJuice) },
+    { label: "Weekly Juice", value: formatNumber(overview.weeklyJuice) },
     { label: "Timed Rate", value: overview.totalRuns > 0 ? `${overview.timedRate}%` : "—" },
   ];
 

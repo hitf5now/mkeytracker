@@ -53,8 +53,8 @@ export function CharacterCards({ characters }: { characters: DashboardCharacter[
               <span className="font-medium">{char.highestKey > 0 ? `+${char.highestKey}` : "—"}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Points:</span>{" "}
-              <span className="font-medium">{formatNumber(char.totalPoints)}</span>
+              <span className="text-muted-foreground">Juice:</span>{" "}
+              <span className="font-medium">{formatNumber(char.totalJuice)}</span>
             </div>
           </div>
         </Link>

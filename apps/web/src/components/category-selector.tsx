@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
-  { value: "season-points", label: "Season Points" },
+  { value: "season-juice", label: "Season Juice" },
   { value: "highest-key", label: "Highest Key" },
   { value: "most-timed", label: "Most Timed" },
 ];
@@ -12,7 +12,7 @@ const CATEGORIES = [
 export function CategorySelector() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const current = searchParams.get("category") ?? "season-points";
+  const current = searchParams.get("category") ?? "season-juice";
 
   function selectCategory(category: string) {
     router.push(`/leaderboards?category=${category}`);

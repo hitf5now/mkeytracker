@@ -214,7 +214,7 @@ export function EventCreateForm({ dungeons }: Props) {
               {activeTypeConfig.scoringTable.map((row, i) => (
                 <div key={i} className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{row.label}</span>
-                  <span className="font-mono text-foreground">{row.points}</span>
+                  <span className="font-mono text-foreground">{row.juice}</span>
                 </div>
               ))}
             </div>

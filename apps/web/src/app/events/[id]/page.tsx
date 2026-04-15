@@ -146,7 +146,7 @@ export default async function EventDetailPage({ params }: Props) {
                   className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""}`}
                 >
                   <span className="text-muted-foreground">{row.label}</span>
-                  <span className="font-mono text-xs text-foreground">{row.points}</span>
+                  <span className="font-mono text-xs text-foreground">{row.juice}</span>
                 </div>
               ))}
             </div>

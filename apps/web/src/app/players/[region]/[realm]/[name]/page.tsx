@@ -90,8 +90,8 @@ export default async function PlayerProfilePage({ params }: Props) {
           { label: "Depleted", value: stats.depletedRuns },
           { label: "Deaths", value: stats.totalDeaths },
           { label: "Highest Key", value: stats.highestKeyCompleted > 0 ? `+${stats.highestKeyCompleted}` : "—" },
-          { label: "Season Points", value: formatNumber(stats.totalPoints) },
-          { label: "Weekly Points", value: formatNumber(stats.weeklyPoints) },
+          { label: "Season Juice", value: formatNumber(stats.totalJuice) },
+          { label: "Weekly Juice", value: formatNumber(stats.weeklyJuice) },
           { label: "Timed Rate", value: stats.totalRuns > 0 ? `${Math.round((stats.timedRuns / stats.totalRuns) * 100)}%` : "—" },
         ].map((stat) => (
           <div
@@ -116,7 +116,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                   <th className="px-4 py-3 font-medium">Level</th>
                   <th className="px-4 py-3 font-medium">Time</th>
                   <th className="px-4 py-3 font-medium">Result</th>
-                  <th className="px-4 py-3 text-right font-medium">Points</th>
+                  <th className="px-4 py-3 text-right font-medium">Juice</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,7 +144,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
-                      {formatNumber(run.points)}
+                      {formatNumber(run.juice)}
                     </td>
                   </tr>
                 ))}
@@ -166,7 +166,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                   <th className="px-4 py-3 font-medium">Level</th>
                   <th className="px-4 py-3 font-medium">Result</th>
                   <th className="px-4 py-3 font-medium">Deaths</th>
-                  <th className="px-4 py-3 font-medium">Points</th>
+                  <th className="px-4 py-3 font-medium">Juice</th>
                   <th className="px-4 py-3 text-right font-medium">Date</th>
                 </tr>
               </thead>
@@ -193,7 +193,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                       {run.deaths}
                     </td>
                     <td className="px-4 py-3 font-semibold">
-                      {formatNumber(run.points)}
+                      {formatNumber(run.juice)}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       {formatDate(run.recordedAt)}

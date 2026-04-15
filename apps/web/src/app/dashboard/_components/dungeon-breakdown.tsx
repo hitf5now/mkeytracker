@@ -16,7 +16,7 @@ export function DungeonBreakdown({ dungeons }: { dungeons: DashboardDungeonBreak
             <th className="px-4 py-3 font-medium">Best Key</th>
             <th className="px-4 py-3 font-medium">Fastest</th>
             <th className="px-4 py-3 font-medium">Timed</th>
-            <th className="px-4 py-3 font-medium">Points</th>
+            <th className="px-4 py-3 font-medium">Juice</th>
             <th className="px-4 py-3 font-medium">Best With</th>
           </tr>
         </thead>
@@ -33,7 +33,7 @@ export function DungeonBreakdown({ dungeons }: { dungeons: DashboardDungeonBreak
                 {d.fastestClearMs ? formatDuration(d.fastestClearMs) : "—"}
               </td>
               <td className="px-4 py-3">{d.timedCount}</td>
-              <td className="px-4 py-3 font-semibold">{formatNumber(d.totalPoints)}</td>
+              <td className="px-4 py-3 font-semibold">{formatNumber(d.totalJuice)}</td>
               <td className="px-4 py-3">
                 <span style={{ color: getClassColor(d.bestCharacterClass) }}>
                   {d.bestCharacterName}

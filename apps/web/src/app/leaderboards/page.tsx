@@ -44,7 +44,7 @@ async function LeaderboardContent({
 
 export default async function LeaderboardsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const category = params.category ?? "season-points";
+  const category = params.category ?? "season-juice";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
