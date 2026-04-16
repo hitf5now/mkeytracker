@@ -20,7 +20,7 @@ import { z } from "zod";
 import { env } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { toRealmSlug } from "../lib/realm.js";
-import { postRunCompleted } from "../lib/discord-webhook.js";
+import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
 import { scoreRun } from "../services/scoring.js";
 
@@ -356,32 +356,25 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           "Run recorded",
         );
 
-        // Fire-and-forget Discord webhook announcement. Must not fail
-        // the request if the webhook is unreachable.
-        const webhookUrl = env.DISCORD_WEBHOOK_RESULTS;
-        if (webhookUrl) {
-          void postRunCompleted(
-            webhookUrl,
-            {
-              dungeonName: dungeon.name,
-              keystoneLevel: body.keystoneLevel,
-              onTime: body.onTime,
-              upgrades: body.upgrades,
-              completionMs: body.completionMs,
-              parMs: dungeon.parTimeSec * 1000,
-              deaths: body.deaths,
-              juice: breakdown.total,
-              affixes: body.affixes,
-              members: normalizedMembers.map((m) => ({
-                name: m.name,
-                realm: m.realmSlug,
-                class: m.class,
-                role: m.role,
-              })),
-            },
-            req.log,
-          );
-        }
+        // Publish run-completed notification for bot to announce
+        void redis.publish("mplus:bot-notifications", JSON.stringify({
+          type: "run_completed",
+          runId: run.id,
+          dungeonName: dungeon.name,
+          keystoneLevel: body.keystoneLevel,
+          onTime: body.onTime,
+          upgrades: body.upgrades,
+          completionMs: body.completionMs,
+          parMs: dungeon.parTimeSec * 1000,
+          deaths: body.deaths,
+          juice: breakdown.total,
+          members: normalizedMembers.map((m) => ({
+            name: m.name,
+            realm: m.realmSlug,
+            class: m.class,
+            role: m.role,
+          })),
+        })).catch((err) => req.log.warn({ err }, "Failed to publish run notification"));
 
         return reply.code(201).send({
           run: serializeRun(run),

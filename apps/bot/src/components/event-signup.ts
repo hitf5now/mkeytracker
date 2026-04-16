@@ -237,9 +237,28 @@ function buildSpecSelect(eventId: number, characterId: number, classSlug: string
 
 // ── Handlers ─────────────────────────────────────────────────────
 
+async function verifyGuildScope(eventId: number, guildId: string | null): Promise<string | null> {
+  if (!guildId) return null;
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+    if (event.discordGuildId && event.discordGuildId !== guildId) {
+      return "This event belongs to a different server.";
+    }
+  } catch {
+    // If we can't fetch the event, let the signup attempt handle the error
+  }
+  return null;
+}
+
 async function handleSignupButton(interaction: ButtonInteraction, client: Client): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   const eventId = parseEventId(interaction.customId);
+
+  const scopeError = await verifyGuildScope(eventId, interaction.guildId);
+  if (scopeError) {
+    await interaction.editReply(`❌ ${scopeError}`);
+    return;
+  }
 
   // Check if user already has a signup
   const check = await apiClient.signupCheck(eventId, interaction.user.id);
@@ -310,6 +329,12 @@ async function startSignupFlow(
 async function handleTentativeButton(interaction: ButtonInteraction, client: Client): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   const eventId = parseEventId(interaction.customId);
+
+  const scopeError = await verifyGuildScope(eventId, interaction.guildId);
+  if (scopeError) {
+    await interaction.editReply(`❌ ${scopeError}`);
+    return;
+  }
 
   // Check if already signed up
   const check = await apiClient.signupCheck(eventId, interaction.user.id);

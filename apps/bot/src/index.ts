@@ -11,6 +11,7 @@ import { env } from "./config/env.js";
 import { commands } from "./commands/index.js";
 import { findHandler } from "./components/index.js";
 import { startNotificationSubscriber } from "./lib/notifications.js";
+import { apiClient } from "./lib/api-client.js";
 
 const redisClient = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
 
@@ -39,9 +40,23 @@ client.once(Events.ClientReady, (c) => {
   startNotificationSubscriber(client);
 });
 
-// Keep guild cache in sync when bot joins/leaves servers
-client.on(Events.GuildCreate, () => void syncGuildCache(client));
-client.on(Events.GuildDelete, () => void syncGuildCache(client));
+// Multi-tenant: register/unregister servers + sync cache
+client.on(Events.GuildCreate, (guild) => {
+  console.log(`📥 Joined guild: ${guild.name} (${guild.id})`);
+  void syncGuildCache(client);
+  void apiClient.initServer(guild.id, {
+    guildName: guild.name,
+    guildIconUrl: guild.iconURL({ size: 128 }),
+    installedByDiscordId: guild.ownerId,
+  }).catch((err: unknown) => console.error(`Failed to init server ${guild.id}:`, err));
+});
+
+client.on(Events.GuildDelete, (guild) => {
+  console.log(`📤 Left guild: ${guild.name ?? guild.id}`);
+  void syncGuildCache(client);
+  void apiClient.uninstallServer(guild.id)
+    .catch((err: unknown) => console.error(`Failed to uninstall server ${guild.id}:`, err));
+});
 
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   // ── Slash commands ──────────────────────────────────────────

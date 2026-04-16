@@ -25,8 +25,6 @@ const EnvSchema = z.object({
 
   /** Redis URL for pub/sub notifications from the API */
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
-  /** Discord channel ID where event embeds are posted */
-  DISCORD_EVENTS_CHANNEL_ID: z.string().regex(/^\d{17,20}$/).optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

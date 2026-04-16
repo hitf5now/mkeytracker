@@ -25,8 +25,6 @@ const EnvSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().optional(),
   DISCORD_CLIENT_ID: z.string().optional(),
   DISCORD_GUILD_ID: z.string().optional(),
-  DISCORD_WEBHOOK_RESULTS: z.string().url().optional().or(z.literal("")).default(""),
-  DISCORD_WEBHOOK_EVENTS: z.string().url().optional().or(z.literal("")).default(""),
 
   RAIDERIO_BASE_URL: z.string().url().default("https://raider.io/api/v1"),
 

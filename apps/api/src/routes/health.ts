@@ -34,8 +34,6 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
   if (env.NODE_ENV === "development") {
     app.get("/health/env", async () => ({
       NODE_ENV: env.NODE_ENV,
-      DISCORD_WEBHOOK_RESULTS: env.DISCORD_WEBHOOK_RESULTS ? `set (${env.DISCORD_WEBHOOK_RESULTS.length} chars)` : "empty",
-      DISCORD_WEBHOOK_EVENTS: env.DISCORD_WEBHOOK_EVENTS ? `set (${env.DISCORD_WEBHOOK_EVENTS.length} chars)` : "empty",
       DISCORD_BOT_TOKEN: env.DISCORD_BOT_TOKEN ? "set" : "empty",
       DISCORD_CLIENT_ID: env.DISCORD_CLIENT_ID ?? "empty",
       DISCORD_GUILD_ID: env.DISCORD_GUILD_ID ?? "empty",

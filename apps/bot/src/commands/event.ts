@@ -7,6 +7,7 @@
 
 import {
   EmbedBuilder,
+  PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
 import { apiClient, ApiError } from "../lib/api-client.js";
@@ -16,6 +17,7 @@ export const eventCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("event")
     .setDescription("Manage M+ events.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((sub) =>
       sub
         .setName("assign-groups")
@@ -54,10 +56,20 @@ export const eventCommand: Command = {
   },
 };
 
+function hasManageGuild(interaction: import("discord.js").ChatInputCommandInteraction): boolean {
+  return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+}
+
 async function handleAssignGroups(
   interaction: import("discord.js").ChatInputCommandInteraction,
 ): Promise<void> {
   await interaction.deferReply();
+
+  if (!hasManageGuild(interaction)) {
+    await interaction.editReply("❌ You need the **Manage Server** permission to manage events.");
+    return;
+  }
+
   const eventId = interaction.options.getInteger("id", true);
 
   try {
@@ -106,6 +118,12 @@ async function handleTransition(
   displayName: string,
 ): Promise<void> {
   await interaction.deferReply();
+
+  if (!hasManageGuild(interaction)) {
+    await interaction.editReply("❌ You need the **Manage Server** permission to manage events.");
+    return;
+  }
+
   const eventId = interaction.options.getInteger("id", true);
 
   try {

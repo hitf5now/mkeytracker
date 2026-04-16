@@ -136,6 +136,16 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         dungeonId = dungeon.id;
       }
 
+      // Resolve serverId from discordGuildId
+      let serverId: number | null = null;
+      if (body.discordGuildId) {
+        const server = await prisma.discordServer.findUnique({
+          where: { discordGuildId: body.discordGuildId },
+          select: { id: true },
+        });
+        serverId = server?.id ?? null;
+      }
+
       const event = await prisma.event.create({
         data: {
           name: body.name,
@@ -153,6 +163,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           typeConfig: body.typeConfig ? JSON.parse(JSON.stringify(body.typeConfig)) : undefined,
           createdByUserId: creator.id,
           discordGuildId: body.discordGuildId ?? null,
+          serverId,
         },
       });
 

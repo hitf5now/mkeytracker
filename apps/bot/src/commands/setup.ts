@@ -6,7 +6,7 @@
  *   /setup events-channel <channel> — configure where event embeds are posted
  */
 
-import { ChannelType, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { ChannelType, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { apiClient, ApiError } from "../lib/api-client.js";
 import type { Command } from "./index.js";
 
@@ -16,6 +16,7 @@ export const setupCommand: Command = {
   data: new SlashCommandBuilder()
     .setName("setup")
     .setDescription("Server configuration and companion app setup.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((sub) =>
       sub
         .setName("companion")
@@ -32,6 +33,23 @@ export const setupCommand: Command = {
             .addChannelTypes(ChannelType.GuildText)
             .setRequired(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("results-channel")
+        .setDescription("Set the channel where run results are posted.")
+        .addChannelOption((opt) =>
+          opt
+            .setName("channel")
+            .setDescription("The text channel for run results")
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("show")
+        .setDescription("Show the current server configuration."),
     ),
 
   async execute(interaction) {
@@ -39,6 +57,10 @@ export const setupCommand: Command = {
 
     if (sub === "events-channel") {
       await handleEventsChannel(interaction);
+    } else if (sub === "results-channel") {
+      await handleResultsChannel(interaction);
+    } else if (sub === "show") {
+      await handleShow(interaction);
     } else {
       await handleCompanion(interaction);
     }
@@ -100,7 +122,7 @@ async function handleEventsChannel(
   }
 
   try {
-    await apiClient.setGuildConfig(guildId, {
+    await apiClient.setServerConfig(guildId, {
       eventsChannelId: channel.id,
       guildName: interaction.guild?.name ?? null,
     });
@@ -116,5 +138,80 @@ async function handleEventsChannel(
     }
     console.error("/setup events-channel error:", err);
     await interaction.editReply("❌ Failed to save channel configuration.");
+  }
+}
+
+async function handleResultsChannel(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  const channel = interaction.options.getChannel("channel", true);
+  const guildId = interaction.guildId;
+
+  if (!guildId) {
+    await interaction.editReply("❌ This command can only be used in a server.");
+    return;
+  }
+
+  try {
+    await apiClient.setServerConfig(guildId, {
+      resultsChannelId: channel.id,
+      guildName: interaction.guild?.name ?? null,
+    });
+
+    await interaction.editReply(
+      `✅ Run results will now be posted to <#${channel.id}>.`,
+    );
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error("/setup results-channel error:", err);
+    await interaction.editReply("❌ Failed to save channel configuration.");
+  }
+}
+
+async function handleShow(
+  interaction: import("discord.js").ChatInputCommandInteraction,
+): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.editReply("❌ This command can only be used in a server.");
+    return;
+  }
+
+  try {
+    const { config } = await apiClient.getServerConfig(guildId);
+
+    if (!config) {
+      await interaction.editReply(
+        "No configuration found for this server.\nRun `/setup events-channel` and `/setup results-channel` to get started.",
+      );
+      return;
+    }
+
+    const lines = [
+      `**Server:** ${config.guildName ?? interaction.guild?.name ?? "Unknown"}`,
+      `**Events channel:** ${config.eventsChannelId ? `<#${config.eventsChannelId}>` : "_Not set_"}`,
+      `**Results channel:** ${config.resultsChannelId ? `<#${config.resultsChannelId}>` : "_Not set_"}`,
+    ];
+
+    const embed = new EmbedBuilder()
+      .setTitle("Server Configuration")
+      .setColor(0x3ba55d)
+      .setDescription(lines.join("\n"));
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error("/setup show error:", err);
+    await interaction.editReply("❌ Failed to read server configuration.");
   }
 }

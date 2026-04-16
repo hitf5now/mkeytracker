@@ -478,10 +478,19 @@ export const apiClient = {
   transitionEvent: (eventId: number, targetStatus: string): Promise<{ event: EventResponse }> =>
     apiPost(`/api/v1/events/${eventId}/transition`, { targetStatus }),
 
-  // ── Guild config ────────────────────────────────────────────
-  setGuildConfig: (guildId: string, config: { eventsChannelId?: string | null; guildName?: string | null }): Promise<unknown> =>
-    apiPost(`/api/v1/guilds/${guildId}/config`, config),
+  // ── Discord server config ────────────────────────────────────
+  initServer: (guildId: string, data: { guildName?: string | null; guildIconUrl?: string | null; installedByDiscordId?: string | null }): Promise<unknown> =>
+    apiPost(`/api/v1/servers/${guildId}/init`, data),
 
-  getGuildConfig: (guildId: string): Promise<{ config: { eventsChannelId: string | null; guildName: string | null } | null }> =>
-    apiGetInternal(`/api/v1/guilds/${guildId}/config`),
+  uninstallServer: (guildId: string): Promise<unknown> =>
+    apiPost(`/api/v1/servers/${guildId}/uninstall`, {}),
+
+  setServerConfig: (guildId: string, config: { eventsChannelId?: string | null; resultsChannelId?: string | null; guildName?: string | null }): Promise<unknown> =>
+    apiPost(`/api/v1/servers/${guildId}/config`, config),
+
+  getServerConfig: (guildId: string): Promise<{ config: { eventsChannelId: string | null; resultsChannelId: string | null; guildName: string | null } | null }> =>
+    apiGetInternal(`/api/v1/servers/${guildId}/config`),
+
+  getResultsChannels: (): Promise<{ channelIds: string[] }> =>
+    apiGetInternal("/api/v1/servers/results-channels"),
 };

@@ -89,6 +89,8 @@ model User {
   eventSignups    EventSignup[]
   eventsCreated   Event[]       @relation("eventsCreated")
   teamsCaptained  Team[]        @relation("teamsCaptained")
+  serverAdminships  DiscordServerAdmin[]
+  serverMemberships DiscordServerMember[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -184,6 +186,10 @@ model Run {
   dedupHash       String    @unique @map("dedup_hash")
   /// Personal Juice — computed by scoring service on insert
   personalJuice   Int       @default(0) @map("personal_juice")
+  /// Event Juice — only set when run is linked to an event
+  eventJuice      Int?      @map("event_juice")
+  /// Team Juice — set when all 5 party members share a team
+  teamJuice       Int?      @map("team_juice")
   /// Dynamic dungeon name from addon (used for auto-discovery)
   dungeonName     String?   @map("dungeon_name")
   /// WoW season ID (dynamic, from C_MythicPlus.GetCurrentSeason)
@@ -279,7 +285,10 @@ model Event {
   seasonId        Int         @map("season_id")
   season          Season      @relation(fields: [seasonId], references: [id])
 
-  /// Discord server this event belongs to (for server-scoped filtering)
+  /// Discord server this event belongs to
+  serverId        Int?        @map("server_id")
+  server          DiscordServer? @relation(fields: [serverId], references: [id])
+  /// Legacy: Discord guild snowflake (kept for backcompat during migration)
   discordGuildId  String?     @map("discord_guild_id")
 
   /// Key level constraints for the event
@@ -438,22 +447,60 @@ model TeamEventSignup {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Guild configuration — per-Discord-server settings
+// Discord servers — multi-tenant configuration
 // ─────────────────────────────────────────────────────────────
 
-model GuildConfig {
-  id               Int      @id @default(autoincrement())
-  /// Discord guild snowflake — one config per server
-  discordGuildId   String   @unique @map("discord_guild_id")
-  /// Channel ID where event embeds are posted
-  eventsChannelId  String?  @map("events_channel_id")
-  /// Cached guild name for display
-  guildName        String?  @map("guild_name")
+model DiscordServer {
+  id                    Int      @id @default(autoincrement())
+  discordGuildId        String   @unique @map("discord_guild_id")
+  guildName             String?  @map("guild_name")
+  guildIconUrl          String?  @map("guild_icon_url")
+  installedByDiscordId  String?  @map("installed_by_discord_id")
+  botActive             Boolean  @default(true) @map("bot_active")
 
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  eventsChannelId       String?  @map("events_channel_id")
+  resultsChannelId      String?  @map("results_channel_id")
+  announcementsChannelId String? @map("announcements_channel_id")
+  resultsWebhookUrl     String?  @map("results_webhook_url")
 
-  @@map("guild_configs")
+  allowPublicEvents     Boolean  @default(true) @map("allow_public_events")
+  timezone              String?
+
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  admins   DiscordServerAdmin[]
+  members  DiscordServerMember[]
+  events   Event[]
+
+  @@map("discord_servers")
+}
+
+model DiscordServerAdmin {
+  id         Int      @id @default(autoincrement())
+  serverId   Int      @map("server_id")
+  server     DiscordServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  userId     Int      @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String   @default("admin")
+  verifiedAt DateTime @default(now()) @map("verified_at")
+
+  @@unique([serverId, userId])
+  @@map("discord_server_admins")
+}
+
+model DiscordServerMember {
+  id        Int      @id @default(autoincrement())
+  serverId  Int      @map("server_id")
+  server    DiscordServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPrimary Boolean  @default(false) @map("is_primary")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  @@unique([serverId, userId])
+  @@index([userId, isPrimary])
+  @@map("discord_server_members")
 }
 
 // ─────────────────────────────────────────────────────────────

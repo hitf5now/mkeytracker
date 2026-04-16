@@ -33,14 +33,19 @@ const CHANNEL = "mplus:bot-notifications";
 interface BotNotification {
   type: string;
   eventId?: number;
+  runId?: number;
+  dungeonName?: string;
+  keystoneLevel?: number;
+  onTime?: boolean;
+  upgrades?: number;
+  completionMs?: number;
+  parMs?: number;
+  deaths?: number;
+  juice?: number;
+  members?: Array<{ name: string; realm: string; class: string; role: string }>;
 }
 
 export function startNotificationSubscriber(client: Client): void {
-  if (!env.DISCORD_EVENTS_CHANNEL_ID) {
-    console.log("⚠️  DISCORD_EVENTS_CHANNEL_ID not set — skipping Redis notification subscriber");
-    return;
-  }
-
   const subscriber = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null, // required for subscriber mode
     lazyConnect: false,
@@ -62,6 +67,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleEventCreated(client, notification.eventId);
       } else if (notification.type === "event_updated" && notification.eventId) {
         await handleEventUpdated(client, notification.eventId);
+      } else if (notification.type === "run_completed" && notification.runId) {
+        await handleRunCompleted(client, notification);
       }
     } catch (err) {
       console.error("Error handling Redis notification:", err);
@@ -77,18 +84,15 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
   try {
     const { event } = await apiClient.getEvent(eventId);
 
-    // Resolve the channel: per-guild config first, fallback to env var
+    // Resolve the channel from the server's config
     let channelId: string | null = null;
     const guildId = event.discordGuildId;
     if (guildId) {
-      const { config } = await apiClient.getGuildConfig(guildId);
+      const { config } = await apiClient.getServerConfig(guildId);
       channelId = config?.eventsChannelId ?? null;
     }
     if (!channelId) {
-      channelId = env.DISCORD_EVENTS_CHANNEL_ID || null;
-    }
-    if (!channelId) {
-      console.log(`No events channel configured for event #${eventId} — skipping embed post`);
+      console.log(`No events channel configured for event #${eventId} (guild ${guildId ?? "none"}) — skipping embed post`);
       return;
     }
 
@@ -282,5 +286,80 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
     console.log(`Updated Discord embed for event #${eventId}`);
   } catch (err) {
     console.error(`Failed to update event #${eventId} embed:`, err);
+  }
+}
+
+const ROLE_ICON: Record<string, string> = { tank: "🛡", healer: "💚", dps: "⚔" };
+const TIMED_COLOR = 0x3ba55d;
+const DEPLETED_COLOR = 0xed4245;
+
+function formatRunDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+async function handleRunCompleted(client: Client, notification: BotNotification): Promise<void> {
+  try {
+    const {
+      dungeonName, keystoneLevel, onTime, upgrades, completionMs, parMs,
+      deaths, juice, members,
+    } = notification;
+
+    if (!dungeonName || !keystoneLevel || !members) return;
+
+    // Build the embed
+    const resultLabel = onTime
+      ? (upgrades && upgrades > 0 ? `✅ Timed **+${upgrades}**` : "✅ Timed")
+      : "❌ Depleted";
+
+    const timeDiff = onTime
+      ? `${formatRunDuration((parMs ?? 0) - (completionMs ?? 0))} under par`
+      : `${formatRunDuration((completionMs ?? 0) - (parMs ?? 0))} over par`;
+
+    const partyLines = members.map((m) => {
+      const icon = ROLE_ICON[m.role] ?? "•";
+      return `${icon} **${m.name}** — ${m.class.replace(/-/g, " ")}`;
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle(`${dungeonName} +${keystoneLevel}`)
+      .setColor(onTime ? TIMED_COLOR : DEPLETED_COLOR)
+      .setDescription(`${resultLabel} — ${timeDiff}`)
+      .addFields(
+        { name: "Party", value: partyLines.join("\n"), inline: false },
+        { name: "Time", value: formatRunDuration(completionMs ?? 0), inline: true },
+        { name: "Deaths", value: String(deaths ?? 0), inline: true },
+        { name: "Juice", value: (juice ?? 0).toLocaleString(), inline: true },
+      )
+      .setFooter({ text: "M+ Challenge Platform" })
+      .setTimestamp();
+
+    // Post to all active servers with a results channel configured
+    // For now, broadcast to all configured servers. Phase 4 (user primary server) will narrow this.
+    const servers = await getAllResultsChannels();
+    for (const channelId of servers) {
+      try {
+        const channel = await client.channels.fetch(channelId) as TextChannel | null;
+        if (channel) {
+          await channel.send({ embeds: [embed] });
+        }
+      } catch (err) {
+        console.error(`Failed to post run to channel ${channelId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to handle run_completed notification:", err);
+  }
+}
+
+async function getAllResultsChannels(): Promise<string[]> {
+  try {
+    const result = await apiClient.getResultsChannels();
+    return result.channelIds;
+  } catch (err) {
+    console.error("Failed to fetch results channels:", err);
+    return [];
   }
 }
