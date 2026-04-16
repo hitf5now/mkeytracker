@@ -61,5 +61,5 @@ export interface RunRecord extends RunSubmission {
   recordedAt: string;
   verified: boolean;
   groupId: number | null;
-  points: number;
+  personalJuice: number;
 }

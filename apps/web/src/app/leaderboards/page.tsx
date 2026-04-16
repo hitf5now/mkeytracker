@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Leaderboards",
-  description: "M+ Tracker leaderboards — season points, highest key, most timed runs, and fastest clears.",
+  description: "M+ Tracker leaderboards — season Juice, highest key, most timed runs, and fastest clears.",
 };
 
 interface Props {

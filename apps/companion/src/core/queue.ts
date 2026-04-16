@@ -143,12 +143,12 @@ export class RunQueue {
     const response = await this.apiClient.submitRun(run);
     if (response.deduplicated) {
       this.log.log(
-        `[queue] dedup hit for ${hash.slice(0, 12)} (server run id ${response.run.id}, ${response.run.points} pts)`,
+        `[queue] dedup hit for ${hash.slice(0, 12)} (server run id ${response.run.id}, ${response.run.juice} Juice)`,
       );
       return "deduplicated";
     }
     this.log.log(
-      `[queue] submitted run ${hash.slice(0, 12)} → server id ${response.run.id} (${response.run.points} pts)`,
+      `[queue] submitted run ${hash.slice(0, 12)} → server id ${response.run.id} (${response.run.juice} Juice)`,
     );
     return "new";
   }

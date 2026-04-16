@@ -32,7 +32,7 @@ export interface LinkExchangeResponse {
 export interface RunSubmissionResponse {
   run: {
     id: number;
-    points: number;
+    juice: number;
     dungeonId: number;
     keystoneLevel: number;
   };

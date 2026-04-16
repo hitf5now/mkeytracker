@@ -3,7 +3,7 @@
  *
  * Top 10 for one of the supported leaderboard categories. Categories
  * are a fixed dropdown (Discord's addChoices — max 25 entries) covering:
- *   - Aggregate boards: season points, highest key, most timed
+ *   - Aggregate boards: season juice, highest key, most timed
  *   - Per-dungeon fastest clear: one entry per current-season dungeon
  *
  * Shows rank + character name + value, color-coded by rank position.
@@ -22,7 +22,7 @@ import type { Command } from "./index.js";
 // Category choices — must be ≤ 25 total per Discord's limit.
 // Includes 3 aggregate boards + 8 per-dungeon fastest-clear boards.
 const CATEGORY_CHOICES = [
-  { name: "Season Points", value: "season-points" },
+  { name: "Season Juice", value: "season-juice" },
   { name: "Highest Key (timed)", value: "highest-key" },
   { name: "Most Timed Runs", value: "most-timed" },
   // Fastest per dungeon — slugs must match the seeded dungeons.json

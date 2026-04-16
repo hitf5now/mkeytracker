@@ -27,7 +27,7 @@ export interface UserPublic {
   battleTag: string | null;
   timezone: string | null;
   isMentor: boolean;
-  mentorPoints: number;
+  mentorJuice: number;
 }
 
 export interface CharacterPublic {

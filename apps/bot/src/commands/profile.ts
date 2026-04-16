@@ -47,8 +47,8 @@ function buildStatsField(profile: CharacterProfileResponse): string {
   const lines = [
     `**${stats.totalRuns}** runs (${stats.timedRuns} timed, ${stats.depletedRuns} depleted)`,
     `Highest: **+${stats.highestKeyCompleted || 0}**`,
-    `Season points: **${stats.totalPoints.toLocaleString()}**`,
-    `Weekly points: **${stats.weeklyPoints.toLocaleString()}**`,
+    `Season Juice: **${stats.totalJuice.toLocaleString()}**`,
+    `Weekly Juice: **${stats.weeklyJuice.toLocaleString()}**`,
     `Total deaths: ${stats.totalDeaths}`,
   ];
   return lines.join("\n");
@@ -64,7 +64,7 @@ function buildBestPerDungeonField(best: ProfileBestRun[]): string {
           ? `+${b.upgrades}`
           : "timed"
         : "depleted";
-      return `\`${b.dungeonShortCode.padEnd(5)}\` **+${b.level}** ${result} • ${formatDuration(b.completionMs)} • ${b.points.toLocaleString()} pts`;
+      return `\`${b.dungeonShortCode.padEnd(5)}\` **+${b.level}** ${result} • ${formatDuration(b.completionMs)} • ${b.juice.toLocaleString()} Juice`;
     })
     .join("\n");
 }
@@ -74,7 +74,7 @@ function buildRecentRunsField(runs: ProfileRecentRun[]): string {
   return runs
     .map(
       (r) =>
-        `${runResultLabel(r)} **${r.dungeonName}** +${r.level} • ${r.points.toLocaleString()} pts • ${formatRelative(r.recordedAt)}`,
+        `${runResultLabel(r)} **${r.dungeonName}** +${r.level} • ${r.juice.toLocaleString()} Juice • ${formatRelative(r.recordedAt)}`,
     )
     .join("\n");
 }

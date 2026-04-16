@@ -49,7 +49,7 @@ export interface ProfileBestRun {
   parMs: number;
   onTime: boolean;
   upgrades: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -61,7 +61,7 @@ export interface ProfileRecentRun {
   onTime: boolean;
   upgrades: number;
   deaths: number;
-  points: number;
+  juice: number;
   recordedAt: string;
 }
 
@@ -83,8 +83,8 @@ export interface CharacterProfileResponse {
     depletedRuns: number;
     totalDeaths: number;
     highestKeyCompleted: number;
-    totalPoints: number;
-    weeklyPoints: number;
+    totalJuice: number;
+    weeklyJuice: number;
     bestRunPerDungeon: ProfileBestRun[];
     recentRuns: ProfileRecentRun[];
   };
