@@ -211,7 +211,7 @@ export function EventCreateForm({ dungeons }: Props) {
           <div className="mt-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scoring</p>
             <div className="mt-1 space-y-0.5">
-              {activeTypeConfig.scoringTable.map((row, i) => (
+              {activeTypeConfig.juiceTable.map((row, i) => (
                 <div key={i} className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{row.label}</span>
                   <span className="font-mono text-foreground">{row.juice}</span>

@@ -140,7 +140,7 @@ export default async function EventDetailPage({ params }: Props) {
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Point System</p>
             <p className="mt-1 text-xs text-muted-foreground">{typeInfo.scoringDescription}</p>
             <div className="mt-2 rounded-md border border-border/50 bg-background">
-              {typeInfo.scoringTable.map((row, i) => (
+              {typeInfo.juiceTable.map((row, i) => (
                 <div
                   key={i}
                   className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""}`}

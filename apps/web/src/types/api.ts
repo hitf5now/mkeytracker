@@ -114,7 +114,7 @@ export interface EventTypeConfig {
   rules: string[];
   winCondition: string;
   scoringDescription: string;
-  scoringTable: Array<{ label: string; juice: string }>;
+  juiceTable: Array<{ label: string; juice: string }>;
   supportedModes: ("group" | "team")[];
   configFields?: Array<{ key: string; label: string; type: "number"; default: number; min: number; max: number }>;
 }
