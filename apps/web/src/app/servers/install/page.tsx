@@ -5,16 +5,13 @@ export const metadata: Metadata = {
   description: "Install the M+ Tracker bot on your Discord server.",
 };
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID ?? process.env.DISCORD_CLIENT_ID ?? "";
+export const dynamic = "force-dynamic";
 
-// bot + applications.commands
-// Permissions: Send Messages (2048), Embed Links (16384), Read Message History (65536),
-// Use Application Commands (2147483648), Manage Messages (8192), Manage Webhooks (536870912),
-// Manage Roles (268435456)
 const PERMISSIONS = "2953576448";
-const INVITE_URL = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&permissions=${PERMISSIONS}&scope=bot%20applications.commands`;
 
 export default function InstallPage() {
+  const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID ?? process.env.DISCORD_CLIENT_ID ?? "";
+  const INVITE_URL = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${PERMISSIONS}&scope=bot%20applications.commands`;
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 text-center">
       <h1 className="text-3xl font-bold text-foreground">
