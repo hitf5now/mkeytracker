@@ -179,25 +179,3 @@ export function buildRunCompletedEmbed(input: RunCompletedEmbedInput): WebhookEm
   };
 }
 
-/**
- * Fire-and-forget helper: post a run-completed embed to the results webhook.
- */
-export async function postRunCompleted(
-  webhookUrl: string,
-  input: RunCompletedEmbedInput,
-  logger?: LoggerLike,
-): Promise<void> {
-  if (!webhookUrl) {
-    logger?.debug("DISCORD_WEBHOOK_RESULTS not set — skipping webhook");
-    return;
-  }
-  logger?.debug({ dungeon: input.dungeonName, level: input.keystoneLevel }, "Posting run-completed webhook");
-  const ok = await postWebhook(
-    webhookUrl,
-    { embeds: [buildRunCompletedEmbed(input)] },
-    logger,
-  );
-  if (ok) {
-    logger?.debug({ dungeon: input.dungeonName, level: input.keystoneLevel }, "Webhook posted successfully");
-  }
-}

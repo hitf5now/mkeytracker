@@ -84,8 +84,6 @@ services:
       API_INTERNAL_SECRET: ${API_INTERNAL_SECRET:?API_INTERNAL_SECRET is required}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
-      DISCORD_WEBHOOK_RESULTS: ${DISCORD_WEBHOOK_RESULTS}
-      DISCORD_WEBHOOK_EVENTS: ${DISCORD_WEBHOOK_EVENTS}
     ports:
       - "3020:3001"
     networks:
@@ -110,7 +108,6 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?DISCORD_CLIENT_ID is required}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
       REDIS_URL: redis://mplus-platform-redis:6379
-      DISCORD_EVENTS_CHANNEL_ID: ${DISCORD_EVENTS_CHANNEL_ID}
     networks:
       - tech-stack-net
     mem_limit: 512m

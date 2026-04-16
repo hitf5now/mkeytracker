@@ -28,6 +28,15 @@
 - **Spec field:** Never auto-set spec from RaiderIO/addon data; class auto-sets but spec is always a user dropdown choice
 - **Companion not required:** Manual entry always available; companion is recommended not gatekept
 
+## Multi-Tenant Discord Architecture (Sprint 13)
+- **Model:** `DiscordServer` (replaces old `GuildConfig`) — one row per Discord server with channel routing, admin/member tables
+- **Bot is multi-tenant:** installable on many Discord servers; single hosted instance. `GuildCreate`/`GuildDelete` events register/unregister servers via API.
+- **Channel config:** per-server `eventsChannelId` and `resultsChannelId` in `DiscordServer` — no global env vars for channels/webhooks
+- **Admin gating:** `DiscordServerAdmin` table with MANAGE_GUILD verification (24h TTL re-check). `/setup` and `/event` commands require ManageGuild permission.
+- **Run results:** published via Redis pub/sub (`run_completed`), bot posts to configured results channels — no webhook URLs
+- **Juice pools:** `Run.personalJuice` (always), `Run.eventJuice` (if event-linked), `Run.teamJuice` (if all 5 members share a team)
+- **Web pages:** `/servers` (admin list), `/servers/[guildId]` (dashboard), `/servers/install` (invite), `/account/discord` (primary server picker)
+
 ## Infrastructure
-- **Server:** Unraid at 192.168.1.4 (PostgreSQL 15, Redis, Nginx Proxy Manager)
+- **Server:** Unraid at 192.168.1.4 (PostgreSQL 16, Redis, Nginx Proxy Manager)
 - **Deploy:** Docker containers on Unraid; use the unraid-server-manager agent for deployments
