@@ -5,7 +5,7 @@
  * the command handlers registered in commands/index.ts.
  */
 
-import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
+import { Client, EmbedBuilder, Events, GatewayIntentBits, type Interaction, type TextChannel } from "discord.js";
 import { Redis } from "ioredis";
 import { env } from "./config/env.js";
 import { commands } from "./commands/index.js";
@@ -40,6 +40,8 @@ client.once(Events.ClientReady, (c) => {
   startNotificationSubscriber(client);
 });
 
+const WEB_BASE = "https://mythicplustracker.com";
+
 // Multi-tenant: register/unregister servers + sync cache
 client.on(Events.GuildCreate, (guild) => {
   console.log(`📥 Joined guild: ${guild.name} (${guild.id})`);
@@ -49,7 +51,60 @@ client.on(Events.GuildCreate, (guild) => {
     guildIconUrl: guild.iconURL({ size: 128 }),
     installedByDiscordId: guild.ownerId,
   }).catch((err: unknown) => console.error(`Failed to init server ${guild.id}:`, err));
+
+  void sendWelcomeMessage(guild);
 });
+
+async function sendWelcomeMessage(guild: import("discord.js").Guild): Promise<void> {
+  try {
+    const dashboardUrl = `${WEB_BASE}/servers/${guild.id}`;
+
+    const embed = new EmbedBuilder()
+      .setTitle("M+ Tracker — Setup Guide")
+      .setColor(0x3ba55d)
+      .setDescription(
+        `Thanks for adding **M+ Tracker** to **${guild.name}**! Let's get your server configured.`,
+      )
+      .addFields(
+        {
+          name: "Step 1 — Set your Events channel",
+          value: "Run `/setup events-channel #your-channel` to choose where event signup embeds appear.",
+          inline: false,
+        },
+        {
+          name: "Step 2 — Set your Results channel",
+          value: "Run `/setup results-channel #your-channel` to choose where run completion results are posted.",
+          inline: false,
+        },
+        {
+          name: "Step 3 — Create your first event",
+          value: `Head to the [website](${WEB_BASE}/events/create) to create an M+ event. The bot will post a signup embed in your events channel.`,
+          inline: false,
+        },
+        {
+          name: "Web Dashboard",
+          value: `[Configure your server on the web](${dashboardUrl}) — manage channels, view admins, and more.`,
+          inline: false,
+        },
+      )
+      .setFooter({ text: "Need help? Run /setup show to see your current configuration." });
+
+    // Try posting to the system channel first, fall back to the first text channel
+    const targetChannel = guild.systemChannel
+      ?? guild.channels.cache.find(
+        (c): c is TextChannel => c.isTextBased() && !c.isVoiceBased() && !c.isThread(),
+      ) as TextChannel | undefined;
+
+    if (targetChannel) {
+      await targetChannel.send({ embeds: [embed] });
+      console.log(`Posted welcome embed to #${targetChannel.name} in ${guild.name}`);
+    } else {
+      console.log(`No suitable channel found for welcome message in ${guild.name}`);
+    }
+  } catch (err) {
+    console.error(`Failed to send welcome message to ${guild.name}:`, err);
+  }
+}
 
 client.on(Events.GuildDelete, (guild) => {
   console.log(`📤 Left guild: ${guild.name ?? guild.id}`);
