@@ -91,7 +91,7 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
     "Groups assigned",
   );
 
-  return {
+  const responsePayload = {
     groups: result.groups.map((g) => ({
       name: g.name,
       members: g.members.map((m) => ({
@@ -107,6 +107,18 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
     })),
     stats: result.stats,
   };
+
+  // Notify the bot to post groups embed in the event's Discord channel
+  await redis.publish(
+    "mplus:bot-notifications",
+    JSON.stringify({
+      type: "groups_assigned",
+      eventId,
+      ...responsePayload,
+    }),
+  );
+
+  return responsePayload;
 }
 
 export async function eventsRoutes(app: FastifyInstance): Promise<void> {

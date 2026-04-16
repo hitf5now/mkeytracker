@@ -30,6 +30,17 @@ const TYPE_SUMMARIES: Record<string, string> = {
 
 const CHANNEL = "mplus:bot-notifications";
 
+interface GroupMember {
+  characterName: string;
+  realm: string;
+  role: "tank" | "healer" | "dps";
+}
+
+interface AssignedGroupPayload {
+  name: string;
+  members: GroupMember[];
+}
+
 interface BotNotification {
   type: string;
   eventId?: number;
@@ -43,6 +54,16 @@ interface BotNotification {
   deaths?: number;
   juice?: number;
   members?: Array<{ name: string; realm: string; class: string; role: string }>;
+  // groups_assigned payload
+  groups?: AssignedGroupPayload[];
+  benched?: GroupMember[];
+  stats?: {
+    totalSignups: number;
+    groupsFormed: number;
+    benchedCount: number;
+    limitingRole: string;
+    groupsWithoutCompanion: number;
+  };
 }
 
 export function startNotificationSubscriber(client: Client): void {
@@ -67,6 +88,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleEventCreated(client, notification.eventId);
       } else if (notification.type === "event_updated" && notification.eventId) {
         await handleEventUpdated(client, notification.eventId);
+      } else if (notification.type === "groups_assigned" && notification.eventId) {
+        await handleGroupsAssigned(client, notification);
       } else if (notification.type === "run_completed" && notification.runId) {
         await handleRunCompleted(client, notification);
       }
@@ -286,6 +309,68 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
     console.log(`Updated Discord embed for event #${eventId}`);
   } catch (err) {
     console.error(`Failed to update event #${eventId} embed:`, err);
+  }
+}
+
+async function handleGroupsAssigned(client: Client, notification: BotNotification): Promise<void> {
+  const { eventId, groups, benched, stats } = notification;
+  if (!eventId || !groups || !stats) return;
+
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+
+    // Find the events channel for this server
+    let channelId: string | null = null;
+    const guildId = event.discordGuildId;
+    if (guildId) {
+      const { config } = await apiClient.getServerConfig(guildId);
+      channelId = config?.eventsChannelId ?? null;
+    }
+    if (!channelId) {
+      console.log(`No events channel configured for event #${eventId} — skipping groups embed`);
+      return;
+    }
+
+    const ROLE_ICONS: Record<string, string> = { tank: "🛡", healer: "💚", dps: "⚔" };
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🎯 Groups Assigned — ${event.name}`)
+      .setColor(0xffcc00)
+      .setDescription(
+        `**${stats.groupsFormed}** group${stats.groupsFormed !== 1 ? "s" : ""} formed from **${stats.totalSignups}** signups.` +
+        (stats.benchedCount > 0 ? ` **${stats.benchedCount}** player${stats.benchedCount !== 1 ? "s" : ""} benched.` : ""),
+      );
+
+    for (const group of groups) {
+      const memberLines = group.members.map((m) => {
+        const icon = ROLE_ICONS[m.role] ?? "•";
+        return `${icon} **${m.characterName}**-${m.realm}`;
+      });
+      embed.addFields({ name: group.name, value: memberLines.join("\n"), inline: true });
+    }
+
+    if (benched && benched.length > 0) {
+      const benchLines = benched.map((b) => {
+        const icon = ROLE_ICONS[b.role] ?? "•";
+        return `${icon} ${b.characterName}-${b.realm}`;
+      });
+      embed.addFields({ name: "📋 Bench", value: benchLines.join("\n"), inline: false });
+    }
+
+    if (stats.limitingRole) {
+      embed.setFooter({ text: `Event #${eventId} · Limiting role: ${stats.limitingRole}` });
+    }
+
+    const channel = await client.channels.fetch(channelId) as TextChannel | null;
+    if (!channel) {
+      console.error(`Events channel ${channelId} not found for groups embed`);
+      return;
+    }
+
+    await channel.send({ embeds: [embed] });
+    console.log(`Posted groups assigned embed for event #${eventId} to channel ${channelId}`);
+  } catch (err) {
+    console.error(`Failed to post groups assigned embed for event #${eventId}:`, err);
   }
 }
 
