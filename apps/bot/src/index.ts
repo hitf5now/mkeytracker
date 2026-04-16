@@ -63,31 +63,26 @@ async function sendWelcomeMessage(guild: import("discord.js").Guild): Promise<vo
       .setTitle("M+ Tracker — Setup Guide")
       .setColor(0x3ba55d)
       .setDescription(
-        `Thanks for adding **M+ Tracker** to **${guild.name}**! Let's get your server configured.`,
+        `Thanks for adding **M+ Tracker** to **${guild.name}**! Complete setup on the website to start running events.`,
       )
       .addFields(
         {
-          name: "Step 1 — Set your Events channel",
-          value: "Run `/setup events-channel #your-channel` to choose where event signup embeds appear.",
+          name: "Step 1 — Configure your channels",
+          value: `Open your [server dashboard](${dashboardUrl}) and select which channels the bot should use for events and run results.`,
           inline: false,
         },
         {
-          name: "Step 2 — Set your Results channel",
-          value: "Run `/setup results-channel #your-channel` to choose where run completion results are posted.",
+          name: "Step 2 — Create your first event",
+          value: `[Create an event](${WEB_BASE}/events/create) on the website. The bot will post a signup embed in your configured events channel.`,
           inline: false,
         },
         {
-          name: "Step 3 — Create your first event",
-          value: `Head to the [website](${WEB_BASE}/events/create) to create an M+ event. The bot will post a signup embed in your events channel.`,
-          inline: false,
-        },
-        {
-          name: "Web Dashboard",
-          value: `[Configure your server on the web](${dashboardUrl}) — manage channels, view admins, and more.`,
+          name: "Step 3 — Invite your members",
+          value: "Members can sign up for events directly from the Discord embed buttons, or from the website.",
           inline: false,
         },
       )
-      .setFooter({ text: "Need help? Run /setup show to see your current configuration." });
+      .setFooter({ text: `Server dashboard: ${dashboardUrl}` });
 
     // Try posting to the system channel first, fall back to the first text channel
     const targetChannel = guild.systemChannel

@@ -50,10 +50,11 @@ export default function InstallPage() {
           <div className="flex gap-4">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600/20 text-sm font-bold text-indigo-400">2</div>
             <div>
-              <p className="font-medium text-foreground">Configure channels</p>
+              <p className="font-medium text-foreground">Configure channels on the website</p>
               <p className="text-sm text-muted-foreground">
-                Run <code className="rounded bg-muted px-1 py-0.5 text-xs">/setup events-channel #channel</code> and{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">/setup results-channel #channel</code> to set where events and run results appear.
+                Return here and go to your{" "}
+                <a href="/servers" className="text-indigo-400 hover:underline">server dashboard</a>{" "}
+                to select which channels the bot uses for events and run results.
               </p>
             </div>
           </div>
@@ -62,7 +63,11 @@ export default function InstallPage() {
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600/20 text-sm font-bold text-indigo-400">3</div>
             <div>
               <p className="font-medium text-foreground">Create your first event</p>
-              <p className="text-sm text-muted-foreground">Head to the website's Events page to create an event. The bot will post a signup embed in your configured channel.</p>
+              <p className="text-sm text-muted-foreground">
+                Head to the{" "}
+                <a href="/events/create" className="text-indigo-400 hover:underline">Events page</a>{" "}
+                to create an event. The bot will post a signup embed in your configured channel.
+              </p>
             </div>
           </div>
         </div>
