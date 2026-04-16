@@ -26,6 +26,8 @@ const EnvSchema = z.object({
   DISCORD_CLIENT_ID: z.string().optional(),
   DISCORD_GUILD_ID: z.string().optional(),
 
+  FEEDBACK_TOKENS: z.string().optional().default(""),
+
   RAIDERIO_BASE_URL: z.string().url().default("https://raider.io/api/v1"),
 
   // Blizzard Battle.net API (optional — for character portraits)

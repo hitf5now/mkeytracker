@@ -504,6 +504,28 @@ model DiscordServerMember {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Event feedback — reviewer input on event type scoring
+// ─────────────────────────────────────────────────────────────
+
+model EventFeedback {
+  id                Int      @id @default(autoincrement())
+  eventType         String   @map("event_type")
+  reviewerName      String   @map("reviewer_name")
+  reviewerEmail     String?  @map("reviewer_email")
+  scoringPreference String?  @map("scoring_preference")
+  scoringRanking    String[] @default([]) @map("scoring_ranking")
+  ratings           Json?
+  comments          String?
+  submittedViaToken String?  @map("submitted_via_token")
+  submitterIpHash   String?  @map("submitter_ip_hash")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([eventType, createdAt])
+  @@index([createdAt])
+  @@map("event_feedback")
+}
+
+// ─────────────────────────────────────────────────────────────
 // Telemetry — anonymous usage + error events from the companion
 // ─────────────────────────────────────────────────────────────
 
