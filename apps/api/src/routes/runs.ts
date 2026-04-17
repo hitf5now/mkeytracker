@@ -22,6 +22,7 @@ import { prisma } from "../lib/prisma.js";
 import { toRealmSlug } from "../lib/realm.js";
 import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
+import { matchRunToEvents } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
 
 const RegionSchema = z.enum(["us", "eu", "kr", "tw", "cn"]);
@@ -300,7 +301,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         deaths: body.deaths,
         isPersonalDungeonRecord: false,
         isPersonalOverallRecord: false,
-        isEventParticipation: body.eventId != null,
+        isEventParticipation: false, // Event bonus applied via auto-matcher
       });
 
       // 5. Transactional insert.
@@ -345,6 +346,51 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           });
           return created;
         });
+
+        // 6. Auto-match run to active events
+        const eventMatches = await matchRunToEvents({
+          seasonId: activeSeason.id,
+          dungeonId: dungeon.id,
+          keystoneLevel: body.keystoneLevel,
+          serverTime: BigInt(body.serverTime),
+          memberCharacterIds: characters.map((c) => c.id),
+        });
+
+        if (eventMatches.length > 0) {
+          const eventBreakdown = scoreRun({
+            keystoneLevel: body.keystoneLevel,
+            upgrades: body.upgrades,
+            onTime: body.onTime,
+            deaths: body.deaths,
+            isPersonalDungeonRecord: false,
+            isPersonalOverallRecord: false,
+            isEventParticipation: true,
+          });
+
+          await prisma.runEvent.createMany({
+            data: eventMatches.map((m) => ({
+              runId: run.id,
+              eventId: m.eventId,
+              groupId: m.groupId,
+              eventJuice: eventBreakdown.total,
+            })),
+          });
+
+          // Backward compat: set Run.eventId/eventJuice to first match
+          await prisma.run.update({
+            where: { id: run.id },
+            data: {
+              eventId: eventMatches[0]!.eventId,
+              groupId: eventMatches[0]!.groupId,
+              eventJuice: eventBreakdown.total,
+            },
+          });
+
+          req.log.info(
+            { runId: run.id, events: eventMatches.map((m) => m.eventId) },
+            "Run matched to events",
+          );
+        }
 
         req.log.info(
           {

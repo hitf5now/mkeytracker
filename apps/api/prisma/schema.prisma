@@ -211,9 +211,10 @@ model Run {
   groupId         Int?       @map("group_id")
   eventGroup      EventGroup? @relation(fields: [groupId], references: [id])
 
-  dungeon Dungeon     @relation(fields: [dungeonId], references: [id])
-  season  Season      @relation(fields: [seasonId], references: [id])
-  members RunMember[]
+  dungeon   Dungeon     @relation(fields: [dungeonId], references: [id])
+  season    Season      @relation(fields: [seasonId], references: [id])
+  members   RunMember[]
+  runEvents RunEvent[]
 
   @@index([seasonId, dungeonId, completionMs])
   @@index([seasonId, keystoneLevel])
@@ -314,6 +315,7 @@ model Event {
   groups          EventGroup[]
   teamSignups     TeamEventSignup[]
   runs            Run[]
+  runEvents       RunEvent[]    @relation("eventRuns")
 
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
@@ -380,11 +382,34 @@ model EventGroup {
 
   members     EventSignup[]
   runs        Run[]
+  runEvents   RunEvent[]
 
   assignedAt  DateTime  @default(now()) @map("assigned_at")
 
   @@index([eventId])
   @@map("event_groups")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Run ↔ Event join table — many-to-many (a run can count for
+// multiple events, e.g. overlapping time windows)
+// ─────────────────────────────────────────────────────────────
+
+model RunEvent {
+  id          Int         @id @default(autoincrement())
+  runId       Int         @map("run_id")
+  run         Run         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  eventId     Int         @map("event_id")
+  event       Event       @relation("eventRuns", fields: [eventId], references: [id], onDelete: Cascade)
+  groupId     Int?        @map("group_id")
+  group       EventGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  eventJuice  Int         @default(0) @map("event_juice")
+  matchedAt   DateTime    @default(now()) @map("matched_at")
+
+  @@unique([runId, eventId])
+  @@index([eventId])
+  @@index([runId])
+  @@map("run_events")
 }
 
 // ─────────────────────────────────────────────────────────────
