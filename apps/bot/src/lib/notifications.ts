@@ -64,6 +64,22 @@ interface BotNotification {
     limitingRole: string;
     groupsWithoutCompanion: number;
   };
+  // event_completed payload
+  results?: {
+    eventId: number;
+    eventType: string;
+    standings: Array<{
+      rank: number;
+      groupId: number;
+      groupName: string;
+      score: number;
+      displayScore: string;
+      runCount: number;
+      members: Array<{ characterName: string; realm: string; classSlug: string }>;
+    }>;
+    totalRuns: number;
+    totalParticipants: number;
+  };
 }
 
 export function startNotificationSubscriber(client: Client): void {
@@ -90,6 +106,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleEventUpdated(client, notification.eventId);
       } else if (notification.type === "groups_assigned" && notification.eventId) {
         await handleGroupsAssigned(client, notification);
+      } else if (notification.type === "event_completed" && notification.eventId) {
+        await handleEventCompleted(client, notification);
       } else if (notification.type === "run_completed" && notification.runId) {
         await handleRunCompleted(client, notification);
       }
@@ -367,6 +385,78 @@ async function handleGroupsAssigned(client: Client, notification: BotNotificatio
     console.log(`Posted groups assigned embed for event #${eventId} to channel ${channelId}`);
   } catch (err) {
     console.error(`Failed to post groups assigned embed for event #${eventId}:`, err);
+  }
+}
+
+async function handleEventCompleted(client: Client, notification: BotNotification): Promise<void> {
+  const { eventId, results } = notification;
+  if (!eventId || !results) return;
+
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+
+    // Find events channel for this server
+    let channelId: string | null = null;
+    const guildId = event.discordGuildId;
+    if (guildId) {
+      const { config } = await apiClient.getServerConfig(guildId);
+      channelId = config?.eventsChannelId ?? null;
+    }
+    if (!channelId) {
+      console.log(`No events channel for event #${eventId} — skipping results embed`);
+      return;
+    }
+
+    const RANK_EMOJI = ["🥇", "🥈", "🥉"];
+    const TYPE_LABELS: Record<string, string> = {
+      key_climbing: "Key Climbing",
+      marathon: "Marathon",
+      best_average: "Best Average",
+      bracket_tournament: "Bracket Tournament",
+      fastest_clear_race: "Fastest Clear",
+      speed_sprint: "Speed Sprint",
+      random_draft: "Random Draft",
+    };
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 Event Complete — ${event.name}`)
+      .setColor(0xffd700)
+      .setDescription(
+        `**${results.totalRuns}** runs completed by **${results.standings.length}** groups\n` +
+        `Event type: **${TYPE_LABELS[results.eventType] ?? results.eventType}**`,
+      );
+
+    // Top 3 groups
+    const top3 = results.standings.slice(0, 3);
+    for (const standing of top3) {
+      const emoji = RANK_EMOJI[standing.rank - 1] ?? `#${standing.rank}`;
+      const memberList = standing.members
+        .map((m) => `**${m.characterName}**-${m.realm}`)
+        .join(", ");
+      embed.addFields({
+        name: `${emoji} ${standing.groupName}`,
+        value: `${standing.displayScore}\n${memberList}`,
+        inline: false,
+      });
+    }
+
+    if (results.standings.length === 0) {
+      embed.addFields({ name: "No results", value: "No runs were submitted during this event.", inline: false });
+    }
+
+    embed.setFooter({ text: `Event #${eventId} · ${results.totalParticipants} participants` });
+    embed.setTimestamp();
+
+    const channel = await client.channels.fetch(channelId) as TextChannel | null;
+    if (!channel) {
+      console.error(`Events channel ${channelId} not found for results embed`);
+      return;
+    }
+
+    await channel.send({ embeds: [embed] });
+    console.log(`Posted event results embed for event #${eventId} to channel ${channelId}`);
+  } catch (err) {
+    console.error(`Failed to post event results embed for event #${eventId}:`, err);
   }
 }
 

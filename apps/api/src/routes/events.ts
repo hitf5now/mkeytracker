@@ -16,6 +16,7 @@ import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { assignGroups, type SignupForMatching } from "../services/matchmaking.js";
+import { computeEventResults } from "../services/event-results.js";
 import { getAllEventTypes, getEventTypeConfig } from "../config/event-types.js";
 
 const CreateEventSchema = z.object({
@@ -554,6 +555,21 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       req.log.info({ eventId, from: event.status, to: body.targetStatus }, "Event status transition");
+
+      // On completion: compute results and notify bot
+      if (body.targetStatus === "completed") {
+        try {
+          const results = await computeEventResults(eventId);
+          await redis.publish(
+            "mplus:bot-notifications",
+            JSON.stringify({ type: "event_completed", eventId, results }),
+          );
+          req.log.info({ eventId, groups: results.standings.length }, "Event results computed");
+        } catch (err) {
+          req.log.error({ eventId, err }, "Failed to compute event results");
+        }
+      }
+
       return reply.code(200).send({ event: updated });
     });
 
@@ -733,5 +749,23 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     const typeInfo = getEventTypeConfig(event.type);
 
     return reply.code(200).send({ event, typeInfo });
+  });
+
+  // ── Event results (computed standings) ──────────────────────
+  app.get<{ Params: { id: string } }>("/events/:id/results", async (req, reply) => {
+    const eventId = parseInt(req.params.id, 10);
+    if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, status: true },
+    });
+    if (!event) return reply.code(404).send({ error: "event_not_found" });
+    if (event.status !== "completed") {
+      return reply.code(409).send({ error: "event_not_completed", message: "Results are only available for completed events." });
+    }
+
+    const results = await computeEventResults(eventId);
+    return reply.code(200).send(results);
   });
 }
