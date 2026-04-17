@@ -9,6 +9,8 @@ import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
 import { formatEventType, formatDateTime } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 interface Props {
   params: Promise<{ id: string }>;
 }
