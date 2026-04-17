@@ -75,28 +75,26 @@ async function handleAssignGroups(
   try {
     const result = await apiClient.assignGroups(eventId);
 
+    const fullGroups = result.groups.filter((g) => !g.name.includes("PUG"));
+    const pugGroups = result.groups.filter((g) => g.name.includes("PUG"));
+
     const embed = new EmbedBuilder()
       .setTitle("🎯 Groups Assigned!")
       .setColor(0xffcc00)
       .setDescription(
-        `${result.stats.groupsFormed} group(s) formed from ${result.stats.totalSignups} signup(s). ${result.stats.benchedCount} benched.`,
+        `${fullGroups.length} group(s) formed from ${result.stats.totalSignups} signup(s).` +
+        (pugGroups.length > 0 ? ` ${pugGroups.reduce((n, g) => n + g.members.length, 0)} player(s) need PUG members.` : ""),
       );
 
     for (const group of result.groups) {
+      const isPug = group.name.includes("PUG");
       const memberList = group.members
         .map((m) => {
           const icon = m.role === "tank" ? "🛡" : m.role === "healer" ? "💚" : "⚔";
           return `${icon} **${m.characterName}** (${m.realm})`;
         })
         .join("\n");
-      embed.addFields({ name: group.name, value: memberList, inline: true });
-    }
-
-    if (result.benched.length > 0) {
-      const benchList = result.benched
-        .map((b) => `${b.characterName}-${b.realm} (${b.role})`)
-        .join(", ");
-      embed.addFields({ name: "📋 Bench", value: benchList, inline: false });
+      embed.addFields({ name: isPug ? `📋 ${group.name}` : group.name, value: memberList, inline: true });
     }
 
     embed.setFooter({ text: `Use /event start ${eventId} to begin the event.` });

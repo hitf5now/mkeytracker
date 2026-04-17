@@ -313,7 +313,7 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
 }
 
 async function handleGroupsAssigned(client: Client, notification: BotNotification): Promise<void> {
-  const { eventId, groups, benched, stats } = notification;
+  const { eventId, groups, stats } = notification;
   if (!eventId || !groups || !stats) return;
 
   try {
@@ -333,28 +333,24 @@ async function handleGroupsAssigned(client: Client, notification: BotNotificatio
 
     const ROLE_ICONS: Record<string, string> = { tank: "🛡", healer: "💚", dps: "⚔" };
 
+    const fullGroups = groups.filter((g) => !g.name.includes("PUG"));
+    const pugGroups = groups.filter((g) => g.name.includes("PUG"));
+
     const embed = new EmbedBuilder()
       .setTitle(`🎯 Groups Assigned — ${event.name}`)
       .setColor(0xffcc00)
       .setDescription(
-        `**${stats.groupsFormed}** group${stats.groupsFormed !== 1 ? "s" : ""} formed from **${stats.totalSignups}** signups.` +
-        (stats.benchedCount > 0 ? ` **${stats.benchedCount}** player${stats.benchedCount !== 1 ? "s" : ""} benched.` : ""),
+        `**${fullGroups.length}** group${fullGroups.length !== 1 ? "s" : ""} formed from **${stats.totalSignups}** signups.` +
+        (pugGroups.length > 0 ? ` **${pugGroups.reduce((n, g) => n + g.members.length, 0)}** player${pugGroups[0]!.members.length !== 1 ? "s" : ""} need PUG members.` : ""),
       );
 
     for (const group of groups) {
+      const isPug = group.name.includes("PUG");
       const memberLines = group.members.map((m) => {
         const icon = ROLE_ICONS[m.role] ?? "•";
         return `${icon} **${m.characterName}**-${m.realm}`;
       });
-      embed.addFields({ name: group.name, value: memberLines.join("\n"), inline: true });
-    }
-
-    if (benched && benched.length > 0) {
-      const benchLines = benched.map((b) => {
-        const icon = ROLE_ICONS[b.role] ?? "•";
-        return `${icon} ${b.characterName}-${b.realm}`;
-      });
-      embed.addFields({ name: "📋 Bench", value: benchLines.join("\n"), inline: false });
+      embed.addFields({ name: isPug ? `📋 ${group.name}` : group.name, value: memberLines.join("\n"), inline: true });
     }
 
     if (stats.limitingRole) {

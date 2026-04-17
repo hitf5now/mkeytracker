@@ -68,6 +68,11 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
 
   const result = assignGroups(pool);
 
+  // Build a PUG group from benched players (incomplete group that needs pickup members)
+  const pugGroup = result.benched.length > 0
+    ? { name: `Group ${result.groups.length + 1} - PUG`, members: result.benched }
+    : null;
+
   await prisma.$transaction(async (tx) => {
     for (const group of result.groups) {
       const created = await tx.eventGroup.create({
@@ -80,30 +85,38 @@ async function runMatchmaking(eventId: number, req: { log: { info: (...args: unk
         });
       }
     }
+    if (pugGroup) {
+      const created = await tx.eventGroup.create({
+        data: { eventId, name: pugGroup.name, status: "assigned" },
+      });
+      for (const member of pugGroup.members) {
+        await tx.eventSignup.update({
+          where: { id: member.signupId },
+          data: { groupId: created.id },
+        });
+      }
+    }
     await tx.event.update({
       where: { id: eventId },
       data: { status: "signups_closed" },
     });
   });
 
+  const allGroups = pugGroup ? [...result.groups, pugGroup] : result.groups;
+
   req.log.info(
-    { eventId, groups: result.stats.groupsFormed, benched: result.stats.benchedCount },
+    { eventId, groups: result.stats.groupsFormed, pug: pugGroup ? pugGroup.members.length : 0 },
     "Groups assigned",
   );
 
   const responsePayload = {
-    groups: result.groups.map((g) => ({
+    groups: allGroups.map((g) => ({
       name: g.name,
       members: g.members.map((m) => ({
         characterName: m.characterName,
         realm: m.realm,
         role: m.rolePreference,
       })),
-    })),
-    benched: result.benched.map((b) => ({
-      characterName: b.characterName,
-      realm: b.realm,
-      role: b.rolePreference,
     })),
     stats: result.stats,
   };
