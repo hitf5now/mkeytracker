@@ -2,9 +2,16 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { EventDetail, EventSignup, TeamEventSignup, EventTypeConfig } from "@/types/api";
+import type {
+  EventDetail,
+  EventSignup,
+  TeamEventSignup,
+  EventTypeConfig,
+  EventResults,
+} from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { EventAdminPanel } from "@/components/event-admin-panel";
+import { EventLeaderboard } from "@/components/event-leaderboard";
 import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
 import { formatEventType, formatDateTime } from "@/lib/format";
@@ -48,28 +55,17 @@ export default async function EventDetailPage({ params }: Props) {
 
   const { event, typeInfo } = data;
 
-  // Fetch results for completed events
-  interface GroupStanding {
-    rank: number;
-    groupId: number;
-    groupName: string;
-    score: number;
-    displayScore: string;
-    runCount: number;
-    members: { characterName: string; realm: string; classSlug: string }[];
-  }
-  interface EventResultsData {
-    eventId: number;
-    eventType: string;
-    standings: GroupStanding[];
-    totalRuns: number;
-    totalParticipants: number;
-  }
+  // Fetch leaderboard for any non-cancelled event (live during in_progress, final on completed).
+  // The /results endpoint will return whatever runs have been matched so far.
+  const leaderboardEligible =
+    event.status === "signups_closed" ||
+    event.status === "in_progress" ||
+    event.status === "completed";
 
-  let results: EventResultsData | null = null;
-  if (event.status === "completed") {
+  let results: EventResults | null = null;
+  if (leaderboardEligible) {
     try {
-      results = await fetchApi<EventResultsData>(`/api/v1/events/${id}/results`, { revalidate: 0 });
+      results = await fetchApi<EventResults>(`/api/v1/events/${id}/results`, { revalidate: 0 });
     } catch {
       // Results not available — that's OK
     }
@@ -112,72 +108,6 @@ export default async function EventDetailPage({ params }: Props) {
           </div>
         );
       })()}
-
-      {/* Event Results (completed events only) */}
-      {results && results.standings.length > 0 && (
-        <section className="mt-6">
-          <h2 className="text-xl font-bold">Results</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {results.totalRuns} runs completed by {results.standings.length} groups
-          </p>
-
-          {/* Podium — top 3 */}
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            {results.standings.slice(0, 3).map((standing) => {
-              const rankColors = ["border-yellow-500 bg-yellow-500/5", "border-gray-400 bg-gray-400/5", "border-amber-700 bg-amber-700/5"];
-              const rankEmoji = ["🥇", "🥈", "🥉"];
-              return (
-                <div
-                  key={standing.groupId}
-                  className={`rounded-lg border-2 p-4 ${rankColors[standing.rank - 1] ?? "border-border bg-card"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{rankEmoji[standing.rank - 1]}</span>
-                    <div>
-                      <h3 className="font-bold text-foreground">{standing.groupName}</h3>
-                      <p className="text-sm font-medium text-gold">{standing.displayScore}</p>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{standing.runCount} run{standing.runCount !== 1 ? "s" : ""}</p>
-                  <ul className="mt-3 space-y-1">
-                    {standing.members.map((m, i) => (
-                      <li key={i} className="flex items-center gap-1 text-sm">
-                        <ClassBadge
-                          name={m.characterName}
-                          realm={m.realm}
-                          region="us"
-                          classSlug={m.classSlug}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Full standings (if more than 3) */}
-          {results.standings.length > 3 && (
-            <div className="mt-6">
-              <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Full Standings</h3>
-              <div className="space-y-2">
-                {results.standings.slice(3).map((standing) => (
-                  <div
-                    key={standing.groupId}
-                    className="flex items-center justify-between rounded-md border border-border/50 bg-background px-3 py-2"
-                  >
-                    <span className="text-sm">
-                      <span className="mr-2 text-muted-foreground">#{standing.rank}</span>
-                      <span className="font-medium">{standing.groupName}</span>
-                    </span>
-                    <span className="text-sm text-gold">{standing.displayScore}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
 
       {/* Details */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -409,10 +339,40 @@ export default async function EventDetailPage({ params }: Props) {
         );
       })()}
 
-      {event.signups.length === 0 && (
+      {event.signups.length === 0 && event.teamSignups.length === 0 && (
         <p className="mt-12 text-center text-muted-foreground">
           No signups yet. Click Sign Up on the Discord event embed or use the companion app to get started!
         </p>
+      )}
+
+      {/* Leaderboard — runs matched to this event, scored per event type. */}
+      {leaderboardEligible && (
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-xl font-bold">
+              {event.status === "completed" ? "Final Standings" : "Live Leaderboard"}
+            </h2>
+            {results && results.totalRuns > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {results.totalRuns} run{results.totalRuns !== 1 ? "s" : ""} ·{" "}
+                {results.standings.length} group
+                {results.standings.length !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+
+          {!results || results.totalRuns === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No runs have been matched to this event yet. Runs auto-match when
+              submitted by the companion app while the event is in progress.
+            </p>
+          ) : (
+            <EventLeaderboard
+              results={results}
+              showGapHints={event.status !== "completed"}
+            />
+          )}
+        </section>
       )}
     </div>
   );

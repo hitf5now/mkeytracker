@@ -752,6 +752,8 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── Event results (computed standings) ──────────────────────
+  // Available for any non-cancelled event so the website can show a
+  // live leaderboard during in_progress events, not just completed ones.
   app.get<{ Params: { id: string } }>("/events/:id/results", async (req, reply) => {
     const eventId = parseInt(req.params.id, 10);
     if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
@@ -761,8 +763,8 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       select: { id: true, status: true },
     });
     if (!event) return reply.code(404).send({ error: "event_not_found" });
-    if (event.status !== "completed") {
-      return reply.code(409).send({ error: "event_not_completed", message: "Results are only available for completed events." });
+    if (event.status === "cancelled") {
+      return reply.code(409).send({ error: "event_cancelled", message: "Results are not available for cancelled events." });
     }
 
     const results = await computeEventResults(eventId);

@@ -60,6 +60,7 @@ export async function computeEventResults(eventId: number): Promise<EventResults
           completionMs: true,
           deaths: true,
           dungeonId: true,
+          dungeon: { select: { name: true, shortCode: true } },
         },
       },
     },
@@ -74,6 +75,8 @@ export async function computeEventResults(eventId: number): Promise<EventResults
     completionMs: re.run.completionMs,
     deaths: re.run.deaths,
     dungeonId: re.run.dungeonId,
+    dungeonName: re.run.dungeon?.name,
+    dungeonShortCode: re.run.dungeon?.shortCode,
     eventJuice: re.eventJuice,
     matchedAt: re.matchedAt,
   }));

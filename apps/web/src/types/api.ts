@@ -256,6 +256,60 @@ export interface TeamSummary {
 
 export interface TeamDetail extends TeamSummary {}
 
+// ─── Event Results / Leaderboard ───────────────────────────────────
+
+export interface EventRunDetail {
+  runId: number;
+  keystoneLevel: number;
+  onTime: boolean;
+  upgrades: number;
+  completionMs: number;
+  deaths: number;
+  dungeonId: number;
+  dungeonName: string | null;
+  dungeonShortCode: string | null;
+  matchedAt: string;
+  runScore: number;
+  counted: boolean;
+}
+
+export interface EventStandingMeta {
+  peakKeystone?: number;
+  peakTimed?: boolean;
+  peakDeaths?: number;
+  peakCompletionMs?: number;
+  topNAverage?: number;
+  topNAllTimed?: boolean;
+  topNRunCount?: number;
+  lowestCountedScore?: number;
+}
+
+export interface EventGapToFirst {
+  scoreGap: number;
+  hint: string;
+}
+
+export interface EventGroupStanding {
+  rank: number;
+  groupId: number;
+  groupName: string;
+  score: number;
+  displayScore: string;
+  runCount: number;
+  members: { characterName: string; realm: string; classSlug: string }[];
+  runs?: EventRunDetail[];
+  meta?: EventStandingMeta;
+  gapToFirst?: EventGapToFirst;
+}
+
+export interface EventResults {
+  eventId: number;
+  eventType: string;
+  standings: EventGroupStanding[];
+  totalRuns: number;
+  totalParticipants: number;
+}
+
 // ─── Download ────────────────────────────────────────────��──────────
 
 export interface ReleaseInfo {

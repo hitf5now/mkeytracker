@@ -11,6 +11,7 @@ import {
   scoreMarathon,
   scoreBestAverage,
   scoreBracketTournament,
+  computeStandings,
   type RunData,
   type GroupInfo,
 } from "../src/services/event-results-logic.js";
@@ -245,6 +246,105 @@ describe("scoreBracketTournament", () => {
 });
 
 // ── Edge Cases ───────────────────────────────────────────────────
+
+// ── Per-run details ──────────────────────────────────────────────
+
+describe("per-run details", () => {
+  const groups = [makeGroup(1, "Group 1")];
+
+  it("key_climbing attaches all runs and marks peak as counted", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 12, onTime: true }),
+      makeRun({ groupId: 1, runId: 2, keystoneLevel: 18, onTime: true }), // peak
+      makeRun({ groupId: 1, runId: 3, keystoneLevel: 10, onTime: true }),
+    ];
+    const result = scoreKeyClimbing(runs, groups, 2);
+    expect(result[0]!.runs).toHaveLength(3);
+    const counted = result[0]!.runs!.filter((r) => r.counted);
+    expect(counted).toHaveLength(1);
+    expect(counted[0]!.keystoneLevel).toBe(18);
+    expect(counted[0]!.runScore).toBe(result[0]!.score);
+  });
+
+  it("best_average marks only top-N runs as counted", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 10, onTime: true }),
+      makeRun({ groupId: 1, runId: 2, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 1, runId: 3, keystoneLevel: 20, onTime: true }),
+      makeRun({ groupId: 1, runId: 4, keystoneLevel: 5, onTime: true }), // worst
+    ];
+    const result = scoreBestAverage(runs, groups, 3);
+    expect(result[0]!.runs).toHaveLength(4);
+    const counted = result[0]!.runs!.filter((r) => r.counted);
+    expect(counted).toHaveLength(3);
+    expect(counted.find((r) => r.keystoneLevel === 5)).toBeUndefined();
+  });
+
+  it("marathon attaches per-run scores summing to total", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 10, onTime: true, dungeonId: 1 }),
+      makeRun({ groupId: 1, runId: 2, keystoneLevel: 12, onTime: true, dungeonId: 2 }),
+    ];
+    const result = scoreMarathon(runs, groups);
+    const sum = result[0]!.runs!.reduce((s, r) => s + r.runScore, 0);
+    expect(sum).toBe(result[0]!.score);
+  });
+});
+
+// ── Gap-to-#1 hints ─────────────────────────────────────────────
+
+describe("computeStandings — gap hints", () => {
+  const groups = [makeGroup(1, "Top"), makeGroup(2, "Chaser"), makeGroup(3, "Bench")];
+
+  it("attaches gapToFirst to ranks 2+ but not rank 1", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 18, onTime: true }),
+      makeRun({ groupId: 2, runId: 2, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 3, runId: 3, keystoneLevel: 12, onTime: true }),
+    ];
+    const result = computeStandings("key_climbing", runs, groups, { minKeyLevel: 2 });
+    expect(result[0]!.gapToFirst).toBeUndefined();
+    expect(result[1]!.gapToFirst).toBeDefined();
+    expect(result[2]!.gapToFirst).toBeDefined();
+    expect(result[1]!.gapToFirst!.scoreGap).toBeGreaterThan(0);
+  });
+
+  it("key_climbing hint references the leader's peak", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 20, onTime: true }),
+      makeRun({ groupId: 2, runId: 2, keystoneLevel: 15, onTime: true }),
+    ];
+    const result = computeStandings("key_climbing", runs, [groups[0]!, groups[1]!], { minKeyLevel: 2 });
+    expect(result[1]!.gapToFirst!.hint).toContain("+20");
+  });
+
+  it("key_climbing tells depleted candidate to time their key", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 15, onTime: true, deaths: 0 }),
+      makeRun({ groupId: 2, runId: 2, keystoneLevel: 15, onTime: false }),
+    ];
+    const result = computeStandings("key_climbing", runs, [groups[0]!, groups[1]!], { minKeyLevel: 2 });
+    expect(result[1]!.gapToFirst!.hint.toLowerCase()).toContain("time");
+  });
+
+  it("best_average hints DNQ groups to complete more runs", () => {
+    const runs = [
+      makeRun({ groupId: 1, runId: 1, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 1, runId: 2, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 1, runId: 3, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 2, runId: 4, keystoneLevel: 20, onTime: true }), // 1 run → DNQ
+    ];
+    const result = computeStandings("best_average", runs, [groups[0]!, groups[1]!], { runsToCount: 3 });
+    expect(result[1]!.gapToFirst!.hint.toLowerCase()).toContain("qualify");
+  });
+
+  it("does not crash with no leader runs", () => {
+    const result = computeStandings("key_climbing", [], groups, { minKeyLevel: 2 });
+    expect(result).toHaveLength(3);
+    // No hints because leader has no runs
+    for (const s of result) expect(s.gapToFirst).toBeUndefined();
+  });
+});
 
 describe("edge cases", () => {
   it("handles empty groups array", () => {
