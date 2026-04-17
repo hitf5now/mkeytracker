@@ -38,7 +38,7 @@ export default async function EventDetailPage({ params }: Props) {
 
   let data: { event: EventDetail; typeInfo?: EventTypeConfig | null };
   try {
-    data = await fetchApi<{ event: EventDetail; typeInfo?: EventTypeConfig | null }>(`/api/v1/events/${id}`);
+    data = await fetchApi<{ event: EventDetail; typeInfo?: EventTypeConfig | null }>(`/api/v1/events/${id}`, { revalidate: 0 });
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       notFound();
