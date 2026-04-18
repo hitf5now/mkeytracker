@@ -130,6 +130,98 @@ function serializeRun<T extends { serverTime: bigint }>(run: T): Omit<T, "server
 }
 
 /**
+ * Serialize a RunEnrichment record (with nested players + encounters) for JSON
+ * output. BigInt damage/healing totals are stringified so JSON.stringify works
+ * and to give the client full precision. Clients can parse back to Number
+ * (safe up to 2^53) or BigInt as needed.
+ */
+function serializeEnrichment(enrichment: {
+  id: number;
+  status: string;
+  statusReason: string | null;
+  parserVersion: string;
+  totalDamage: bigint;
+  totalDamageSupport: bigint;
+  totalHealing: bigint;
+  totalHealingSupport: bigint;
+  totalInterrupts: number;
+  totalDispels: number;
+  partyDeaths: number;
+  endTrailingFields: number[];
+  eventCountsRaw: unknown;
+  createdAt: Date;
+  players: Array<{
+    id: number;
+    playerGuid: string;
+    playerName: string;
+    specId: number | null;
+    characterId: number | null;
+    damageDone: bigint;
+    damageDoneSupport: bigint;
+    healingDone: bigint;
+    healingDoneSupport: bigint;
+    interrupts: number;
+    dispels: number;
+    deaths: number;
+    combatantInfoRaw: unknown;
+  }>;
+  encounters: Array<{
+    id: number;
+    encounterId: number;
+    encounterName: string;
+    success: boolean;
+    fightTimeMs: number;
+    difficultyId: number;
+    groupSize: number;
+    startedAt: Date;
+    sequenceIndex: number;
+  }>;
+}) {
+  return {
+    id: enrichment.id,
+    status: enrichment.status,
+    statusReason: enrichment.statusReason,
+    parserVersion: enrichment.parserVersion,
+    totalDamage: enrichment.totalDamage.toString(),
+    totalDamageSupport: enrichment.totalDamageSupport.toString(),
+    totalHealing: enrichment.totalHealing.toString(),
+    totalHealingSupport: enrichment.totalHealingSupport.toString(),
+    totalInterrupts: enrichment.totalInterrupts,
+    totalDispels: enrichment.totalDispels,
+    partyDeaths: enrichment.partyDeaths,
+    endTrailingFields: enrichment.endTrailingFields,
+    eventCountsRaw: enrichment.eventCountsRaw,
+    createdAt: enrichment.createdAt.toISOString(),
+    players: enrichment.players.map((p) => ({
+      id: p.id,
+      playerGuid: p.playerGuid,
+      playerName: p.playerName,
+      specId: p.specId,
+      characterId: p.characterId,
+      damageDone: p.damageDone.toString(),
+      damageDoneSupport: p.damageDoneSupport.toString(),
+      healingDone: p.healingDone.toString(),
+      healingDoneSupport: p.healingDoneSupport.toString(),
+      interrupts: p.interrupts,
+      dispels: p.dispels,
+      deaths: p.deaths,
+      combatantInfoRaw: p.combatantInfoRaw,
+    })),
+    encounters: enrichment.encounters.map((e) => ({
+      id: e.id,
+      encounterId: e.encounterId,
+      encounterName: e.encounterName,
+      success: e.success,
+      fightTimeMs: e.fightTimeMs,
+      difficultyId: e.difficultyId,
+      groupSize: e.groupSize,
+      startedAt: e.startedAt.toISOString(),
+      sequenceIndex: e.sequenceIndex,
+    })),
+  };
+}
+
+/**
  * Parse a combat-log player name of the form "Name-Realm-Region" (or
  * "Name-Multi-Word-Realm-Region") and try to map it to a resolved character
  * id via the party-member characters we already looked up.
@@ -676,4 +768,96 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         throw err;
       }
     });
+
+  // ─── GET /api/v1/runs/:id — fetch a run with its enrichment ──────────────
+  //
+  // Public read: no auth required. Returns the run plus dungeon/season meta,
+  // members (with character/class/spec/role), and enrichment (players +
+  // encounters) if present. Used by the web run-detail page.
+  app.get<{ Params: { id: string } }>("/runs/:id", async (req, reply) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return reply.code(400).send({ error: "invalid_run_id" });
+    }
+
+    const run = await prisma.run.findUnique({
+      where: { id },
+      include: {
+        dungeon: { select: { id: true, name: true, slug: true, shortCode: true, parTimeSec: true, challengeModeId: true } },
+        season: { select: { id: true, name: true, slug: true } },
+        members: {
+          include: {
+            character: {
+              select: {
+                id: true,
+                name: true,
+                realm: true,
+                region: true,
+                class: true,
+                thumbnailUrl: true,
+              },
+            },
+          },
+        },
+        enrichment: {
+          include: {
+            players: { orderBy: { damageDone: "desc" } },
+            encounters: { orderBy: { sequenceIndex: "asc" } },
+          },
+        },
+      },
+    });
+
+    if (!run) {
+      return reply.code(404).send({ error: "run_not_found" });
+    }
+
+    return reply.send({
+      run: {
+        id: run.id,
+        keystoneLevel: run.keystoneLevel,
+        completionMs: run.completionMs,
+        parMs: run.parMs,
+        onTime: run.onTime,
+        upgrades: run.upgrades,
+        deaths: run.deaths,
+        timeLostSec: run.timeLostSec,
+        affixes: run.affixes,
+        serverTime: run.serverTime.toString(),
+        recordedAt: run.recordedAt.toISOString(),
+        source: run.source,
+        verified: run.verified,
+        personalJuice: run.personalJuice,
+        eventJuice: run.eventJuice,
+        teamJuice: run.teamJuice,
+        dungeonName: run.dungeonName,
+        oldRating: run.oldRating,
+        newRating: run.newRating,
+        ratingGained: run.ratingGained,
+        isMapRecord: run.isMapRecord,
+        isAffixRecord: run.isAffixRecord,
+        dungeon: run.dungeon,
+        season: run.season,
+        members: run.members.map((m) => ({
+          id: m.id,
+          characterId: m.characterId,
+          userId: m.userId,
+          classSnapshot: m.classSnapshot,
+          specSnapshot: m.specSnapshot,
+          roleSnapshot: m.roleSnapshot,
+          character: m.character
+            ? {
+                id: m.character.id,
+                name: m.character.name,
+                realm: m.character.realm,
+                region: m.character.region,
+                class: m.character.class,
+                thumbnailUrl: m.character.thumbnailUrl,
+              }
+            : null,
+        })),
+        enrichment: run.enrichment ? serializeEnrichment(run.enrichment) : null,
+      },
+    });
+  });
 }

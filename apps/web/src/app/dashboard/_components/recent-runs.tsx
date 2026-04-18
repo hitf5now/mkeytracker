@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { DashboardRecentRun } from "@/types/api";
 import { getClassColor } from "@/lib/class-colors";
 import { formatNumber, formatUpgrades, formatDate } from "@/lib/format";
@@ -23,22 +24,52 @@ export function RecentRuns({ runs }: { runs: DashboardRecentRun[] }) {
         </thead>
         <tbody>
           {runs.map((run) => (
-            <tr key={`${run.id}-${run.characterName}`} className="border-b border-border/50">
+            <tr
+              key={`${run.id}-${run.characterName}`}
+              className="border-b border-border/50 transition-colors hover:bg-muted/30"
+            >
               <td className="px-4 py-3">
-                <span style={{ color: getClassColor(run.characterClass) }} className="font-medium">
-                  {run.characterName}
-                </span>
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  <span
+                    style={{ color: getClassColor(run.characterClass) }}
+                    className="font-medium hover:underline"
+                  >
+                    {run.characterName}
+                  </span>
+                </Link>
               </td>
-              <td className="px-4 py-3 text-muted-foreground">{run.dungeonName}</td>
-              <td className="px-4 py-3">+{run.level}</td>
+              <td className="px-4 py-3 text-muted-foreground">
+                <Link href={`/runs/${run.id}`} className="block w-full hover:underline">
+                  {run.dungeonName}
+                </Link>
+              </td>
               <td className="px-4 py-3">
-                <span className={run.onTime ? "text-green-400" : "text-red-400"}>
-                  {formatUpgrades(run.upgrades, run.onTime)}
-                </span>
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  +{run.level}
+                </Link>
               </td>
-              <td className="px-4 py-3 text-muted-foreground">{run.deaths}</td>
-              <td className="px-4 py-3 font-semibold">{formatNumber(run.juice)}</td>
-              <td className="px-4 py-3 text-right text-muted-foreground">{formatDate(run.recordedAt)}</td>
+              <td className="px-4 py-3">
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  <span className={run.onTime ? "text-green-400" : "text-red-400"}>
+                    {formatUpgrades(run.upgrades, run.onTime)}
+                  </span>
+                </Link>
+              </td>
+              <td className="px-4 py-3 text-muted-foreground">
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  {run.deaths}
+                </Link>
+              </td>
+              <td className="px-4 py-3 font-semibold">
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  {formatNumber(run.juice)}
+                </Link>
+              </td>
+              <td className="px-4 py-3 text-right text-muted-foreground">
+                <Link href={`/runs/${run.id}`} className="block w-full">
+                  {formatDate(run.recordedAt)}
+                </Link>
+              </td>
             </tr>
           ))}
         </tbody>

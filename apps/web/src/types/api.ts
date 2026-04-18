@@ -398,3 +398,106 @@ export interface DashboardResult {
   chartData: DashboardChartData;
   season: { slug: string; name: string };
 }
+
+// ─── Run detail (Sprint 15) ────────────────────────────────────────────────
+
+export interface RunDetailMember {
+  id: number;
+  characterId: number;
+  userId: number | null;
+  classSnapshot: string;
+  specSnapshot: string;
+  roleSnapshot: string;
+  character: {
+    id: number;
+    name: string;
+    realm: string;
+    region: string;
+    class: string;
+    thumbnailUrl: string | null;
+  } | null;
+}
+
+export interface RunDetailEnrichmentPlayer {
+  id: number;
+  playerGuid: string;
+  playerName: string;
+  specId: number | null;
+  characterId: number | null;
+  /** BigInt serialized as string — parse with Number() for display */
+  damageDone: string;
+  damageDoneSupport: string;
+  healingDone: string;
+  healingDoneSupport: string;
+  interrupts: number;
+  dispels: number;
+  deaths: number;
+  combatantInfoRaw: unknown;
+}
+
+export interface RunDetailEnrichmentEncounter {
+  id: number;
+  encounterId: number;
+  encounterName: string;
+  success: boolean;
+  fightTimeMs: number;
+  difficultyId: number;
+  groupSize: number;
+  startedAt: string;
+  sequenceIndex: number;
+}
+
+export interface RunDetailEnrichment {
+  id: number;
+  status: "complete" | "partial" | "unavailable";
+  statusReason: string | null;
+  parserVersion: string;
+  totalDamage: string;
+  totalDamageSupport: string;
+  totalHealing: string;
+  totalHealingSupport: string;
+  totalInterrupts: number;
+  totalDispels: number;
+  partyDeaths: number;
+  endTrailingFields: number[];
+  eventCountsRaw: Record<string, number> | null;
+  createdAt: string;
+  players: RunDetailEnrichmentPlayer[];
+  encounters: RunDetailEnrichmentEncounter[];
+}
+
+export interface RunDetail {
+  id: number;
+  keystoneLevel: number;
+  completionMs: number;
+  parMs: number;
+  onTime: boolean;
+  upgrades: number;
+  deaths: number;
+  timeLostSec: number;
+  affixes: number[];
+  serverTime: string;
+  recordedAt: string;
+  source: string;
+  verified: boolean;
+  personalJuice: number;
+  eventJuice: number | null;
+  teamJuice: number | null;
+  dungeonName: string | null;
+  oldRating: number | null;
+  newRating: number | null;
+  ratingGained: number | null;
+  isMapRecord: boolean;
+  isAffixRecord: boolean;
+  dungeon: {
+    id: number;
+    name: string;
+    slug: string;
+    shortCode: string;
+    parTimeSec: number;
+    challengeModeId: number;
+  };
+  season: { id: number; name: string; slug: string };
+  members: RunDetailMember[];
+  enrichment: RunDetailEnrichment | null;
+}

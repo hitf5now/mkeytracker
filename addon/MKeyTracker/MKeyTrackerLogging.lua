@@ -64,6 +64,29 @@ end
 
 -- ─── Status ─────────────────────────────────────────────────────────────────
 
+-- ─── Auto-start logging on key entry ───────────────────────────────────────
+--
+-- Called from CHALLENGE_MODE_START and ENCOUNTER_START. Ensures the session
+-- is actively writing to WoWCombatLog.txt. The ENCOUNTER_START re-enable is
+-- specifically for the BigWigs conflict: that addon calls LoggingCombat(false)
+-- on boss deaths in M+ keys, which would silently stop logging mid-key.
+--
+-- Rate limit: LoggingCombat() is capped at 5 calls per 10s SHARED across all
+-- addons. We only call it when state is actually off, so we don't burn budget.
+
+function ns.Logging.EnsureLogging()
+    if ns.Logging.IsLoggingActive() then return true end
+    -- Not active — turn it on.
+    LoggingCombat(true)
+    local now = ns.Logging.IsLoggingActive()
+    if now then
+        ns.Utils.Debug("LoggingCombat enabled automatically")
+    else
+        ns.Utils.Debug("LoggingCombat() returned false/nil — may be rate-limited")
+    end
+    return now
+end
+
 function ns.Logging.PrintStatus()
     local acl = ns.Logging.IsACLEnabled()
     local logging = ns.Logging.IsLoggingActive()
