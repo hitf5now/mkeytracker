@@ -18,7 +18,10 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { summarizeLogFile, type RunSummary } from "@mplus/combat-log-parser";
+import {
+  summarizeAllSegmentsInLogFile,
+  type RunSummary,
+} from "@mplus/combat-log-parser";
 import type {
   EnrichmentStatus,
   RunEnrichmentSubmission,
@@ -149,58 +152,77 @@ export async function enrichRun(
   }
   log.log(`[combat-log] picked ${logPath}`);
 
-  let summary: RunSummary | null;
+  // Scan ALL complete segments — a single WoWCombatLog can contain many
+  // back-to-back keys. Pick the one that matches this run by
+  // challengeModeId first, then by time proximity.
+  let segments: RunSummary[];
   try {
-    summary = await summarizeLogFile(logPath);
+    segments = await summarizeAllSegmentsInLogFile(logPath);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`[combat-log] parse failed for ${logPath}: ${msg}`);
     return unavailable("parse_failed", msg);
   }
 
-  if (!summary) {
+  if (segments.length === 0) {
     return unavailable(
       "no_matching_segment",
       "No completed CHALLENGE_MODE segment found in log",
     );
   }
 
-  // The parser returns the FIRST complete segment in the file. If the user
-  // has run multiple keys without deleting the log, it may be a stale match.
-  // Verify it lines up with this run.
   log.log(
-    `[combat-log] first segment in file: challengeModeId=${summary.challengeModeId}, ` +
-      `key=+${summary.keystoneLevel}, zone=${summary.zoneName}, ` +
-      `segmentEnd=${summary.endedAt.toISOString()}`,
+    `[combat-log] ${segments.length} segment(s) in file; looking for challengeModeId=${run.challengeModeId}`,
   );
 
-  if (summary.challengeModeId !== run.challengeModeId) {
+  const runTimeMs = run.serverTime * 1000;
+  const dungeonMatches = segments.filter(
+    (s) => s.challengeModeId === run.challengeModeId,
+  );
+
+  if (dungeonMatches.length === 0) {
+    const seen = segments
+      .map((s) => `cmId=${s.challengeModeId} @ ${s.endedAt.toISOString()}`)
+      .join("; ");
     log.warn(
-      `[combat-log] challengeModeId mismatch: log=${summary.challengeModeId} vs run=${run.challengeModeId}. ` +
-        `If you played multiple keys in this log file, the parser only sees the first segment.`,
+      `[combat-log] no segment matched challengeModeId=${run.challengeModeId}. Segments in file: ${seen}`,
     );
     return unavailable(
       "segment_mismatch",
-      `Log segment challengeModeId=${summary.challengeModeId} does not match run challengeModeId=${run.challengeModeId}`,
+      `No log segment with challengeModeId=${run.challengeModeId}`,
     );
   }
 
-  const runTimeMs = run.serverTime * 1000;
-  const segmentEndMs = summary.endedAt.getTime();
-  const skewMs = Math.abs(runTimeMs - segmentEndMs);
+  // Closest-in-time among matching segments wins. Handles the case where
+  // someone played the same dungeon twice in one logging session.
+  let best: RunSummary | null = null;
+  let bestSkew = Number.POSITIVE_INFINITY;
+  for (const s of dungeonMatches) {
+    const skew = Math.abs(runTimeMs - s.endedAt.getTime());
+    if (skew < bestSkew) {
+      bestSkew = skew;
+      best = s;
+    }
+  }
+
+  if (!best) {
+    return unavailable("segment_mismatch", "No matching segment picked");
+  }
+  const summary = best;
+  const skewMs = bestSkew;
   if (skewMs > SEGMENT_MATCH_WINDOW_MS) {
     log.warn(
-      `[combat-log] segment time mismatch: run=${new Date(runTimeMs).toISOString()}, ` +
-        `segmentEnd=${new Date(segmentEndMs).toISOString()}, skew=${Math.round(skewMs / 1000)}s`,
+      `[combat-log] closest segment still out of window: run=${new Date(runTimeMs).toISOString()}, ` +
+        `segmentEnd=${summary.endedAt.toISOString()}, skew=${Math.round(skewMs / 1000)}s`,
     );
     return unavailable(
       "segment_mismatch",
-      `Log segment end differs from run by ${Math.round(skewMs / 1000)}s (over ${SEGMENT_MATCH_WINDOW_MS / 1000}s window)`,
+      `Closest matching segment differs from run by ${Math.round(skewMs / 1000)}s (over ${SEGMENT_MATCH_WINDOW_MS / 1000}s window)`,
     );
   }
 
   log.log(
-    `[combat-log] matched segment: ${summary.zoneName} +${summary.keystoneLevel}, ${summary.players.length} players, ${summary.encounters.length} encounters, ${summary.totals.damage.toLocaleString()} damage`,
+    `[combat-log] matched segment: ${summary.zoneName} +${summary.keystoneLevel}, ${summary.players.length} players, ${summary.encounters.length} encounters, ${summary.totals.damage.toLocaleString()} damage, skew=${Math.round(skewMs / 1000)}s`,
   );
 
   return {
