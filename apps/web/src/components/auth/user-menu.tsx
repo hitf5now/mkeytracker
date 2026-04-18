@@ -85,6 +85,13 @@ export function UserMenu() {
           >
             Create Event
           </Link>
+          <Link
+            href="/account/discord"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2 text-sm text-foreground transition-colors hover:bg-accent"
+          >
+            Discord Settings
+          </Link>
           <div className="my-1 border-t border-border" />
           <button
             type="button"
