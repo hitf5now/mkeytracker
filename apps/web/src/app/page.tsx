@@ -138,21 +138,21 @@ const AUDIENCES = [
 const STEPS = [
   {
     step: "1",
-    title: "Install the Addon",
+    title: "Install the Companion App",
     description:
-      "Drop MKeyTracker into your WoW addons folder. It captures every M+ run automatically.",
+      "The installer bundles the WoW addon and drops it into your AddOns folder for you. One download covers both pieces.",
   },
   {
     step: "2",
-    title: "Run the Companion App",
+    title: "Pair Your Account",
     description:
-      "The desktop app watches for new runs and uploads them to the platform in seconds.",
+      "Sign in with Discord from the app — your characters are linked automatically the first time you submit a run.",
   },
   {
     step: "3",
     title: "Compete & Climb",
     description:
-      "Sign up for events via Discord, push your keys, and watch your Juice climb the leaderboards.",
+      "Push keys and they upload in seconds. Sign up for events via Discord and watch your Juice climb the leaderboards.",
   },
 ];
 

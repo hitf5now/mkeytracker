@@ -13,27 +13,21 @@ export const metadata: Metadata = {
 const STEPS = [
   {
     step: "1",
-    title: "Install the WoW Addon",
+    title: "Install the Companion App",
     description:
-      "The addon is bundled with the companion app installer. It will be automatically placed in your WoW AddOns folder.",
+      "The installer bundles the WoW addon and places it in your AddOns folder automatically — no manual file copying. After install, the app runs in your system tray and watches for completed keys.",
   },
   {
     step: "2",
-    title: "Run the Companion App",
+    title: "Pair Your Account",
     description:
-      "Launch M+ Tracker after installation. It runs in your system tray and watches for completed keys.",
+      "Sign in to the app with Discord. Your characters are linked automatically the first time you submit a run — no need to register them by hand.",
   },
   {
     step: "3",
-    title: "Link Your Account",
-    description:
-      'Use /register in Discord to link your WoW character. Then use /link in Discord to pair the companion app.',
-  },
-  {
-    step: "4",
     title: "Play & Track",
     description:
-      'Complete a Mythic+ key, type /reload in-game, and your run will appear on the leaderboards within seconds.',
+      "Complete a Mythic+ key, type /reload in-game, and your run will appear on the leaderboards within seconds.",
   },
 ];
 
