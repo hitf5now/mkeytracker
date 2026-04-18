@@ -188,9 +188,10 @@ function formatDiagnose(result) {
 
 document.getElementById("diagnose-enrichment-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("diagnose-enrichment-btn");
+    const panel = document.getElementById("diagnose-panel");
     const out = document.getElementById("diagnose-output");
     if (btn) { btn.disabled = true; btn.textContent = "Checking..."; }
-    out.style.display = "block";
+    panel.style.display = "block";
     out.textContent = "Scanning...";
     try {
         const result = await window.mplus.enrichmentDiagnose();
@@ -201,11 +202,37 @@ document.getElementById("diagnose-enrichment-btn")?.addEventListener("click", as
     if (btn) { btn.disabled = false; btn.textContent = "Check Combat Log"; }
 });
 
+document.getElementById("diagnose-copy-btn")?.addEventListener("click", async () => {
+    const out = document.getElementById("diagnose-output");
+    const btn = document.getElementById("diagnose-copy-btn");
+    const text = out.textContent || "";
+    try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+            const prev = btn.textContent;
+            btn.textContent = "Copied ✓";
+            setTimeout(() => { btn.textContent = prev; }, 1500);
+        }
+    } catch (err) {
+        // Fallback: select the text so the user can Ctrl+C manually
+        const range = document.createRange();
+        range.selectNodeContents(out);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        if (btn) {
+            btn.textContent = "Selected — Ctrl+C";
+            setTimeout(() => { btn.textContent = "Copy"; }, 2500);
+        }
+    }
+});
+
 document.getElementById("open-log-btn")?.addEventListener("click", async () => {
     const res = await window.mplus.openLogFile();
     if (!res.ok) {
+        const panel = document.getElementById("diagnose-panel");
         const out = document.getElementById("diagnose-output");
-        out.style.display = "block";
+        panel.style.display = "block";
         out.textContent = "Couldn't open log: " + (res.reason || res.error || "unknown");
     }
 });
