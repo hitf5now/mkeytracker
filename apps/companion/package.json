@@ -1,6 +1,6 @@
 {
   "name": "@mplus/companion",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "private": true,
   "type": "module",
   "description": "Companion app for the M+ Platform — watches WoW SavedVariables and posts runs to the API.",
@@ -8,11 +8,12 @@
     "name": "hitf5now",
     "email": "hitf5now@users.noreply.github.com"
   },
-  "main": "dist/electron/main.js",
+  "main": "dist/apps/companion/src/electron/main.js",
   "scripts": {
     "dev": "dotenv -e ../../.env -- tsx watch src/cli.ts",
     "cli": "dotenv -e ../../.env -- tsx src/cli.ts",
-    "build": "tsc -p tsconfig.json && node ./scripts/generate-icons.mjs && node ./scripts/copy-static.mjs",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",
+    "build": "npm run clean && npm -w @mplus/combat-log-parser run build && tsc -p tsconfig.json && node ./scripts/generate-icons.mjs && node ./scripts/copy-static.mjs",
     "icons": "node ./scripts/generate-icons.mjs",
     "electron:dev": "npm run build && dotenv -e ../../.env -- electron dist/electron/main.js",
     "electron:start": "electron dist/electron/main.js",
