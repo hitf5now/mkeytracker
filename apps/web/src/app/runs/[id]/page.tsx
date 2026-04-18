@@ -172,9 +172,21 @@ function PlayersTable({
     (a, b) => Number(b.damageDone) - Number(a.damageDone),
   );
 
+  // Per-column maxima for highlighting the top performer in each category.
+  // Deaths is intentionally excluded — "most deaths" isn't a positive stat.
+  const maxDamage = Math.max(...sorted.map((p) => Number(p.damageDone)));
+  const maxHealing = Math.max(...sorted.map((p) => Number(p.healingDone)));
+  const maxInterrupts = Math.max(...sorted.map((p) => p.interrupts));
+  const maxDispels = Math.max(...sorted.map((p) => p.dispels));
+  const leader = (isLeader: boolean, baseClass = "") =>
+    `${baseClass} ${isLeader ? "font-bold text-gold" : ""}`.trim();
+
   return (
     <section className="mt-8">
       <h3 className="text-base font-semibold">Per-player</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        <span className="font-semibold text-gold">Gold</span> = top in column.
+      </p>
       <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
@@ -200,6 +212,11 @@ function PlayersTable({
                 : undefined;
               const shortName = p.playerName.split("-")[0];
 
+              const isTopDamage = damage > 0 && damage === maxDamage;
+              const isTopHealing = healing > 0 && healing === maxHealing;
+              const isTopInterrupts = p.interrupts > 0 && p.interrupts === maxInterrupts;
+              const isTopDispels = p.dispels > 0 && p.dispels === maxDispels;
+
               return (
                 <tr key={p.id} className="border-b border-border/50">
                   <td className="px-3 py-2">
@@ -217,16 +234,34 @@ function PlayersTable({
                         ? `spec ${p.specId}`
                         : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">{formatNumber(damage)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                  <td className={leader(isTopDamage, "px-3 py-2 text-right font-mono")}>
+                    {formatNumber(damage)}
+                  </td>
+                  <td
+                    className={leader(
+                      isTopDamage,
+                      "px-3 py-2 text-right font-mono text-muted-foreground",
+                    )}
+                  >
                     {formatNumber(Math.round(damage / durationSec))}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono">{formatNumber(healing)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                  <td className={leader(isTopHealing, "px-3 py-2 text-right font-mono")}>
+                    {formatNumber(healing)}
+                  </td>
+                  <td
+                    className={leader(
+                      isTopHealing,
+                      "px-3 py-2 text-right font-mono text-muted-foreground",
+                    )}
+                  >
                     {formatNumber(Math.round(healing / durationSec))}
                   </td>
-                  <td className="px-3 py-2 text-right">{p.interrupts}</td>
-                  <td className="px-3 py-2 text-right">{p.dispels}</td>
+                  <td className={leader(isTopInterrupts, "px-3 py-2 text-right")}>
+                    {p.interrupts}
+                  </td>
+                  <td className={leader(isTopDispels, "px-3 py-2 text-right")}>
+                    {p.dispels}
+                  </td>
                   <td className="px-3 py-2 text-right">{p.deaths}</td>
                 </tr>
               );
