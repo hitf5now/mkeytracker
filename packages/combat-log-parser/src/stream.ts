@@ -49,3 +49,42 @@ export async function summarizeLogFile(
   if (options.onProgress) options.onProgress(lines);
   return aggregator.finalize();
 }
+
+/**
+ * Reads a WoWCombatLog.txt and returns summaries for EVERY completed
+ * Challenge Mode segment in the file, in order. Useful for retroactive
+ * enrichment when a user ran multiple keys into the same log.
+ */
+export async function summarizeAllSegmentsInLogFile(
+  filePath: string,
+  options: StreamOptions = {},
+): Promise<RunSummary[]> {
+  const segments: RunSummary[] = [];
+  let aggregator = new RunAggregator();
+  const progressEvery = options.progressEvery ?? 10_000;
+
+  const stream = createReadStream(filePath, { encoding: 'utf8' });
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+  let lines = 0;
+  for await (const line of rl) {
+    lines++;
+    if (options.onProgress && lines % progressEvery === 0) {
+      options.onProgress(lines);
+    }
+    if (!line) continue;
+
+    const event = parseLine(line);
+    if (event) {
+      aggregator.process(event);
+      if (aggregator.isComplete) {
+        const finalized = aggregator.finalize();
+        if (finalized) segments.push(finalized);
+        aggregator = new RunAggregator();
+      }
+    }
+  }
+
+  if (options.onProgress) options.onProgress(lines);
+  return segments;
+}

@@ -1,7 +1,7 @@
 export { parseLine } from './parser.js';
 export { tokenize, unquote, toNumber, toBool } from './tokenizer.js';
 export { RunAggregator } from './aggregator.js';
-export { summarizeLogFile } from './stream.js';
+export { summarizeLogFile, summarizeAllSegmentsInLogFile } from './stream.js';
 export type {
   ParsedEvent,
   ChallengeModeStart,

@@ -26,7 +26,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { summarizeLogFile, type RunSummary } from "@mplus/combat-log-parser";
+import {
+  summarizeAllSegmentsInLogFile,
+  type RunSummary,
+} from "@mplus/combat-log-parser";
 
 const PARSER_VERSION = "0.1.0";
 
@@ -138,32 +141,34 @@ async function main() {
   let matchedPath: string | null = null;
   for (const file of files) {
     console.log(`[reenrich] parsing ${file}...`);
-    let summary: RunSummary | null;
+    let segments: RunSummary[];
     try {
-      summary = await summarizeLogFile(file);
+      segments = await summarizeAllSegmentsInLogFile(file);
     } catch (err) {
       console.warn(`  parse failed: ${err instanceof Error ? err.message : err}`);
       continue;
     }
-    if (!summary) {
-      console.log(`  no complete CHALLENGE_MODE segment`);
+    if (segments.length === 0) {
+      console.log(`  no complete CHALLENGE_MODE segments`);
       continue;
     }
-    console.log(
-      `  segment: challengeModeId=${summary.challengeModeId}, key=+${summary.keystoneLevel}, zone=${summary.zoneName}, players=${summary.players.length}, encounters=${summary.encounters.length}`,
-    );
-    if (summary.challengeModeId === expectedCmId) {
-      matchedSummary = summary;
-      matchedPath = file;
-      break;
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i]!;
+      console.log(
+        `  segment ${i}: challengeModeId=${s.challengeModeId}, key=+${s.keystoneLevel}, zone=${s.zoneName}, players=${s.players.length}, encounters=${s.encounters.length}`,
+      );
+      if (s.challengeModeId === expectedCmId) {
+        matchedSummary = s;
+        matchedPath = file;
+        break;
+      }
     }
-    console.log(`  challengeModeId ${summary.challengeModeId} !== ${expectedCmId} — skipping`);
+    if (matchedSummary) break;
   }
 
   if (!matchedSummary || !matchedPath) {
     console.error(
-      `No WoWCombatLog file contained a first-segment with challengeModeId=${expectedCmId}. ` +
-        "If the run was the second key in a file, the parser can't currently reach it.",
+      `No WoWCombatLog file contained any segment with challengeModeId=${expectedCmId}.`,
     );
     process.exit(1);
   }
