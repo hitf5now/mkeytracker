@@ -265,7 +265,7 @@ function emptyEnrichment(
   };
 }
 
-function summaryToSubmission(
+export function summaryToSubmission(
   summary: RunSummary,
   status: EnrichmentStatus,
 ): RunEnrichmentSubmission {

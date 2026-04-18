@@ -17,6 +17,7 @@ import {
   IPC,
   type AddonInstallResult,
   type AppInfo,
+  type EnrichmentBackfillResult,
   type EnrichmentDiagnoseResult,
   type PairRequest,
   type PairResponse,
@@ -97,6 +98,10 @@ const api = {
   // Diagnostics — dry-run enrichment against the user's combat logs.
   enrichmentDiagnose: (): Promise<EnrichmentDiagnoseResult> =>
     ipcRenderer.invoke(IPC.ENRICHMENT_DIAGNOSE),
+  // Backfill — for each segment in the latest log, POST to the API's
+  // enrich-by-match endpoint and fill in any missing enrichment.
+  enrichmentBackfill: (): Promise<EnrichmentBackfillResult> =>
+    ipcRenderer.invoke(IPC.ENRICHMENT_BACKFILL),
   // Open the companion log file in the OS default viewer.
   openLogFile: (): Promise<{ ok: boolean; path?: string; error?: string; reason?: string }> =>
     ipcRenderer.invoke(IPC.LOG_OPEN),

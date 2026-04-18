@@ -49,6 +49,8 @@ import { detectWowInstall, hasRetailSubfolder, scanWowAccounts } from "./wow-det
 import {
   IPC,
   type AppInfo,
+  type EnrichmentBackfillResult,
+  type EnrichmentBackfillSegmentResult,
   type EnrichmentDiagnoseResult,
   type PairRequest,
   type PairResponse,
@@ -56,7 +58,7 @@ import {
   type SetWowRequest,
   type StatusSnapshot,
 } from "./ipc-channels.js";
-import { resolveCombatLogsDir } from "../core/combat-log.js";
+import { resolveCombatLogsDir, summaryToSubmission } from "../core/combat-log.js";
 import { summarizeAllSegmentsInLogFile } from "@mplus/combat-log-parser";
 import { readdirSync, statSync } from "node:fs";
 
@@ -478,6 +480,141 @@ function registerIpcHandlers(): void {
     }
 
     return result;
+  });
+
+  ipcMain.handle(IPC.ENRICHMENT_BACKFILL, async (): Promise<EnrichmentBackfillResult> => {
+    const totals = { created: 0, replaced: 0, alreadyComplete: 0, noMatch: 0, error: 0 };
+    const segResults: EnrichmentBackfillSegmentResult[] = [];
+
+    const cfg = loadConfig();
+    if (!cfg.jwt) {
+      fileLogger.warn("[backfill] no JWT — pair the companion first");
+      return { segments: [], totals, message: "Not paired — finish setup first." };
+    }
+
+    const logsDir = resolveCombatLogsDir(cfg);
+    if (!logsDir || !existsSync(logsDir)) {
+      return {
+        segments: [],
+        totals,
+        message: "WoW logs directory not found — check the setup wizard.",
+      };
+    }
+
+    // Find newest combat log and parse every segment.
+    let newestPath: string | null = null;
+    try {
+      const files = readdirSync(logsDir)
+        .filter((n) => /^WoWCombatLog.*\.txt$/i.test(n))
+        .map((n) => ({ path: join(logsDir, n), mtime: statSync(join(logsDir, n)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      newestPath = files[0]?.path ?? null;
+    } catch (err) {
+      fileLogger.error(`[backfill] couldn't list logs dir: ${err instanceof Error ? err.message : err}`);
+    }
+
+    if (!newestPath) {
+      return { segments: [], totals, message: "No WoWCombatLog*.txt files found." };
+    }
+
+    fileLogger.log(`[backfill] parsing ${newestPath}`);
+    let segments;
+    try {
+      segments = await summarizeAllSegmentsInLogFile(newestPath);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      fileLogger.error(`[backfill] parse failed: ${msg}`);
+      return { segments: [], totals, message: `Parse failed: ${msg}` };
+    }
+    fileLogger.log(`[backfill] parsed ${segments.length} segment(s); posting each to the API`);
+
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i]!;
+      const base: EnrichmentBackfillSegmentResult = {
+        index: i,
+        challengeModeId: s.challengeModeId,
+        zoneName: s.zoneName,
+        keystoneLevel: s.keystoneLevel,
+        segmentEnd: s.endedAt.toISOString(),
+        outcome: "error",
+      };
+
+      try {
+        const body = {
+          challengeModeId: s.challengeModeId,
+          // serverTime is unix seconds, matching Run.serverTime on the server.
+          serverTime: Math.floor(s.endedAt.getTime() / 1000),
+          enrichment: summaryToSubmission(s, "complete"),
+        };
+        const res = await fetch(`${cfg.apiBaseUrl}/api/v1/runs/enrich-by-match`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cfg.jwt}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const json = (await res.json()) as {
+          status?: string;
+          runId?: number;
+          enrichmentId?: number;
+          previousStatus?: string;
+          message?: string;
+          error?: string;
+        };
+
+        if (!res.ok) {
+          base.outcome = "error";
+          base.message = `HTTP ${res.status}: ${json.error ?? json.message ?? "unknown"}`;
+          totals.error++;
+          fileLogger.warn(
+            `[backfill] segment ${i} (cmId=${s.challengeModeId}): ${base.message}`,
+          );
+        } else {
+          const status = json.status ?? "error";
+          base.outcome = status;
+          base.runId = json.runId;
+          base.enrichmentId = json.enrichmentId;
+          base.previousStatus = json.previousStatus;
+          base.message = json.message;
+          switch (status) {
+            case "created":
+              totals.created++;
+              break;
+            case "replaced":
+              totals.replaced++;
+              break;
+            case "already_complete":
+              totals.alreadyComplete++;
+              break;
+            case "no_match":
+              totals.noMatch++;
+              break;
+            default:
+              totals.error++;
+          }
+          fileLogger.log(
+            `[backfill] segment ${i} (cmId=${s.challengeModeId}) → ${status}${json.runId ? ` runId=${json.runId}` : ""}`,
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        base.outcome = "error";
+        base.message = msg;
+        totals.error++;
+        fileLogger.error(`[backfill] segment ${i}: ${msg}`);
+      }
+
+      segResults.push(base);
+    }
+
+    const summary =
+      `Backfilled: ${totals.created} created, ${totals.replaced} replaced, ` +
+      `${totals.alreadyComplete} already complete, ${totals.noMatch} no match` +
+      (totals.error > 0 ? `, ${totals.error} errors` : "");
+    fileLogger.log(`[backfill] done — ${summary}`);
+
+    return { segments: segResults, totals, message: summary };
   });
 }
 

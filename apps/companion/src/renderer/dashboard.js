@@ -227,6 +227,41 @@ document.getElementById("diagnose-copy-btn")?.addEventListener("click", async ()
     }
 });
 
+function formatBackfill(result) {
+    const lines = [];
+    const t = result.totals;
+    lines.push(`${result.message}`);
+    lines.push("");
+    lines.push("Per-segment results:");
+    if (result.segments.length === 0) {
+        lines.push("  (nothing to backfill)");
+    } else {
+        for (const s of result.segments) {
+            const where = s.runId != null ? `run ${s.runId}` : "—";
+            const prev = s.previousStatus ? ` (was ${s.previousStatus})` : "";
+            const msg = s.message ? `  [${s.message}]` : "";
+            lines.push(`  #${s.index}  cmId=${s.challengeModeId}  ${s.zoneName} +${s.keystoneLevel}  →  ${s.outcome}${prev}  ${where}${msg}`);
+        }
+    }
+    return lines.join("\n");
+}
+
+document.getElementById("backfill-enrichment-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("backfill-enrichment-btn");
+    const panel = document.getElementById("diagnose-panel");
+    const out = document.getElementById("diagnose-output");
+    if (btn) { btn.disabled = true; btn.textContent = "Backfilling..."; }
+    panel.style.display = "block";
+    out.textContent = "Parsing combat log and posting enrichment for each segment...\n(This can take 30-60 seconds on large log files.)";
+    try {
+        const result = await window.mplus.enrichmentBackfill();
+        out.textContent = formatBackfill(result);
+    } catch (err) {
+        out.textContent = "Backfill failed: " + (err && err.message ? err.message : String(err));
+    }
+    if (btn) { btn.disabled = false; btn.textContent = "Backfill Missing"; }
+});
+
 document.getElementById("open-log-btn")?.addEventListener("click", async () => {
     const res = await window.mplus.openLogFile();
     if (!res.ok) {

@@ -1069,4 +1069,201 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ enrichmentId: enrichment.id });
     },
   );
+
+  // ─── POST /api/v1/runs/enrich-by-match — companion-driven backfill ───────
+  //
+  // Lets the companion's "Check Combat Log" / backfill flow submit
+  // enrichment for runs WITHOUT knowing their server-side id. Caller
+  // supplies the enrichment plus the segment's challengeModeId and
+  // serverTime; the API finds one of the caller's runs matching both
+  // and creates (or replaces a non-"complete" enrichment on) that run.
+  //
+  // Response shapes (all 200):
+  //   { status: "created",          runId, enrichmentId }
+  //   { status: "replaced",         runId, enrichmentId, previousStatus }
+  //   { status: "already_complete", runId, enrichmentId }
+  //   { status: "no_match",         message }
+  const EnrichByMatchBodySchema = z.object({
+    /** WoW challenge_mode_id of the run's dungeon. */
+    challengeModeId: z.number().int().positive(),
+    /** Run.serverTime in unix seconds (same field shape as run submission). */
+    serverTime: z.number().int().positive(),
+    enrichment: RunEnrichmentSubmissionSchema,
+  });
+
+  /** Window in seconds for time-based run matching. Matches the companion's
+   * own SEGMENT_MATCH_WINDOW_MS (5 minutes). */
+  const MATCH_WINDOW_SEC = 300;
+
+  app.post("/runs/enrich-by-match", async (req, reply) => {
+    const auth = await resolveAuth(req, reply);
+    if (auth === null) return;
+
+    const parsed = EnrichByMatchBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: "invalid_body",
+        issues: parsed.error.issues,
+      });
+    }
+    const { challengeModeId, serverTime, enrichment: e } = parsed.data;
+
+    // Candidate runs = matching dungeon, within time window, in the
+    // currently-active season. For JWT callers we additionally require
+    // the caller owns at least one member. Internal bearer skips the
+    // ownership filter so admin scripts can backfill anyone's run.
+    const activeSeason = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!activeSeason) {
+      return reply.code(500).send({ error: "no_active_season" });
+    }
+
+    const lowerTime = BigInt(serverTime - MATCH_WINDOW_SEC);
+    const upperTime = BigInt(serverTime + MATCH_WINDOW_SEC);
+
+    const whereUser =
+      auth.mode === "jwt"
+        ? { members: { some: { character: { userId: auth.userId } } } }
+        : {};
+
+    const candidates = await prisma.run.findMany({
+      where: {
+        seasonId: activeSeason.id,
+        dungeon: { challengeModeId },
+        serverTime: { gte: lowerTime, lte: upperTime },
+        ...whereUser,
+      },
+      include: {
+        enrichment: { select: { id: true, status: true } },
+        members: {
+          select: {
+            characterId: true,
+            character: { select: { id: true, name: true, realm: true } },
+          },
+        },
+      },
+    });
+
+    if (candidates.length === 0) {
+      req.log.info(
+        { challengeModeId, serverTime },
+        "enrich-by-match: no candidate run",
+      );
+      return reply.send({
+        status: "no_match",
+        message: `No run found for challengeModeId=${challengeModeId} within ±${MATCH_WINDOW_SEC}s of serverTime=${serverTime}.`,
+      });
+    }
+
+    // Pick the run with serverTime closest to the requested value.
+    candidates.sort(
+      (a, b) =>
+        Math.abs(Number(a.serverTime - BigInt(serverTime))) -
+        Math.abs(Number(b.serverTime - BigInt(serverTime))),
+    );
+    const run = candidates[0]!;
+
+    // If existing enrichment is already "complete", respect it — don't
+    // overwrite real data with whatever the companion just parsed.
+    if (run.enrichment && run.enrichment.status === "complete") {
+      return reply.send({
+        status: "already_complete",
+        runId: run.id,
+        enrichmentId: run.enrichment.id,
+      });
+    }
+
+    // Build the character lookup map for matchLogPlayerToCharacter.
+    const characterByKey = new Map<string, number>();
+    for (const m of run.members) {
+      if (!m.character) continue;
+      characterByKey.set(
+        `${m.character.name.toLowerCase()}|${m.character.realm}`,
+        m.character.id,
+      );
+    }
+
+    // If there's a non-complete enrichment, wipe it before writing the
+    // new one. Cascade removes the child rows.
+    let previousStatus: string | null = null;
+    if (run.enrichment) {
+      previousStatus = run.enrichment.status;
+      await prisma.runEnrichment.delete({ where: { id: run.enrichment.id } });
+    }
+
+    const enrichment = await prisma.runEnrichment.create({
+      data: {
+        runId: run.id,
+        status: e.status,
+        statusReason: e.statusReason ?? null,
+        parserVersion: e.parserVersion,
+        totalDamage: BigInt(Math.floor(e.totalDamage)),
+        totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+        totalHealing: BigInt(Math.floor(e.totalHealing)),
+        totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+        totalInterrupts: e.totalInterrupts,
+        totalDispels: e.totalDispels,
+        partyDeaths: e.partyDeaths,
+        endTrailingFields: e.endTrailingFields,
+        eventCountsRaw: (e.eventCountsRaw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        bucketSizeMs: e.bucketSizeMs ?? null,
+        segmentStartedAt: e.segmentStartedAt ? new Date(e.segmentStartedAt) : null,
+        players: {
+          create: e.players.map((p) => ({
+            playerGuid: p.playerGuid,
+            playerName: p.playerName,
+            specId: p.specId,
+            characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
+            damageDone: BigInt(Math.floor(p.damageDone)),
+            damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+            healingDone: BigInt(Math.floor(p.healingDone)),
+            healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+            interrupts: p.interrupts,
+            dispels: p.dispels,
+            deaths: p.deaths,
+            damageBuckets:
+              p.damageBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.damageBuckets as Prisma.InputJsonValue),
+            peakBucketIndex: p.peakBucketIndex ?? null,
+            peakDamage:
+              p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
+            combatantInfoRaw:
+              p.combatantInfoRaw === undefined
+                ? Prisma.JsonNull
+                : (p.combatantInfoRaw as Prisma.InputJsonValue),
+          })),
+        },
+        encounters: {
+          create: e.encounters.map((enc) => ({
+            encounterId: enc.encounterId,
+            encounterName: enc.encounterName,
+            success: enc.success,
+            fightTimeMs: enc.fightTimeMs,
+            difficultyId: enc.difficultyId,
+            groupSize: enc.groupSize,
+            startedAt: new Date(enc.startedAt),
+            sequenceIndex: enc.sequenceIndex,
+          })),
+        },
+      },
+    });
+
+    req.log.info(
+      {
+        runId: run.id,
+        enrichmentId: enrichment.id,
+        previousStatus,
+        status: e.status,
+        players: e.players.length,
+      },
+      "enrich-by-match: enrichment persisted",
+    );
+
+    return reply.send({
+      status: previousStatus ? "replaced" : "created",
+      runId: run.id,
+      enrichmentId: enrichment.id,
+      ...(previousStatus ? { previousStatus } : {}),
+    });
+  });
 }

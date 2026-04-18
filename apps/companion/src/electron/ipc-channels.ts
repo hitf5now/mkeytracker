@@ -53,6 +53,8 @@ export const IPC = {
   SHELL_OPEN_EXTERNAL: "mplus:shell:openExternal",
   /** Dry-run combat-log enrichment against the latest WoWCombatLog and report what the companion sees — without needing a real submission. */
   ENRICHMENT_DIAGNOSE: "mplus:enrichment:diagnose",
+  /** Backfill missing enrichment for every segment in the latest combat log. */
+  ENRICHMENT_BACKFILL: "mplus:enrichment:backfill",
   /** Open the companion log file in the OS default viewer. */
   LOG_OPEN: "mplus:log:open",
 } as const;
@@ -140,6 +142,33 @@ export interface EnrichmentDiagnoseResult {
   /** All CHALLENGE_MODE segments parsed from the picked file. */
   segments: EnrichmentDiagnoseSegment[];
   /** Free-form error or status message. */
+  message: string;
+}
+
+export interface EnrichmentBackfillSegmentResult {
+  index: number;
+  challengeModeId: number;
+  zoneName: string;
+  keystoneLevel: number;
+  segmentEnd: string;
+  /** API response status: created | replaced | already_complete | no_match | error */
+  outcome: string;
+  runId?: number;
+  enrichmentId?: number;
+  previousStatus?: string;
+  message?: string;
+}
+
+export interface EnrichmentBackfillResult {
+  /** Summary of each segment we attempted to backfill. */
+  segments: EnrichmentBackfillSegmentResult[];
+  totals: {
+    created: number;
+    replaced: number;
+    alreadyComplete: number;
+    noMatch: number;
+    error: number;
+  };
   message: string;
 }
 
