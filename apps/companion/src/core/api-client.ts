@@ -10,6 +10,7 @@
  * is a config change, not a code change.
  */
 
+import type { RunEnrichmentSubmission } from "@mplus/types";
 import type { ParsedRun } from "./sv-parser.js";
 
 export class CompanionApiError extends Error {
@@ -65,8 +66,14 @@ export class CompanionApiClient {
    * Automatically sets `submitterCharacterName` from members[0],
    * which the WoW addon always populates with the logged-in player.
    * This enables the API to auto-claim the character for the user.
+   *
+   * `enrichment` is optional combat-log data produced by the companion's
+   * combat-log enrichment pass. Omitted when the log wasn't available.
    */
-  async submitRun(run: ParsedRun): Promise<RunSubmissionResponse> {
+  async submitRun(
+    run: ParsedRun,
+    enrichment?: RunEnrichmentSubmission,
+  ): Promise<RunSubmissionResponse> {
     if (!this.jwt) {
       throw new CompanionApiError("No JWT configured — pair the companion first.", 401, "not_paired");
     }
@@ -76,7 +83,7 @@ export class CompanionApiClient {
     const submitterCharacterName = run.members[0]?.name;
 
     return this.requestJson<RunSubmissionResponse>("POST", "/api/v1/runs", {
-      body: { ...run, submitterCharacterName },
+      body: { ...run, submitterCharacterName, enrichment },
       authenticated: true,
     });
   }

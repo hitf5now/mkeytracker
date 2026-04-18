@@ -14,6 +14,10 @@
 export type WowRole = "tank" | "healer" | "dps";
 
 export interface SpecDefinition {
+  /** Blizzard specializationID (e.g. 73 = Protection Warrior) from WoW's
+   *  C_SpecializationInfo API. Used to resolve auto-detected specs from the
+   *  combat log's COMBATANT_INFO events. */
+  id: number;
   /** Canonical spec name as it appears in-game, e.g. "Elemental", "Blood" */
   name: string;
   role: WowRole;
@@ -35,9 +39,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Death Knight",
     color: 0xc41e3a,
     specs: [
-      { name: "Blood", role: "tank" },
-      { name: "Frost", role: "dps" },
-      { name: "Unholy", role: "dps" },
+      { id: 250, name: "Blood", role: "tank" },
+      { id: 251, name: "Frost", role: "dps" },
+      { id: 252, name: "Unholy", role: "dps" },
     ],
   },
   "demon-hunter": {
@@ -45,8 +49,8 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Demon Hunter",
     color: 0xa330c9,
     specs: [
-      { name: "Havoc", role: "dps" },
-      { name: "Vengeance", role: "tank" },
+      { id: 577, name: "Havoc", role: "dps" },
+      { id: 581, name: "Vengeance", role: "tank" },
     ],
   },
   druid: {
@@ -54,10 +58,10 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Druid",
     color: 0xff7c0a,
     specs: [
-      { name: "Balance", role: "dps" },
-      { name: "Feral", role: "dps" },
-      { name: "Guardian", role: "tank" },
-      { name: "Restoration", role: "healer" },
+      { id: 102, name: "Balance", role: "dps" },
+      { id: 103, name: "Feral", role: "dps" },
+      { id: 104, name: "Guardian", role: "tank" },
+      { id: 105, name: "Restoration", role: "healer" },
     ],
   },
   evoker: {
@@ -65,9 +69,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Evoker",
     color: 0x33937f,
     specs: [
-      { name: "Devastation", role: "dps" },
-      { name: "Preservation", role: "healer" },
-      { name: "Augmentation", role: "dps" },
+      { id: 1467, name: "Devastation", role: "dps" },
+      { id: 1468, name: "Preservation", role: "healer" },
+      { id: 1473, name: "Augmentation", role: "dps" },
     ],
   },
   hunter: {
@@ -75,9 +79,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Hunter",
     color: 0xaad372,
     specs: [
-      { name: "Beast Mastery", role: "dps" },
-      { name: "Marksmanship", role: "dps" },
-      { name: "Survival", role: "dps" },
+      { id: 253, name: "Beast Mastery", role: "dps" },
+      { id: 254, name: "Marksmanship", role: "dps" },
+      { id: 255, name: "Survival", role: "dps" },
     ],
   },
   mage: {
@@ -85,9 +89,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Mage",
     color: 0x3fc7eb,
     specs: [
-      { name: "Arcane", role: "dps" },
-      { name: "Fire", role: "dps" },
-      { name: "Frost", role: "dps" },
+      { id: 62, name: "Arcane", role: "dps" },
+      { id: 63, name: "Fire", role: "dps" },
+      { id: 64, name: "Frost", role: "dps" },
     ],
   },
   monk: {
@@ -95,9 +99,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Monk",
     color: 0x00ff98,
     specs: [
-      { name: "Brewmaster", role: "tank" },
-      { name: "Mistweaver", role: "healer" },
-      { name: "Windwalker", role: "dps" },
+      { id: 268, name: "Brewmaster", role: "tank" },
+      { id: 270, name: "Mistweaver", role: "healer" },
+      { id: 269, name: "Windwalker", role: "dps" },
     ],
   },
   paladin: {
@@ -105,9 +109,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Paladin",
     color: 0xf48cba,
     specs: [
-      { name: "Holy", role: "healer" },
-      { name: "Protection", role: "tank" },
-      { name: "Retribution", role: "dps" },
+      { id: 65, name: "Holy", role: "healer" },
+      { id: 66, name: "Protection", role: "tank" },
+      { id: 70, name: "Retribution", role: "dps" },
     ],
   },
   priest: {
@@ -115,9 +119,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Priest",
     color: 0xffffff,
     specs: [
-      { name: "Discipline", role: "healer" },
-      { name: "Holy", role: "healer" },
-      { name: "Shadow", role: "dps" },
+      { id: 256, name: "Discipline", role: "healer" },
+      { id: 257, name: "Holy", role: "healer" },
+      { id: 258, name: "Shadow", role: "dps" },
     ],
   },
   rogue: {
@@ -125,9 +129,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Rogue",
     color: 0xfff468,
     specs: [
-      { name: "Assassination", role: "dps" },
-      { name: "Outlaw", role: "dps" },
-      { name: "Subtlety", role: "dps" },
+      { id: 259, name: "Assassination", role: "dps" },
+      { id: 260, name: "Outlaw", role: "dps" },
+      { id: 261, name: "Subtlety", role: "dps" },
     ],
   },
   shaman: {
@@ -135,9 +139,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Shaman",
     color: 0x0070dd,
     specs: [
-      { name: "Elemental", role: "dps" },
-      { name: "Enhancement", role: "dps" },
-      { name: "Restoration", role: "healer" },
+      { id: 262, name: "Elemental", role: "dps" },
+      { id: 263, name: "Enhancement", role: "dps" },
+      { id: 264, name: "Restoration", role: "healer" },
     ],
   },
   warlock: {
@@ -145,9 +149,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Warlock",
     color: 0x8788ee,
     specs: [
-      { name: "Affliction", role: "dps" },
-      { name: "Demonology", role: "dps" },
-      { name: "Destruction", role: "dps" },
+      { id: 265, name: "Affliction", role: "dps" },
+      { id: 266, name: "Demonology", role: "dps" },
+      { id: 267, name: "Destruction", role: "dps" },
     ],
   },
   warrior: {
@@ -155,9 +159,9 @@ export const CLASSES: Record<string, ClassDefinition> = {
     name: "Warrior",
     color: 0xc69b6d,
     specs: [
-      { name: "Arms", role: "dps" },
-      { name: "Fury", role: "dps" },
-      { name: "Protection", role: "tank" },
+      { id: 71, name: "Arms", role: "dps" },
+      { id: 72, name: "Fury", role: "dps" },
+      { id: 73, name: "Protection", role: "tank" },
     ],
   },
 };
@@ -217,4 +221,43 @@ export function roleFromSpec(
  */
 export function isMultiRoleClass(classSlug: string): boolean {
   return getValidRoles(classSlug).length > 1;
+}
+
+export interface SpecLookup {
+  id: number;
+  name: string;
+  role: WowRole;
+  classSlug: string;
+  className: string;
+  classColor: number;
+}
+
+/**
+ * Flat map of Blizzard specializationID → class + spec info. Built at module
+ * load from CLASSES. Used by anything that knows a spec ID (combat-log
+ * enrichment, RaiderIO imports) and needs to display class/spec/role.
+ */
+export const SPECS_BY_ID: Record<number, SpecLookup> = (() => {
+  const map: Record<number, SpecLookup> = {};
+  for (const cls of Object.values(CLASSES)) {
+    for (const spec of cls.specs) {
+      map[spec.id] = {
+        id: spec.id,
+        name: spec.name,
+        role: spec.role,
+        classSlug: cls.slug,
+        className: cls.name,
+        classColor: cls.color,
+      };
+    }
+  }
+  return map;
+})();
+
+/**
+ * Resolve a Blizzard specID to a SpecLookup. Returns undefined for unknown
+ * IDs (new specs in future patches, or data corruption).
+ */
+export function getSpecById(specId: number): SpecLookup | undefined {
+  return SPECS_BY_ID[specId];
 }

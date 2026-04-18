@@ -102,12 +102,37 @@ local function CmdResetToastPosition()
     end
 end
 
+local function CmdAcl(arg)
+    if not ns.Logging then
+        ns.Utils.PrintError("Logging module not loaded.")
+        return
+    end
+    if arg == "status" then
+        ns.Logging.PrintStatus()
+    elseif arg == nil or arg == "" then
+        if ns.Logging.IsACLEnabled() then
+            ns.Utils.Print("Advanced Combat Logging is already |cff00ff00ON|r.")
+            return
+        end
+        local after = ns.Logging.EnableACL()
+        if after then
+            ns.Utils.Print("Advanced Combat Logging |cff00ff00enabled|r. Persists across sessions.")
+        else
+            ns.Utils.PrintError("Failed to enable Advanced Combat Logging. Try Escape -> System -> Network manually.")
+        end
+    else
+        ns.Utils.PrintError("Usage: /mkt acl [status]")
+    end
+end
+
 local function CmdHelp()
     ns.Utils.Print("Commands:")
     ns.Utils.Print("  /mkt dump         — list pending runs")
     ns.Utils.Print("  /mkt dump <n>     — show full detail for run #n")
     ns.Utils.Print("  /mkt clear        — wipe pending queue")
     ns.Utils.Print("  /mkt status       — addon version + queue counts")
+    ns.Utils.Print("  /mkt acl          — enable Advanced Combat Logging")
+    ns.Utils.Print("  /mkt acl status   — show combat-log system state")
     ns.Utils.Print("  /mkt test         — preview the capture toast")
     ns.Utils.Print("  /mkt hide         — hide the toast now")
     ns.Utils.Print("  /mkt resetpos     — reset toast position to default")
@@ -139,6 +164,10 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
         CmdHideToast()
     elseif msg == "resetpos" then
         CmdResetToastPosition()
+    elseif msg == "acl" then
+        CmdAcl(nil)
+    elseif msg:match("^acl%s+(%w+)$") then
+        CmdAcl(msg:match("^acl%s+(%w+)$"))
     else
         ns.Utils.PrintError("Unknown command: /mkt " .. msg .. " — try /mkt help")
     end

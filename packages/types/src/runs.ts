@@ -50,6 +50,87 @@ export interface RunSubmission {
   eventId?: number;
   /** Source of the submission — always "addon" for the normal flow */
   source: RunSource;
+  /**
+   * Optional combat-log enrichment from the companion's WoWCombatLog.txt parser.
+   * When present, the API will create RunEnrichment + children rows linked to
+   * this run. When absent, the run is still recorded normally.
+   *
+   * The companion always ATTEMPTS to produce enrichment when running; it only
+   * omits this field when the log file is missing, unreadable, or contains no
+   * matching segment. See packages/combat-log-parser for the source format.
+   */
+  enrichment?: RunEnrichmentSubmission;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Combat-log enrichment (Sprint 15)
+// ────────────────────────────────────────────────────────────────────────────
+
+export type EnrichmentStatus = "complete" | "partial" | "unavailable";
+
+export interface EnrichmentPlayerStats {
+  /** WoW GUID, e.g. "Player-1175-0F92E4A5" */
+  playerGuid: string;
+  /** Combined name-realm-region as it appeared in the log */
+  playerName: string;
+  /** Auto-detected from COMBATANT_INFO; null if not found */
+  specId: number | null;
+  damageDone: number;
+  damageDoneSupport: number;
+  healingDone: number;
+  healingDoneSupport: number;
+  interrupts: number;
+  dispels: number;
+  deaths: number;
+  /**
+   * Full COMBATANT_INFO payload (gear, talents, stats, auras) captured as an
+   * opaque JSON value. Stored so Phase D/E work can decode extra fields
+   * without a re-migration. Null if no COMBATANT_INFO was observed for this
+   * player (rare — fires on every encounter start).
+   */
+  combatantInfoRaw?: unknown;
+}
+
+export interface EnrichmentEncounter {
+  /** WoW DungeonEncounterID */
+  encounterId: number;
+  encounterName: string;
+  /** true = kill, false = wipe */
+  success: boolean;
+  fightTimeMs: number;
+  /** 8 for M+; higher for other content (diagnostic only) */
+  difficultyId: number;
+  groupSize: number;
+  /** Unix ms of ENCOUNTER_START */
+  startedAt: number;
+  /** 0-indexed order in the segment — distinguishes wipe + kill of same boss */
+  sequenceIndex: number;
+}
+
+export interface RunEnrichmentSubmission {
+  status: EnrichmentStatus;
+  /** When status !== "complete", short machine-readable reason */
+  statusReason?: string;
+  /** Version string of @mplus/combat-log-parser that produced this */
+  parserVersion: string;
+
+  /** Aggregate totals across the M+ segment */
+  totalDamage: number;
+  totalDamageSupport: number;
+  totalHealing: number;
+  totalHealingSupport: number;
+  totalInterrupts: number;
+  totalDispels: number;
+  partyDeaths: number;
+
+  /** Raw trailing fields from CHALLENGE_MODE_END, captured verbatim */
+  endTrailingFields: number[];
+
+  /** Event-type histogram within the segment (diagnostic) */
+  eventCountsRaw?: Record<string, number>;
+
+  players: EnrichmentPlayerStats[];
+  encounters: EnrichmentEncounter[];
 }
 
 /**

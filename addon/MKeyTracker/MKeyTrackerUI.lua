@@ -29,9 +29,10 @@ local function LoadToastPosition(frame)
         frame:ClearAllPoints()
         frame:SetPoint(pos.point, UIParent, pos.relativePoint or "CENTER", pos.x, pos.y)
     else
-        -- Default: top-center, below minimap/default UI
+        -- Default: dead center of the screen — most reliable spot for clicks
+        -- to land over the Sync button regardless of other UI layouts.
         frame:ClearAllPoints()
-        frame:SetPoint("TOP", UIParent, "TOP", 0, -180)
+        frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
 end
 
@@ -80,7 +81,7 @@ local function CreateToastFrame()
     -- Title
     toast.title = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     toast.title:SetPoint("TOP", toast, "TOP", 0, -10)
-    toast.title:SetText("|cff33ff99✓ Run Captured|r")
+    toast.title:SetText("|cff33ff99Run Captured|r")
 
     -- Info line (dungeon + level + result)
     toast.info = toast:CreateFontString(nil, "OVERLAY", "GameFontHighlight")

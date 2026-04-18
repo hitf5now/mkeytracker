@@ -141,17 +141,17 @@ function startWatcherIfReady(): void {
 async function processTick(trigger: string): Promise<ResyncResult> {
   const cfg = loadConfig();
   if (!queue || !cfg.savedVariablesPath) {
-    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 0 };
+    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 0, enrichedComplete: 0, enrichedUnavailable: 0 };
   }
   if (!existsSync(cfg.savedVariablesPath)) {
     console.warn(`[main] ${trigger} tick but SavedVariables file missing`);
-    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 0 };
+    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 0, enrichedComplete: 0, enrichedUnavailable: 0 };
   }
   try {
     const result = await queue.processSavedVariables(cfg.savedVariablesPath);
     if (result.newRuns > 0 || result.errors.length > 0) {
       console.log(
-        `[main] ${trigger} tick: new=${result.newRuns} submitted=${result.submitted} dedup=${result.deduplicated} errors=${result.errors.length}`,
+        `[main] ${trigger} tick: new=${result.newRuns} submitted=${result.submitted} dedup=${result.deduplicated} enriched=${result.enrichedComplete}/${result.newRuns} errors=${result.errors.length}`,
       );
       lastSyncAt = new Date().toISOString();
       runsSyncedThisSession += result.submitted;
@@ -163,6 +163,8 @@ async function processTick(trigger: string): Promise<ResyncResult> {
       for (let i = 0; i < result.submitted; i++) recordEvent("run_submitted");
       for (let i = 0; i < result.deduplicated; i++) recordEvent("run_dedup_hit");
       for (let i = 0; i < result.errors.length; i++) recordEvent("run_error");
+      for (let i = 0; i < result.enrichedComplete; i++) recordEvent("run_enriched");
+      for (let i = 0; i < result.enrichedUnavailable; i++) recordEvent("run_enrich_unavailable");
     }
     return {
       newRuns: result.newRuns,
@@ -170,11 +172,13 @@ async function processTick(trigger: string): Promise<ResyncResult> {
       deduplicated: result.deduplicated,
       skipped: result.skipped,
       errors: result.errors.length,
+      enrichedComplete: result.enrichedComplete,
+      enrichedUnavailable: result.enrichedUnavailable,
     };
   } catch (err) {
     console.error("[main] tick error:", err);
     recordEvent("error", { where: "processTick" });
-    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 1 };
+    return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 1, enrichedComplete: 0, enrichedUnavailable: 0 };
   }
 }
 

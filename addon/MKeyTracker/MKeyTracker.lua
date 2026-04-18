@@ -31,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.4.0"
+ns.version = "0.4.3"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -49,6 +49,9 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHALLENGE_MODE_START")
 frame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+-- Encounter events: used to re-enable combat logging mid-key in case another
+-- addon (notably BigWigs) called LoggingCombat(false) on the previous boss kill.
+frame:RegisterEvent("ENCOUNTER_START")
 
 frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" then
@@ -64,13 +67,31 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
         end
     elseif event == "PLAYER_LOGIN" then
         ns.Utils.Debug("PLAYER_LOGIN fired")
+        if ns.Logging and ns.Logging.CheckAndWarn then
+            ns.Logging.CheckAndWarn(false)
+        end
     elseif event == "CHALLENGE_MODE_START" then
+        -- Re-warn if ACL is off — this key will produce impoverished log data.
+        if ns.Logging and ns.Logging.CheckAndWarn then
+            ns.Logging.CheckAndWarn(true)
+        end
+        -- Auto-enable combat logging so WoWCombatLog.txt captures this key.
+        -- Users don't need to remember /combatlog each session.
+        if ns.Logging and ns.Logging.EnsureLogging then
+            ns.Logging.EnsureLogging()
+        end
         -- Snapshot the party roster + start spec detection via inspect
         if ns.CombatLog and ns.CombatLog.Start then
             ns.CombatLog.Start()
         end
         if ns.Capture and ns.Capture.OnStart then
             ns.Capture.OnStart()
+        end
+    elseif event == "ENCOUNTER_START" then
+        -- Re-enable logging mid-key if another addon (BigWigs) turned it off
+        -- on the previous boss kill. No-op if already active.
+        if ns.Logging and ns.Logging.EnsureLogging then
+            ns.Logging.EnsureLogging()
         end
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         if ns.Capture and ns.Capture.OnCompleted then

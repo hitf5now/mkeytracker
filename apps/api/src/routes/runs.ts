@@ -35,6 +35,56 @@ const MemberPayloadSchema = z.object({
   role: z.enum(["tank", "healer", "dps"]),
 });
 
+// ─── Combat-log enrichment schemas (Sprint 15) ──────────────────────────────
+//
+// Optional additive payload produced by the companion after parsing
+// WoWCombatLog.txt. When present, the API creates RunEnrichment + children.
+// When absent, the run is still recorded normally.
+
+const EnrichmentPlayerStatsSchema = z.object({
+  playerGuid: z.string().min(1).max(64),
+  playerName: z.string().min(1).max(80),
+  specId: z.number().int().nullable(),
+  damageDone: z.number().nonnegative().default(0),
+  damageDoneSupport: z.number().nonnegative().default(0),
+  healingDone: z.number().nonnegative().default(0),
+  healingDoneSupport: z.number().nonnegative().default(0),
+  interrupts: z.number().int().nonnegative().default(0),
+  dispels: z.number().int().nonnegative().default(0),
+  deaths: z.number().int().nonnegative().default(0),
+  /** Full COMBATANT_INFO payload (gear/talents/auras). Opaque JSON. */
+  combatantInfoRaw: z.unknown().optional(),
+});
+
+const EnrichmentEncounterSchema = z.object({
+  encounterId: z.number().int(),
+  encounterName: z.string().min(1).max(120),
+  success: z.boolean(),
+  fightTimeMs: z.number().int().nonnegative(),
+  difficultyId: z.number().int(),
+  groupSize: z.number().int().nonnegative(),
+  /** Unix ms of ENCOUNTER_START */
+  startedAt: z.number().int(),
+  sequenceIndex: z.number().int().nonnegative(),
+});
+
+const RunEnrichmentSubmissionSchema = z.object({
+  status: z.enum(["complete", "partial", "unavailable"]),
+  statusReason: z.string().max(120).optional(),
+  parserVersion: z.string().min(1).max(40),
+  totalDamage: z.number().nonnegative().default(0),
+  totalDamageSupport: z.number().nonnegative().default(0),
+  totalHealing: z.number().nonnegative().default(0),
+  totalHealingSupport: z.number().nonnegative().default(0),
+  totalInterrupts: z.number().int().nonnegative().default(0),
+  totalDispels: z.number().int().nonnegative().default(0),
+  partyDeaths: z.number().int().nonnegative().default(0),
+  endTrailingFields: z.array(z.number()).default([]),
+  eventCountsRaw: z.record(z.string(), z.number()).optional(),
+  players: z.array(EnrichmentPlayerStatsSchema).default([]),
+  encounters: z.array(EnrichmentEncounterSchema).default([]),
+});
+
 const RunSubmissionSchema = z.object({
   challengeModeId: z.number().int(),
   keystoneLevel: z.number().int().min(2).max(40),
@@ -62,6 +112,8 @@ const RunSubmissionSchema = z.object({
   isEligibleForScore: z.boolean().optional(),
   // Season tracking (dynamic WoW season ID)
   wowSeasonId: z.number().int().optional().nullable(),
+  // Combat-log enrichment (Sprint 15) — optional, additive.
+  enrichment: RunEnrichmentSubmissionSchema.optional(),
 });
 
 type RunSubmissionBody = z.infer<typeof RunSubmissionSchema>;
@@ -75,6 +127,121 @@ type RunSubmissionBody = z.infer<typeof RunSubmissionSchema>;
  */
 function serializeRun<T extends { serverTime: bigint }>(run: T): Omit<T, "serverTime"> & { serverTime: string } {
   return { ...run, serverTime: run.serverTime.toString() };
+}
+
+/**
+ * Serialize a RunEnrichment record (with nested players + encounters) for JSON
+ * output. BigInt damage/healing totals are stringified so JSON.stringify works
+ * and to give the client full precision. Clients can parse back to Number
+ * (safe up to 2^53) or BigInt as needed.
+ */
+function serializeEnrichment(enrichment: {
+  id: number;
+  status: string;
+  statusReason: string | null;
+  parserVersion: string;
+  totalDamage: bigint;
+  totalDamageSupport: bigint;
+  totalHealing: bigint;
+  totalHealingSupport: bigint;
+  totalInterrupts: number;
+  totalDispels: number;
+  partyDeaths: number;
+  endTrailingFields: number[];
+  eventCountsRaw: unknown;
+  createdAt: Date;
+  players: Array<{
+    id: number;
+    playerGuid: string;
+    playerName: string;
+    specId: number | null;
+    characterId: number | null;
+    damageDone: bigint;
+    damageDoneSupport: bigint;
+    healingDone: bigint;
+    healingDoneSupport: bigint;
+    interrupts: number;
+    dispels: number;
+    deaths: number;
+    combatantInfoRaw: unknown;
+  }>;
+  encounters: Array<{
+    id: number;
+    encounterId: number;
+    encounterName: string;
+    success: boolean;
+    fightTimeMs: number;
+    difficultyId: number;
+    groupSize: number;
+    startedAt: Date;
+    sequenceIndex: number;
+  }>;
+}) {
+  return {
+    id: enrichment.id,
+    status: enrichment.status,
+    statusReason: enrichment.statusReason,
+    parserVersion: enrichment.parserVersion,
+    totalDamage: enrichment.totalDamage.toString(),
+    totalDamageSupport: enrichment.totalDamageSupport.toString(),
+    totalHealing: enrichment.totalHealing.toString(),
+    totalHealingSupport: enrichment.totalHealingSupport.toString(),
+    totalInterrupts: enrichment.totalInterrupts,
+    totalDispels: enrichment.totalDispels,
+    partyDeaths: enrichment.partyDeaths,
+    endTrailingFields: enrichment.endTrailingFields,
+    eventCountsRaw: enrichment.eventCountsRaw,
+    createdAt: enrichment.createdAt.toISOString(),
+    players: enrichment.players.map((p) => ({
+      id: p.id,
+      playerGuid: p.playerGuid,
+      playerName: p.playerName,
+      specId: p.specId,
+      characterId: p.characterId,
+      damageDone: p.damageDone.toString(),
+      damageDoneSupport: p.damageDoneSupport.toString(),
+      healingDone: p.healingDone.toString(),
+      healingDoneSupport: p.healingDoneSupport.toString(),
+      interrupts: p.interrupts,
+      dispels: p.dispels,
+      deaths: p.deaths,
+      combatantInfoRaw: p.combatantInfoRaw,
+    })),
+    encounters: enrichment.encounters.map((e) => ({
+      id: e.id,
+      encounterId: e.encounterId,
+      encounterName: e.encounterName,
+      success: e.success,
+      fightTimeMs: e.fightTimeMs,
+      difficultyId: e.difficultyId,
+      groupSize: e.groupSize,
+      startedAt: e.startedAt.toISOString(),
+      sequenceIndex: e.sequenceIndex,
+    })),
+  };
+}
+
+/**
+ * Parse a combat-log player name of the form "Name-Realm-Region" (or
+ * "Name-Multi-Word-Realm-Region") and try to map it to a resolved character
+ * id via the party-member characters we already looked up.
+ *
+ * Returns null when the shape is malformed or no match is found — unmatched
+ * enrichment-player rows are still persisted, just without a character_id.
+ */
+function matchLogPlayerToCharacter(
+  logPlayerName: string,
+  characterByKey: Map<string, number>,
+): number | null {
+  const parts = logPlayerName.split("-");
+  if (parts.length < 2) return null;
+  const name = parts[0]!.toLowerCase();
+  // Everything between first and last segment is the realm. Some realms
+  // (e.g. "Area-52", "Mal'Ganis") contain dashes, so we preserve that.
+  // If only 2 parts exist the log omitted the region; treat slice(1,-1) as realm.
+  const realmSegments = parts.length > 2 ? parts.slice(1, -1) : [parts[1]!];
+  const realm = realmSegments.join("-").toLowerCase();
+  return characterByKey.get(`${name}|${realm}`) ?? null;
 }
 
 /**
@@ -408,6 +575,78 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             },
             include: { members: true },
           });
+
+          // Persist enrichment if the companion attempted it. We record even
+          // "unavailable" attempts so the UI can show "core only — reason"
+          // without inference.
+          if (body.enrichment) {
+            const e = body.enrichment;
+            const characterByKey = new Map<string, number>();
+            for (let i = 0; i < characters.length; i++) {
+              const m = normalizedMembers[i]!;
+              characterByKey.set(`${m.name.toLowerCase()}|${m.realmSlug}`, characters[i]!.id);
+            }
+
+            await tx.runEnrichment.create({
+              data: {
+                runId: created.id,
+                status: e.status,
+                statusReason: e.statusReason ?? null,
+                parserVersion: e.parserVersion,
+                totalDamage: BigInt(Math.floor(e.totalDamage)),
+                totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+                totalHealing: BigInt(Math.floor(e.totalHealing)),
+                totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+                totalInterrupts: e.totalInterrupts,
+                totalDispels: e.totalDispels,
+                partyDeaths: e.partyDeaths,
+                endTrailingFields: e.endTrailingFields,
+                eventCountsRaw: (e.eventCountsRaw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+                players: {
+                  create: e.players.map((p) => ({
+                    playerGuid: p.playerGuid,
+                    playerName: p.playerName,
+                    specId: p.specId,
+                    characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
+                    damageDone: BigInt(Math.floor(p.damageDone)),
+                    damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+                    healingDone: BigInt(Math.floor(p.healingDone)),
+                    healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+                    interrupts: p.interrupts,
+                    dispels: p.dispels,
+                    deaths: p.deaths,
+                    combatantInfoRaw:
+                      p.combatantInfoRaw === undefined
+                        ? Prisma.JsonNull
+                        : (p.combatantInfoRaw as Prisma.InputJsonValue),
+                  })),
+                },
+                encounters: {
+                  create: e.encounters.map((enc) => ({
+                    encounterId: enc.encounterId,
+                    encounterName: enc.encounterName,
+                    success: enc.success,
+                    fightTimeMs: enc.fightTimeMs,
+                    difficultyId: enc.difficultyId,
+                    groupSize: enc.groupSize,
+                    startedAt: new Date(enc.startedAt),
+                    sequenceIndex: enc.sequenceIndex,
+                  })),
+                },
+              },
+            });
+
+            req.log.info(
+              {
+                runId: created.id,
+                enrichmentStatus: e.status,
+                players: e.players.length,
+                encounters: e.encounters.length,
+              },
+              "Run enrichment persisted",
+            );
+          }
+
           return created;
         });
 
@@ -529,4 +768,96 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         throw err;
       }
     });
+
+  // ─── GET /api/v1/runs/:id — fetch a run with its enrichment ──────────────
+  //
+  // Public read: no auth required. Returns the run plus dungeon/season meta,
+  // members (with character/class/spec/role), and enrichment (players +
+  // encounters) if present. Used by the web run-detail page.
+  app.get<{ Params: { id: string } }>("/runs/:id", async (req, reply) => {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return reply.code(400).send({ error: "invalid_run_id" });
+    }
+
+    const run = await prisma.run.findUnique({
+      where: { id },
+      include: {
+        dungeon: { select: { id: true, name: true, slug: true, shortCode: true, parTimeSec: true, challengeModeId: true } },
+        season: { select: { id: true, name: true, slug: true } },
+        members: {
+          include: {
+            character: {
+              select: {
+                id: true,
+                name: true,
+                realm: true,
+                region: true,
+                class: true,
+                thumbnailUrl: true,
+              },
+            },
+          },
+        },
+        enrichment: {
+          include: {
+            players: { orderBy: { damageDone: "desc" } },
+            encounters: { orderBy: { sequenceIndex: "asc" } },
+          },
+        },
+      },
+    });
+
+    if (!run) {
+      return reply.code(404).send({ error: "run_not_found" });
+    }
+
+    return reply.send({
+      run: {
+        id: run.id,
+        keystoneLevel: run.keystoneLevel,
+        completionMs: run.completionMs,
+        parMs: run.parMs,
+        onTime: run.onTime,
+        upgrades: run.upgrades,
+        deaths: run.deaths,
+        timeLostSec: run.timeLostSec,
+        affixes: run.affixes,
+        serverTime: run.serverTime.toString(),
+        recordedAt: run.recordedAt.toISOString(),
+        source: run.source,
+        verified: run.verified,
+        personalJuice: run.personalJuice,
+        eventJuice: run.eventJuice,
+        teamJuice: run.teamJuice,
+        dungeonName: run.dungeonName,
+        oldRating: run.oldRating,
+        newRating: run.newRating,
+        ratingGained: run.ratingGained,
+        isMapRecord: run.isMapRecord,
+        isAffixRecord: run.isAffixRecord,
+        dungeon: run.dungeon,
+        season: run.season,
+        members: run.members.map((m) => ({
+          id: m.id,
+          characterId: m.characterId,
+          userId: m.userId,
+          classSnapshot: m.classSnapshot,
+          specSnapshot: m.specSnapshot,
+          roleSnapshot: m.roleSnapshot,
+          character: m.character
+            ? {
+                id: m.character.id,
+                name: m.character.name,
+                realm: m.character.realm,
+                region: m.character.region,
+                class: m.character.class,
+                thumbnailUrl: m.character.thumbnailUrl,
+              }
+            : null,
+        })),
+        enrichment: run.enrichment ? serializeEnrichment(run.enrichment) : null,
+      },
+    });
+  });
 }

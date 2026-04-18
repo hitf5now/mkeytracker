@@ -16,6 +16,7 @@
  */
 
 import { CompanionApiClient, CompanionApiError } from "./api-client.js";
+import { enrichRun } from "./combat-log.js";
 import { addPostedHash, loadConfig } from "./config.js";
 import { computeClientRunHash } from "./run-hash.js";
 import { parseSavedVariablesFile, removeSubmittedRuns, type ParsedRun } from "./sv-parser.js";
@@ -25,6 +26,10 @@ export interface QueueResult {
   submitted: number;
   deduplicated: number;
   skipped: number;
+  /** How many submissions included successful combat-log enrichment */
+  enrichedComplete: number;
+  /** How many attempted enrichment but fell back to core-only */
+  enrichedUnavailable: number;
   errors: QueueError[];
 }
 
@@ -58,6 +63,8 @@ export class RunQueue {
       submitted: 0,
       deduplicated: 0,
       skipped: 0,
+      enrichedComplete: 0,
+      enrichedUnavailable: 0,
       errors: [],
     };
 
@@ -81,8 +88,23 @@ export class RunQueue {
         continue;
       }
       result.newRuns++;
+
+      // Attempt combat-log enrichment. Always tries — falls back silently to
+      // a core-only submission if the log isn't available or doesn't match.
+      // See core/combat-log.ts for the policy.
+      const attempt = await enrichRun(run, cfg, this.log);
+      if (attempt.enrichment.status === "complete") {
+        result.enrichedComplete++;
+      } else {
+        result.enrichedUnavailable++;
+        this.log.log(
+          `[queue] enrichment unavailable for ${hash.slice(0, 12)}: ${attempt.enrichment.statusReason}` +
+            (attempt.displayReason ? ` (${attempt.displayReason})` : ""),
+        );
+      }
+
       try {
-        const submitted = await this.submitRun(run, hash);
+        const submitted = await this.submitRun(run, hash, attempt.enrichment);
         if (submitted === "deduplicated") {
           result.deduplicated++;
         } else {
@@ -139,8 +161,12 @@ export class RunQueue {
     return result;
   }
 
-  private async submitRun(run: ParsedRun, hash: string): Promise<"new" | "deduplicated"> {
-    const response = await this.apiClient.submitRun(run);
+  private async submitRun(
+    run: ParsedRun,
+    hash: string,
+    enrichment?: import("@mplus/types").RunEnrichmentSubmission,
+  ): Promise<"new" | "deduplicated"> {
+    const response = await this.apiClient.submitRun(run, enrichment);
     if (response.deduplicated) {
       this.log.log(
         `[queue] dedup hit for ${hash.slice(0, 12)} (server run id ${response.run.id}, ${response.run.juice} Juice)`,
