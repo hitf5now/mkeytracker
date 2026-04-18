@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
 import type { CharacterProfile } from "@/types/api";
@@ -123,28 +124,40 @@ export default async function PlayerProfilePage({ params }: Props) {
                 {stats.bestRunPerDungeon.map((run) => (
                   <tr
                     key={run.dungeonSlug}
-                    className="border-b border-border/50"
+                    className="border-b border-border/50 transition-colors hover:bg-muted/30"
                   >
                     <td className="px-4 py-3 font-medium">
-                      <span title={run.dungeonName}>
-                        {run.dungeonShortCode}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">+{run.level}</td>
-                    <td className="px-4 py-3 font-mono">
-                      {formatDuration(run.completionMs)}
+                      <Link href={`/runs/${run.id}`} className="block w-full hover:underline">
+                        <span title={run.dungeonName}>
+                          {run.dungeonShortCode}
+                        </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={
-                          run.onTime ? "text-green-400" : "text-red-400"
-                        }
-                      >
-                        {formatUpgrades(run.upgrades, run.onTime)}
-                      </span>
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        +{run.level}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono">
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        {formatDuration(run.completionMs)}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        <span
+                          className={
+                            run.onTime ? "text-green-400" : "text-red-400"
+                          }
+                        >
+                          {formatUpgrades(run.upgrades, run.onTime)}
+                        </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
-                      {formatNumber(run.juice)}
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        {formatNumber(run.juice)}
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -174,29 +187,43 @@ export default async function PlayerProfilePage({ params }: Props) {
                 {stats.recentRuns.map((run) => (
                   <tr
                     key={run.id}
-                    className="border-b border-border/50"
+                    className="border-b border-border/50 transition-colors hover:bg-muted/30"
                   >
                     <td className="px-4 py-3 font-medium">
-                      {run.dungeonName}
+                      <Link href={`/runs/${run.id}`} className="block w-full hover:underline">
+                        {run.dungeonName}
+                      </Link>
                     </td>
-                    <td className="px-4 py-3">+{run.level}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className={
-                          run.onTime ? "text-green-400" : "text-red-400"
-                        }
-                      >
-                        {formatUpgrades(run.upgrades, run.onTime)}
-                      </span>
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        +{run.level}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        <span
+                          className={
+                            run.onTime ? "text-green-400" : "text-red-400"
+                          }
+                        >
+                          {formatUpgrades(run.upgrades, run.onTime)}
+                        </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {run.deaths}
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        {run.deaths}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 font-semibold">
-                      {formatNumber(run.juice)}
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        {formatNumber(run.juice)}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
-                      {formatDate(run.recordedAt)}
+                      <Link href={`/runs/${run.id}`} className="block w-full">
+                        {formatDate(run.recordedAt)}
+                      </Link>
                     </td>
                   </tr>
                 ))}

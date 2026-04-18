@@ -31,6 +31,7 @@ export interface LeaderboardResult {
 // ─── Character Profile ────────────��─────────────────────────────────
 
 export interface ProfileBestRun {
+  id: number;
   dungeonSlug: string;
   dungeonName: string;
   dungeonShortCode: string;

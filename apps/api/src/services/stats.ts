@@ -32,6 +32,7 @@ export interface CharacterPublic {
 }
 
 export interface ProfileBestRun {
+  id: number;
   dungeonSlug: string;
   dungeonName: string;
   dungeonShortCode: string;
@@ -174,6 +175,7 @@ export async function getCharacterProfile(
     bestPerDungeonMap.values(),
   )
     .map((rm) => ({
+      id: rm.run.id,
       dungeonSlug: rm.run.dungeon.slug,
       dungeonName: rm.run.dungeon.name,
       dungeonShortCode: rm.run.dungeon.shortCode,

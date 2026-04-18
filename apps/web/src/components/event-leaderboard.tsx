@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EventResults, EventGroupStanding, EventRunDetail } from "@/types/api";
 import { ClassBadge } from "@/components/class-badge";
 import { formatDuration, formatNumber, formatUpgrades } from "@/lib/format";
@@ -151,35 +152,47 @@ function RunsTable({ runs }: { runs: EventRunDetail[] }) {
             {runs.map((r) => (
               <tr
                 key={r.runId}
-                className={`border-t border-border/30 ${r.counted ? "" : "text-muted-foreground/70"}`}
+                className={`border-t border-border/30 transition-colors hover:bg-muted/30 ${r.counted ? "" : "text-muted-foreground/70"}`}
               >
                 <td className="px-2 py-1.5">
-                  {r.dungeonShortCode ?? r.dungeonName ?? `#${r.dungeonId}`}
-                  {!r.counted && (
-                    <span
-                      className="ml-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60"
-                      title="Not counted toward this group's leaderboard score"
-                    >
-                      (not counted)
-                    </span>
-                  )}
+                  <Link href={`/runs/${r.runId}`} className="block w-full hover:underline">
+                    {r.dungeonShortCode ?? r.dungeonName ?? `#${r.dungeonId}`}
+                    {!r.counted && (
+                      <span
+                        className="ml-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60"
+                        title="Not counted toward this group's leaderboard score"
+                      >
+                        (not counted)
+                      </span>
+                    )}
+                  </Link>
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums">
-                  +{r.keystoneLevel}
+                  <Link href={`/runs/${r.runId}`} className="block w-full">
+                    +{r.keystoneLevel}
+                  </Link>
                 </td>
                 <td
                   className={`px-2 py-1.5 text-right font-medium ${r.onTime ? "text-green-400" : "text-red-400"}`}
                 >
-                  {formatUpgrades(r.upgrades, r.onTime)}
+                  <Link href={`/runs/${r.runId}`} className="block w-full">
+                    {formatUpgrades(r.upgrades, r.onTime)}
+                  </Link>
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums">
-                  {formatDuration(r.completionMs)}
+                  <Link href={`/runs/${r.runId}`} className="block w-full">
+                    {formatDuration(r.completionMs)}
+                  </Link>
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums">
-                  {r.deaths}
+                  <Link href={`/runs/${r.runId}`} className="block w-full">
+                    {r.deaths}
+                  </Link>
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-gold">
-                  {formatNumber(r.runScore)}
+                  <Link href={`/runs/${r.runId}`} className="block w-full">
+                    {formatNumber(r.runScore)}
+                  </Link>
                 </td>
               </tr>
             ))}
