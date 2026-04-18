@@ -476,6 +476,19 @@ export interface RunDetailEnrichment {
   encounters: RunDetailEnrichmentEncounter[];
 }
 
+export interface RunJuiceBreakdown {
+  base: number;
+  timeModifier: number;
+  afterModifier: number;
+  bonuses: {
+    noDeaths: number;
+    personalDungeonRecord: number;
+    personalOverallRecord: number;
+    eventParticipation: number;
+  };
+  total: number;
+}
+
 export interface RunDetail {
   id: number;
   keystoneLevel: number;
@@ -493,6 +506,7 @@ export interface RunDetail {
   personalJuice: number;
   eventJuice: number | null;
   teamJuice: number | null;
+  juiceBreakdown: RunJuiceBreakdown;
   dungeonName: string | null;
   oldRating: number | null;
   newRating: number | null;

@@ -841,6 +841,18 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: "run_not_found" });
     }
 
+    // Recompute the Juice breakdown so the UI can show "base + bonuses".
+    // Pure function — no DB hit, formula stays in one place.
+    const juiceBreakdown = scoreRun({
+      keystoneLevel: run.keystoneLevel,
+      upgrades: run.upgrades as 0 | 1 | 2 | 3,
+      onTime: run.onTime,
+      deaths: run.deaths,
+      isPersonalDungeonRecord: false,
+      isPersonalOverallRecord: false,
+      isEventParticipation: run.eventJuice !== null && run.eventJuice > 0,
+    });
+
     return reply.send({
       run: {
         id: run.id,
@@ -859,6 +871,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         personalJuice: run.personalJuice,
         eventJuice: run.eventJuice,
         teamJuice: run.teamJuice,
+        juiceBreakdown,
         dungeonName: run.dungeonName,
         oldRating: run.oldRating,
         newRating: run.newRating,

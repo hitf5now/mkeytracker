@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -31,6 +32,7 @@ interface Props {
   bosses: TimelineBossMarker[];
 }
 
+
 function formatMmSs(totalSec: number): string {
   const m = Math.floor(totalSec / 60);
   const s = Math.round(totalSec % 60);
@@ -52,6 +54,17 @@ export function DamageTimelineChart({
   const bucketSec = bucketSizeMs / 1000;
   const numBuckets = Math.max(...players.map((p) => p.buckets.length), 1);
 
+  // Hidden lines are suppressed via `hide` on the <Line>. Click a legend
+  // entry to toggle visibility — users can isolate their own line quickly.
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+  const toggle = (name: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
   // Pivot into recharts row format: one row per bucket, keyed by player name.
   const data = Array.from({ length: numBuckets }, (_, i) => {
     const row: Record<string, number> = { timeSec: i * bucketSec };
@@ -64,9 +77,10 @@ export function DamageTimelineChart({
   });
 
   return (
-    <div className="h-80 w-full">
+    <div className="h-96 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 10, right: 16, bottom: 8, left: 0 }}>
+        {/* Top margin leaves room for boss-name labels above the plot area */}
+        <LineChart data={data} margin={{ top: 36, right: 16, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="#2a2d34" strokeDasharray="3 3" />
           <XAxis
             dataKey="timeSec"
@@ -99,7 +113,33 @@ export function DamageTimelineChart({
               String(name),
             ]}
           />
-          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+          <Legend
+            wrapperStyle={{ fontSize: 12, paddingTop: 8, cursor: "pointer" }}
+            onClick={(entry) => {
+              const raw =
+                typeof entry.dataKey === "string"
+                  ? entry.dataKey
+                  : typeof entry.dataKey === "number"
+                    ? String(entry.dataKey)
+                    : typeof entry.value === "string"
+                      ? entry.value
+                      : undefined;
+              if (raw) toggle(raw);
+            }}
+            formatter={(value) => {
+              const name = String(value);
+              return (
+                <span
+                  style={{
+                    color: hidden.has(name) ? "#555" : "#e5e5e5",
+                    textDecoration: hidden.has(name) ? "line-through" : "none",
+                  }}
+                >
+                  {name}
+                </span>
+              );
+            }}
+          />
           {bosses.map((b) => (
             <ReferenceLine
               key={`${b.name}-${b.offsetSec}`}
@@ -124,6 +164,7 @@ export function DamageTimelineChart({
               dot={false}
               activeDot={{ r: 4 }}
               isAnimationActive={false}
+              hide={hidden.has(p.shortName)}
             />
           ))}
         </LineChart>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { RunDetail, RunDetailEnrichmentPlayer } from "@/types/api";
+import type { RunDetail, RunDetailEnrichmentPlayer, RunJuiceBreakdown } from "@/types/api";
 import { formatDuration, formatNumber, formatDateTime, formatUpgrades } from "@/lib/format";
 import { getClassColor, getClassName } from "@/lib/class-colors";
 import { getSpecById } from "@mplus/wow-constants";
@@ -67,8 +67,8 @@ export default async function RunDetailPage({ params }: Props) {
           <span>Deaths: {run.deaths}</span>
           <span>Juice: <span className="font-semibold">{formatNumber(run.personalJuice)}</span></span>
           {run.ratingGained != null && run.ratingGained !== 0 && (
-            <span>
-              Rating:{" "}
+            <span title="Mythic+ rating change for the submitting player only">
+              Your Rating:{" "}
               <span className={run.ratingGained > 0 ? "text-green-400" : "text-red-400"}>
                 {run.ratingGained > 0 ? "+" : ""}
                 {run.ratingGained}
@@ -105,6 +105,10 @@ export default async function RunDetailPage({ params }: Props) {
                 <div className="mt-1 text-xs capitalize text-muted-foreground">
                   {m.roleSnapshot}
                 </div>
+                <JuiceBreakdown
+                  breakdown={run.juiceBreakdown}
+                  personalJuice={run.personalJuice}
+                />
               </div>
             );
           })}
@@ -115,14 +119,14 @@ export default async function RunDetailPage({ params }: Props) {
       {run.enrichment && run.enrichment.status === "complete" ? (
         <>
           <EnrichmentOverview enrichment={run.enrichment} />
-          <TimelineSection
-            enrichment={run.enrichment}
-            runDurationMs={run.completionMs}
-          />
           <PlayersTable
             players={run.enrichment.players}
             runDurationMs={run.completionMs}
             bucketSizeMs={run.enrichment.bucketSizeMs}
+          />
+          <TimelineSection
+            enrichment={run.enrichment}
+            runDurationMs={run.completionMs}
           />
           <EncountersTable encounters={run.enrichment.encounters} />
         </>
@@ -157,10 +161,7 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
 
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold">Combat Stats</h2>
-      <p className="text-xs text-muted-foreground">
-        Enriched from your local WoWCombatLog.txt · parser v{enrichment.parserVersion}
-      </p>
+      <h2 className="text-lg font-semibold">Total Combat Stats</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {stats.map((s) => (
           <div key={s.label} className="rounded border border-border bg-card p-3">
@@ -170,6 +171,69 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
         ))}
       </div>
     </section>
+  );
+}
+
+function JuiceBreakdown({
+  breakdown,
+  personalJuice,
+}: {
+  breakdown: RunJuiceBreakdown;
+  personalJuice: number;
+}) {
+  const { base, timeModifier, afterModifier, bonuses } = breakdown;
+  const modifierLabel = timeModifier === 1
+    ? "Timed"
+    : timeModifier < 1
+      ? "Depleted (×0.5)"
+      : `Timed (×${timeModifier})`;
+
+  const entries: Array<{ label: string; delta: string; positive?: boolean }> = [
+    { label: `Base (+${base})`, delta: `${base}` },
+    {
+      label: modifierLabel,
+      delta: afterModifier !== base ? `${afterModifier - base >= 0 ? "+" : ""}${afterModifier - base}` : "—",
+      positive: timeModifier > 1,
+    },
+  ];
+  if (bonuses.noDeaths > 0) {
+    entries.push({ label: "No deaths", delta: `+${bonuses.noDeaths}`, positive: true });
+  }
+  if (bonuses.eventParticipation > 0) {
+    entries.push({ label: "Event", delta: `+${bonuses.eventParticipation}`, positive: true });
+  }
+  if (bonuses.personalDungeonRecord > 0) {
+    entries.push({ label: "Dungeon PR", delta: `+${bonuses.personalDungeonRecord}`, positive: true });
+  }
+  if (bonuses.personalOverallRecord > 0) {
+    entries.push({ label: "Overall PR", delta: `+${bonuses.personalOverallRecord}`, positive: true });
+  }
+
+  return (
+    <div className="mt-2 border-t border-border/60 pt-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Juice
+        </span>
+        <span className="font-mono text-sm font-semibold text-gold">
+          {formatNumber(personalJuice)}
+        </span>
+      </div>
+      <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+        {entries.map((e) => (
+          <li key={e.label} className="flex items-center justify-between gap-2">
+            <span className="truncate">• {e.label}</span>
+            <span
+              className={`font-mono ${
+                e.positive ? "text-green-400" : e.delta.startsWith("-") ? "text-red-400" : ""
+              }`}
+            >
+              {e.delta}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -275,7 +339,7 @@ function PlayersTable({
               <th className="px-3 py-2 font-medium">Player</th>
               <th className="px-3 py-2 font-medium">Spec</th>
               <th className="px-3 py-2 text-right font-medium">Damage</th>
-              <th className="px-3 py-2 text-right font-medium">DPS</th>
+              <th className="px-3 py-2 text-right font-medium">Average DPS</th>
               {showPeakColumn && (
                 <th
                   className="px-3 py-2 text-right font-medium"
@@ -285,7 +349,7 @@ function PlayersTable({
                 </th>
               )}
               <th className="px-3 py-2 text-right font-medium">Healing</th>
-              <th className="px-3 py-2 text-right font-medium">HPS</th>
+              <th className="px-3 py-2 text-right font-medium">Average HPS</th>
               <th className="px-3 py-2 text-right font-medium">Intr</th>
               <th className="px-3 py-2 text-right font-medium">Disp</th>
               <th className="px-3 py-2 text-right font-medium">Deaths</th>
@@ -330,10 +394,9 @@ function PlayersTable({
                     {formatNumber(damage)}
                   </td>
                   <td
-                    className={leader(
-                      isTopDamage,
-                      "px-3 py-2 text-right font-mono text-muted-foreground",
-                    )}
+                    className={`px-3 py-2 text-right font-mono ${
+                      isTopDamage ? "font-bold text-gold" : "text-muted-foreground"
+                    }`}
                   >
                     {formatNumber(Math.round(damage / durationSec))}
                   </td>
@@ -346,10 +409,9 @@ function PlayersTable({
                     {formatNumber(healing)}
                   </td>
                   <td
-                    className={leader(
-                      isTopHealing,
-                      "px-3 py-2 text-right font-mono text-muted-foreground",
-                    )}
+                    className={`px-3 py-2 text-right font-mono ${
+                      isTopHealing ? "font-bold text-gold" : "text-muted-foreground"
+                    }`}
                   >
                     {formatNumber(Math.round(healing / durationSec))}
                   </td>
@@ -411,18 +473,18 @@ function EncountersTable({
 function EnrichmentMissing({ reason, hasAttempt }: { reason: string; hasAttempt: boolean }) {
   const friendly =
     {
-      log_not_found: "No WoWCombatLog.txt found when the run was submitted.",
+      log_not_found: "Advanced Combat Logging wasn't active when this run was submitted.",
       log_path_unresolvable: "The companion app didn't have a WoW install path configured.",
-      parse_failed: "The combat log parser couldn't process the log file.",
-      no_matching_segment: "The combat log had no CHALLENGE_MODE segment for this run.",
-      segment_mismatch: "The combat log's segment didn't match this run's dungeon or time.",
+      parse_failed: "Couldn't process the combat data for this run.",
+      no_matching_segment: "No matching segment found for this run.",
+      segment_mismatch: "The captured segment didn't match this run's dungeon or time.",
       acl_disabled: "Advanced Combat Logging was disabled in-game during this run.",
-      no_attempt: "This run was submitted before combat-log enrichment was available.",
-    }[reason] ?? `Enrichment unavailable: ${reason}`;
+      no_attempt: "Detailed stats were not captured for this run.",
+    }[reason] ?? "Detailed stats are not available for this run.";
 
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold">Combat Stats</h2>
+      <h2 className="text-lg font-semibold">Total Combat Stats</h2>
       <div className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4">
         <p className="text-sm">Detailed combat stats are not available for this run.</p>
         <p className="mt-1 text-xs text-muted-foreground">{friendly}</p>
