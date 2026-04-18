@@ -31,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.4.0"
+ns.version = "0.4.1"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -64,7 +64,14 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
         end
     elseif event == "PLAYER_LOGIN" then
         ns.Utils.Debug("PLAYER_LOGIN fired")
+        if ns.Logging and ns.Logging.CheckAndWarn then
+            ns.Logging.CheckAndWarn(false)
+        end
     elseif event == "CHALLENGE_MODE_START" then
+        -- Re-warn if ACL is off — this key will produce impoverished log data.
+        if ns.Logging and ns.Logging.CheckAndWarn then
+            ns.Logging.CheckAndWarn(true)
+        end
         -- Snapshot the party roster + start spec detection via inspect
         if ns.CombatLog and ns.CombatLog.Start then
             ns.CombatLog.Start()
