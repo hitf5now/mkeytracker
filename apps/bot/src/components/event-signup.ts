@@ -250,17 +250,21 @@ async function verifyGuildScope(eventId: number, guildId: string | null): Promis
   return null;
 }
 
-async function handleSignupButton(interaction: ButtonInteraction, client: Client): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+async function handleSignupButton(interaction: ButtonInteraction, _client: Client): Promise<void> {
   const eventId = parseEventId(interaction.customId);
+
+  // IMPORTANT: do NOT deferReply yet. If the user has no linked characters
+  // we need to fall through to showManualModal(), and showModal() must be
+  // the FIRST response to an interaction — it can't follow a deferReply.
+  // Run the cheap pre-checks first and only defer once we know we're
+  // committing to an editReply / reply path.
 
   const scopeError = await verifyGuildScope(eventId, interaction.guildId);
   if (scopeError) {
-    await interaction.editReply(`❌ ${scopeError}`);
+    await interaction.reply({ content: `❌ ${scopeError}`, ephemeral: true });
     return;
   }
 
-  // Check if user already has a signup
   const check = await apiClient.signupCheck(eventId, interaction.user.id);
 
   if (check.hasSignup && check.signup) {
@@ -288,63 +292,111 @@ async function handleSignupButton(interaction: ButtonInteraction, client: Client
         .setStyle(ButtonStyle.Danger),
     );
 
-    await interaction.editReply({
+    await interaction.reply({
       content: `You're already signed up as **${specLabel}** (${s.rolePreference.toUpperCase()}) with **${s.characterName}**${statusLabel}. What would you like to do?`,
       components: [row],
+      ephemeral: true,
     });
     return;
   }
 
-  // No existing signup — start the normal flow
-  await startSignupFlow(interaction, eventId);
+  // No existing signup — peek at character list to decide reply-vs-modal.
+  const { characters } = await apiClient.getUserCharacters(interaction.user.id);
+
+  if (characters.length === 0) {
+    // No linked characters → manual entry modal. Must be the first response.
+    await showManualModal(interaction, eventId);
+    return;
+  }
+
+  // Has characters — show the picker via reply (no defer needed).
+  const options = characters.map((c: UserCharacter) => ({
+    label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
+    description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
+    value: c.id.toString(),
+  }));
+  options.push({ label: "Enter manually...", description: "Type character name and realm", value: "manual" });
+
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`event-char:${eventId}`)
+      .setPlaceholder("Select your character")
+      .addOptions(options),
+  );
+
+  await interaction.reply({
+    content: "Which character are you signing up with?",
+    components: [row],
+    ephemeral: true,
+  });
 }
 
+/**
+ * Render the character picker. Caller MUST have already deferred the
+ * interaction (deferReply or deferUpdate) — we use editReply here.
+ *
+ * Note: this function intentionally does NOT fall through to showManualModal
+ * for the zero-character case. showModal can't be called after a defer, so
+ * the no-characters path must be handled by entry-point callers (which
+ * choose reply-vs-modal before deferring).
+ */
 async function startSignupFlow(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   eventId: number,
 ): Promise<void> {
   const { characters } = await apiClient.getUserCharacters(interaction.user.id);
 
-  if (characters.length > 0) {
-    const options = characters.map((c: UserCharacter) => ({
-      label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
-      description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
-      value: c.id.toString(),
-    }));
-    options.push({ label: "Enter manually...", description: "Type character name and realm", value: "manual" });
-
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(`event-char:${eventId}`)
-        .setPlaceholder("Select your character")
-        .addOptions(options),
-    );
-
-    await interaction.editReply({ content: "Which character are you signing up with?", components: [row] });
-  } else {
-    await showManualModal(interaction, eventId);
-  }
-}
-
-async function handleTentativeButton(interaction: ButtonInteraction, client: Client): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
-  const eventId = parseEventId(interaction.customId);
-
-  const scopeError = await verifyGuildScope(eventId, interaction.guildId);
-  if (scopeError) {
-    await interaction.editReply(`❌ ${scopeError}`);
+  if (characters.length === 0) {
+    // Should be unreachable from current callers, but defend against it
+    // rather than crashing with InteractionAlreadyReplied.
+    await interaction.editReply({
+      content:
+        "❌ No linked characters found on your account. Click **Sign Up** on the event embed to enter character details manually.",
+      components: [],
+    });
     return;
   }
 
-  // Check if already signed up
+  const options = characters.map((c: UserCharacter) => ({
+    label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
+    description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
+    value: c.id.toString(),
+  }));
+  options.push({ label: "Enter manually...", description: "Type character name and realm", value: "manual" });
+
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`event-char:${eventId}`)
+      .setPlaceholder("Select your character")
+      .addOptions(options),
+  );
+
+  await interaction.editReply({ content: "Which character are you signing up with?", components: [row] });
+}
+
+async function handleTentativeButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+  const eventId = parseEventId(interaction.customId);
+
+  // Same constraint as handleSignupButton: no defer until we know we won't
+  // need to showModal (which must be the first response).
+  const scopeError = await verifyGuildScope(eventId, interaction.guildId);
+  if (scopeError) {
+    await interaction.reply({ content: `❌ ${scopeError}`, ephemeral: true });
+    return;
+  }
+
   const check = await apiClient.signupCheck(eventId, interaction.user.id);
 
   if (check.hasSignup && check.signup) {
     if (check.signup.signupStatus === "tentative") {
-      await interaction.editReply("You're already marked as tentative. Click **Sign Up** to switch to confirmed or edit your signup.");
+      await interaction.reply({
+        content: "You're already marked as tentative. Click **Sign Up** to switch to confirmed or edit your signup.",
+        ephemeral: true,
+      });
       return;
     }
-    // Switch from confirmed to tentative
+    // Switch from confirmed to tentative — safe to defer here, no modal path.
+    await interaction.deferReply({ ephemeral: true });
     try {
       await apiClient.eventSignup({
         eventId,
@@ -363,9 +415,33 @@ async function handleTentativeButton(interaction: ButtonInteraction, client: Cli
     return;
   }
 
-  // No existing signup — start signup flow as tentative
-  // For now, start the normal flow (user picks character/spec, status set to tentative)
-  await startSignupFlow(interaction, eventId);
+  // No existing signup — peek at character list to decide reply-vs-modal.
+  const { characters } = await apiClient.getUserCharacters(interaction.user.id);
+
+  if (characters.length === 0) {
+    await showManualModal(interaction, eventId);
+    return;
+  }
+
+  const options = characters.map((c: UserCharacter) => ({
+    label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
+    description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
+    value: c.id.toString(),
+  }));
+  options.push({ label: "Enter manually...", description: "Type character name and realm", value: "manual" });
+
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`event-char:${eventId}`)
+      .setPlaceholder("Select your character")
+      .addOptions(options),
+  );
+
+  await interaction.reply({
+    content: "Which character are you signing up with?",
+    components: [row],
+    ephemeral: true,
+  });
 }
 
 async function handleEditButton(interaction: ButtonInteraction, client: Client): Promise<void> {
