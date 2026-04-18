@@ -360,8 +360,27 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       const auth = await resolveAuth(req, reply);
       if (auth === null) return; // response already sent
 
+      // TEMP DEBUG: log whether an enrichment key was present in the raw
+      // request body BEFORE zod touches it. Helps distinguish "companion
+      // didn't send enrichment" from "API silently stripped it".
+      const rawBody = req.body as Record<string, unknown> | null;
+      const enrichmentPresent =
+        rawBody !== null &&
+        typeof rawBody === "object" &&
+        "enrichment" in rawBody &&
+        rawBody.enrichment !== undefined;
+      const enrichmentKeys =
+        enrichmentPresent && typeof rawBody!.enrichment === "object"
+          ? Object.keys(rawBody!.enrichment as Record<string, unknown>)
+          : [];
+      req.log.info(
+        { enrichmentPresent, enrichmentKeys },
+        "/runs body inspection",
+      );
+
       const parsed = RunSubmissionSchema.safeParse(req.body);
       if (!parsed.success) {
+        req.log.warn({ issues: parsed.error.issues }, "/runs validation failed");
         return reply.code(400).send({
           error: "invalid_body",
           issues: parsed.error.issues,
