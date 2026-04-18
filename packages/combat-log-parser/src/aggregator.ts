@@ -28,6 +28,8 @@ export class RunAggregator {
     startedAt: Date;
     encounterId: number;
     encounterName: string;
+    difficultyId: number;
+    groupSize: number;
   } | null = null;
   private eventCounts: Record<string, number> = {};
 
@@ -63,6 +65,8 @@ export class RunAggregator {
           startedAt: event.timestamp,
           encounterId: event.encounterId,
           encounterName: event.encounterName,
+          difficultyId: event.difficultyId,
+          groupSize: event.groupSize,
         };
         return;
 
@@ -74,6 +78,8 @@ export class RunAggregator {
             success: event.success,
             fightTimeMs: event.fightTimeMs,
             startedAt: this.activeEncounter.startedAt,
+            difficultyId: this.activeEncounter.difficultyId,
+            groupSize: this.activeEncounter.groupSize,
           });
           this.activeEncounter = null;
         }

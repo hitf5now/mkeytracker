@@ -146,6 +146,9 @@ export interface EncounterSummary {
   success: boolean;
   fightTimeMs: number;
   startedAt: Date;
+  /** M+ = 8; other content differs. Preserved for diagnostics. */
+  difficultyId: number;
+  groupSize: number;
 }
 
 export interface RunSummary {

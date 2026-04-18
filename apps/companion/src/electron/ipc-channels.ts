@@ -88,6 +88,10 @@ export interface ResyncResult {
   deduplicated: number;
   skipped: number;
   errors: number;
+  /** How many submissions included successful combat-log enrichment */
+  enrichedComplete: number;
+  /** How many attempted enrichment but fell back to core-only */
+  enrichedUnavailable: number;
 }
 
 export interface UpdateStateSnapshot {

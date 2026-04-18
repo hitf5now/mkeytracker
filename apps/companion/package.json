@@ -74,6 +74,7 @@
     ]
   },
   "dependencies": {
+    "@mplus/combat-log-parser": "*",
     "@mplus/types": "*",
     "@mplus/wow-constants": "*",
     "chokidar": "^4.0.1",

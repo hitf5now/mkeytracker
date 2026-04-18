@@ -122,7 +122,7 @@ async function processAndLog(queue: RunQueue, path: string): Promise<void> {
     const result = await queue.processSavedVariables(path);
     if (result.newRuns === 0 && result.errors.length === 0) return;
     console.log(
-      `   tick: new=${result.newRuns} submitted=${result.submitted} dedup=${result.deduplicated} skipped=${result.skipped} errors=${result.errors.length}`,
+      `   tick: new=${result.newRuns} submitted=${result.submitted} dedup=${result.deduplicated} enriched=${result.enrichedComplete}/${result.newRuns} skipped=${result.skipped} errors=${result.errors.length}`,
     );
   } catch (err) {
     console.error("   tick error:", err instanceof Error ? err.message : String(err));

@@ -44,6 +44,8 @@ export type TelemetryEventName =
     | "run_submitted"
     | "run_dedup_hit"
     | "run_error"
+    | "run_enriched"
+    | "run_enrich_unavailable"
     | "watcher_started"
     | "watcher_error"
     | "error";

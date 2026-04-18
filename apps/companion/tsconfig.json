@@ -6,7 +6,9 @@
     "baseUrl": ".",
     "paths": {
       "@mplus/types": ["../../packages/types/src/index.ts"],
-      "@mplus/types/*": ["../../packages/types/src/*"]
+      "@mplus/types/*": ["../../packages/types/src/*"],
+      "@mplus/combat-log-parser": ["../../packages/combat-log-parser/src/index.ts"],
+      "@mplus/combat-log-parser/*": ["../../packages/combat-log-parser/src/*"]
     }
   },
   "include": ["src/**/*.ts"]
