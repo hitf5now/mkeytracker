@@ -16,7 +16,7 @@
  *     run.serverTime. A mismatch is a non-fatal "unavailable" result.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { summarizeLogFile, type RunSummary } from "@mplus/combat-log-parser";
 import type {
@@ -49,12 +49,47 @@ export interface EnrichmentAttemptResult {
 }
 
 /**
- * Derive `<wowInstallPath>/_retail_/Logs/WoWCombatLog.txt`. Returns null when
- * wowInstallPath isn't configured (e.g. user hasn't finished the wizard).
+ * Derive `<wowInstallPath>/_retail_/Logs`. Returns null when wowInstallPath
+ * isn't configured (e.g. user hasn't finished the wizard).
  */
-export function resolveCombatLogPath(config: CompanionConfig): string | null {
+export function resolveCombatLogsDir(config: CompanionConfig): string | null {
   if (!config.wowInstallPath) return null;
-  return join(config.wowInstallPath, "_retail_", "Logs", "WoWCombatLog.txt");
+  return join(config.wowInstallPath, "_retail_", "Logs");
+}
+
+/**
+ * Find the combat-log file to read. WoW historically writes `WoWCombatLog.txt`
+ * but with most current clients / auto-combatlog addons, it rolls timestamped
+ * files like `WoWCombatLog-041826_141359.txt`. We accept either: prefer the
+ * most recently modified `WoWCombatLog*.txt` in the Logs dir.
+ *
+ * The segment-match window in enrichRun (SEGMENT_MATCH_WINDOW_MS) will reject
+ * a stale newest-file that doesn't match the current run, so picking the
+ * newest file is safe even when older logs linger.
+ */
+export function findLatestCombatLogFile(logsDir: string): string | null {
+  if (!existsSync(logsDir)) return null;
+  let entries: string[];
+  try {
+    entries = readdirSync(logsDir);
+  } catch {
+    return null;
+  }
+  let best: { path: string; mtimeMs: number } | null = null;
+  for (const name of entries) {
+    if (!/^WoWCombatLog.*\.txt$/i.test(name)) continue;
+    const p = join(logsDir, name);
+    try {
+      const st = statSync(p);
+      if (!st.isFile()) continue;
+      if (best === null || st.mtimeMs > best.mtimeMs) {
+        best = { path: p, mtimeMs: st.mtimeMs };
+      }
+    } catch {
+      // Skip unreadable entries — e.g. locked or missing.
+    }
+  }
+  return best?.path ?? null;
 }
 
 export async function enrichRun(
@@ -62,19 +97,21 @@ export async function enrichRun(
   config: CompanionConfig,
   log: { warn: (...a: unknown[]) => void; log: (...a: unknown[]) => void } = console,
 ): Promise<EnrichmentAttemptResult> {
-  const logPath = resolveCombatLogPath(config);
-  if (!logPath) {
+  const logsDir = resolveCombatLogsDir(config);
+  if (!logsDir) {
     return unavailable(
       "log_path_unresolvable",
       "WoW install path not configured — finish the setup wizard",
     );
   }
-  if (!existsSync(logPath)) {
+  const logPath = findLatestCombatLogFile(logsDir);
+  if (!logPath) {
     return unavailable(
       "log_not_found",
-      `WoWCombatLog.txt not found at ${logPath} — ensure /combatlog is active in-game`,
+      `No WoWCombatLog*.txt found in ${logsDir} — ensure /combatlog is active in-game`,
     );
   }
+  log.log(`[combat-log] using ${logPath}`);
 
   let summary: RunSummary | null;
   try {
