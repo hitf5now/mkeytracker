@@ -22,8 +22,10 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/bot/package.json apps/bot/
 COPY apps/companion/package.json apps/companion/
+COPY apps/web/package.json apps/web/
 COPY packages/types/package.json packages/types/
 COPY packages/wow-constants/package.json packages/wow-constants/
+COPY packages/combat-log-parser/package.json packages/combat-log-parser/
 
 # Skip heavy platform-specific downloads we don't need in the API image.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
