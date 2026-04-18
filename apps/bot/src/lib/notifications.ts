@@ -30,6 +30,9 @@ const TYPE_SUMMARIES: Record<string, string> = {
 
 const CHANNEL = "mplus:bot-notifications";
 
+/** Public base URL for the website — used to deep-link run detail pages. */
+const WEB_BASE = "https://mythicplustracker.com";
+
 interface GroupMember {
   characterName: string;
   realm: string;
@@ -531,8 +534,10 @@ async function handleRunCompleted(client: Client, notification: BotNotification)
       return `${icon} **${m.name}** — ${m.class.replace(/-/g, " ")}`;
     });
 
+    const runUrl = `${WEB_BASE}/runs/${runId}`;
     const embed = new EmbedBuilder()
       .setTitle(`${dungeonName} +${keystoneLevel}`)
+      .setURL(runUrl)
       .setColor(onTime ? TIMED_COLOR : DEPLETED_COLOR)
       .setDescription(`${resultLabel} — ${timeDiff}`)
       .addFields(
@@ -540,6 +545,7 @@ async function handleRunCompleted(client: Client, notification: BotNotification)
         { name: "Time", value: formatRunDuration(completionMs ?? 0), inline: true },
         { name: "Deaths", value: String(deaths ?? 0), inline: true },
         { name: "Juice", value: (juice ?? 0).toLocaleString(), inline: true },
+        { name: "Full stats", value: `[View on the website](${runUrl})`, inline: false },
       )
       .setFooter({ text: "M+ Challenge Platform" })
       .setTimestamp();
