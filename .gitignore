@@ -54,3 +54,8 @@ playwright-report/
 *.png
 *.jpg
 *.bmp
+
+# WoW combat logs — local samples only, never commit (large + contain player data)
+Wow Combat Log/
+samples/combatlog/*.txt
+WoWCombatLog*.txt
