@@ -24,16 +24,16 @@ datasource db {
 // ─────────────────────────────────────────────────────────────
 
 model Season {
-  id        Int      @id @default(autoincrement())
+  id       Int       @id @default(autoincrement())
   /// Short slug, e.g. "midnight-s1"
-  slug      String   @unique
+  slug     String    @unique
   /// Display name, e.g. "Midnight Season 1"
-  name      String
+  name     String
   /// WoW patch this season corresponds to, e.g. "12.0.0"
-  patch     String
-  startsAt  DateTime @map("starts_at")
-  endsAt    DateTime? @map("ends_at")
-  isActive  Boolean  @default(false) @map("is_active")
+  patch    String
+  startsAt DateTime  @map("starts_at")
+  endsAt   DateTime? @map("ends_at")
+  isActive Boolean   @default(false) @map("is_active")
 
   dungeons Dungeon[]
   runs     Run[]
@@ -73,25 +73,25 @@ model Dungeon {
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id            Int     @id @default(autoincrement())
+  id             Int            @id @default(autoincrement())
   /// Discord user snowflake — primary identity anchor
-  discordId     String  @unique @map("discord_id")
+  discordId      String         @unique @map("discord_id")
   /// Opt-in BattleTag for cross-realm group formation
-  battleTag     String? @map("battle_tag")
+  battleTag      String?        @map("battle_tag")
   /// IANA timezone, e.g. "America/New_York"
-  timezone      String?
+  timezone       String?
   /// Mentor program opt-in
-  isMentor      Boolean @default(false) @map("is_mentor")
-  mentorJuice   Int     @default(0) @map("mentor_juice")
+  isMentor       Boolean        @default(false) @map("is_mentor")
+  mentorJuice    Int            @default(0) @map("mentor_juice")
   /// Where the bot should post this user's run-completed embeds.
   /// See RunResultsMode docs.
   runResultsMode RunResultsMode @default(all_my_servers) @map("run_results_mode")
 
-  characters      Character[]
-  runMembers      RunMember[]
-  eventSignups    EventSignup[]
-  eventsCreated   Event[]       @relation("eventsCreated")
-  teamsCaptained  Team[]        @relation("teamsCaptained")
+  characters        Character[]
+  runMembers        RunMember[]
+  eventSignups      EventSignup[]
+  eventsCreated     Event[]               @relation("eventsCreated")
+  teamsCaptained    Team[]                @relation("teamsCaptained")
   serverAdminships  DiscordServerAdmin[]
   serverMemberships DiscordServerMember[]
 
@@ -102,36 +102,36 @@ model User {
 }
 
 model Character {
-  id       Int    @id @default(autoincrement())
-  name     String
+  id           Int     @id @default(autoincrement())
+  name         String
   /// Realm slug, lowercase-hyphenated, e.g. "area-52"
-  realm    String
+  realm        String
   /// us, eu, kr, tw, cn
-  region   String
+  region       String
   /// WoW class slug, e.g. "shaman". This is permanent for the character —
   /// a shaman is always a shaman. Join with packages/wow-constants to
   /// resolve display name, color, and valid specs/roles.
-  class    String
+  class        String
   /// DEFAULT spec. The character's last-known active spec from RaiderIO
   /// or manual refresh. This is just a hint — NOT a constraint. Players
   /// pick their actual role per event at signup time, and the addon
   /// records what was actually played into run_members.spec_snapshot.
-  spec     String
+  spec         String
   /// DEFAULT role, matching the default spec. Same caveat as `spec`.
-  role     String
+  role         String
   /// Latest RaiderIO overall score — refreshed on submission + nightly
-  rioScore Int    @default(0) @map("rio_score")
+  rioScore     Int     @default(0) @map("rio_score")
   /// Character portrait URLs (cached from RaiderIO + Blizzard API)
-  thumbnailUrl String? @map("thumbnail_url")       // 96x96 avatar (from RaiderIO)
-  avatarUrl    String? @map("avatar_url")           // 96x96 from Blizzard CDN
-  insetUrl     String? @map("inset_url")            // ~460x460 bust render from Blizzard CDN
-  mainRawUrl   String? @map("main_raw_url")         // ~1000x1000 full body transparent PNG
+  thumbnailUrl String? @map("thumbnail_url") // 96x96 avatar (from RaiderIO)
+  avatarUrl    String? @map("avatar_url") // 96x96 from Blizzard CDN
+  insetUrl     String? @map("inset_url") // ~460x460 bust render from Blizzard CDN
+  mainRawUrl   String? @map("main_raw_url") // ~1000x1000 full body transparent PNG
 
   /// Nullable: an "unclaimed" character exists in our DB because someone
   /// else ran a key with them. When the actual player registers via the
   /// Discord bot, /register will claim the row by setting userId.
-  userId Int?  @map("user_id")
-  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int?      @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Timestamp when this character was claimed by a registered user.
   /// NULL until /register links it.
   claimedAt DateTime? @map("claimed_at")
@@ -141,9 +141,10 @@ model Character {
   /// a subtle tag in embeds/web (⚡ icon).
   hasCompanionApp Boolean @default(false) @map("has_companion_app")
 
-  runMembers   RunMember[]
-  eventSignups EventSignup[]
-  teamMembers  TeamMember[]
+  runMembers           RunMember[]
+  eventSignups         EventSignup[]
+  teamMembers          TeamMember[]
+  runEnrichmentPlayers RunEnrichmentPlayer[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -175,60 +176,64 @@ enum RunResultsMode {
 }
 
 model Run {
-  id              Int       @id @default(autoincrement())
-  dungeonId       Int       @map("dungeon_id")
-  seasonId        Int       @map("season_id")
-  keystoneLevel   Int       @map("keystone_level")
-  completionMs    Int       @map("completion_ms")
-  parMs           Int       @map("par_ms")
-  onTime          Boolean   @map("on_time")
+  id            Int         @id @default(autoincrement())
+  dungeonId     Int         @map("dungeon_id")
+  seasonId      Int         @map("season_id")
+  keystoneLevel Int         @map("keystone_level")
+  completionMs  Int         @map("completion_ms")
+  parMs         Int         @map("par_ms")
+  onTime        Boolean     @map("on_time")
   /// Keystone upgrade level: 0 (depleted/no upgrade), 1 (+1), 2 (+2), 3 (+3)
-  upgrades        Int       @default(0)
-  deaths          Int       @default(0)
-  timeLostSec     Int       @default(0) @map("time_lost_sec")
+  upgrades      Int         @default(0)
+  deaths        Int         @default(0)
+  timeLostSec   Int         @default(0) @map("time_lost_sec")
   /// Active affix ids from C_MythicPlus.GetCurrentAffixes()
-  affixes         Int[]     @default([])
+  affixes       Int[]       @default([])
   /// Unix seconds at run completion, from the WoW server
-  serverTime      BigInt    @map("server_time")
+  serverTime    BigInt      @map("server_time")
   /// When the API received the run
-  recordedAt      DateTime  @default(now()) @map("recorded_at")
-  source          RunSource @default(addon)
+  recordedAt    DateTime    @default(now()) @map("recorded_at")
+  source        RunSource   @default(addon)
   /// True after RaiderIO cross-verification job confirms this run
-  verified        Boolean   @default(false)
+  verified      Boolean     @default(false)
   /// Dedup hash — see services/run-dedup.ts
-  dedupHash       String    @unique @map("dedup_hash")
+  dedupHash     String      @unique @map("dedup_hash")
   /// Personal Juice — computed by scoring service on insert
-  personalJuice   Int       @default(0) @map("personal_juice")
+  personalJuice Int         @default(0) @map("personal_juice")
   /// Event Juice — only set when run is linked to an event
-  eventJuice      Int?      @map("event_juice")
+  eventJuice    Int?        @map("event_juice")
   /// Team Juice — set when all 5 party members share a team
-  teamJuice       Int?      @map("team_juice")
+  teamJuice     Int?        @map("team_juice")
   /// Dynamic dungeon name from addon (used for auto-discovery)
-  dungeonName     String?   @map("dungeon_name")
+  dungeonName   String?     @map("dungeon_name")
   /// WoW season ID (dynamic, from C_MythicPlus.GetCurrentSeason)
-  wowSeasonId     Int?      @map("wow_season_id")
+  wowSeasonId   Int?        @map("wow_season_id")
   /// Submitter's M+ rating before this run
-  oldRating       Int?      @map("old_rating")
+  oldRating     Int?        @map("old_rating")
   /// Submitter's M+ rating after this run
-  newRating       Int?      @map("new_rating")
+  newRating     Int?        @map("new_rating")
   /// Rating gained from this run
-  ratingGained    Int?      @map("rating_gained")
+  ratingGained  Int?        @map("rating_gained")
   /// Personal best flags
-  isMapRecord     Boolean   @default(false) @map("is_map_record")
-  isAffixRecord   Boolean   @default(false) @map("is_affix_record")
+  isMapRecord   Boolean     @default(false) @map("is_map_record")
+  isAffixRecord Boolean     @default(false) @map("is_affix_record")
   /// Per-player combat stats (JSON: { "Name-realm": { damage, healing, deaths, interrupts, ... } })
-  playerStats     Json?     @map("player_stats")
+  playerStats   Json?       @map("player_stats")
   /// Optional event association
-  eventId         Int?       @map("event_id")
-  event           Event?     @relation(fields: [eventId], references: [id])
-  groupId         Int?       @map("group_id")
-  eventGroup      EventGroup? @relation(fields: [groupId], references: [id])
+  eventId       Int?        @map("event_id")
+  event         Event?      @relation(fields: [eventId], references: [id])
+  groupId       Int?        @map("group_id")
+  eventGroup    EventGroup? @relation(fields: [groupId], references: [id])
 
-  dungeon       Dungeon          @relation(fields: [dungeonId], references: [id])
-  season        Season           @relation(fields: [seasonId], references: [id])
-  members       RunMember[]
-  runEvents     RunEvent[]
-  discordPosts  RunDiscordPost[]
+  dungeon      Dungeon          @relation(fields: [dungeonId], references: [id])
+  season       Season           @relation(fields: [seasonId], references: [id])
+  members      RunMember[]
+  runEvents    RunEvent[]
+  discordPosts RunDiscordPost[]
+  /// Combat-log enrichment from the companion app's WoWCombatLog.txt parser.
+  /// Optional: populated when the companion is running, ACL is enabled, and a
+  /// matching log segment was found. Runs are still valid without it.
+  enrichment   RunEnrichment?
 
   @@index([seasonId, dungeonId, completionMs])
   @@index([seasonId, keystoneLevel])
@@ -259,97 +264,97 @@ model RunDiscordPost {
 // ─────────────────────────────────────────────────────────────
 
 enum EventStatus {
-  draft          // created but not yet visible to players
-  open           // accepting signups
+  draft // created but not yet visible to players
+  open // accepting signups
   signups_closed // signups locked, groups being formed
-  in_progress    // event window is active, runs count
-  completed      // event finished, results final
-  cancelled      // scrapped before completion
+  in_progress // event window is active, runs count
+  completed // event finished, results final
+  cancelled // scrapped before completion
 }
 
 enum EventType {
-  fastest_clear_race   // All groups, same dungeon, fastest timed clear wins
-  speed_sprint         // 30-min window, single attempt per group
-  random_draft         // Bot assembles random role-balanced groups
-  key_climbing         // Push highest key possible, peak level wins
-  marathon             // Most runs in time window, accumulated score wins
-  best_average         // Best average score across top N runs
-  bracket_tournament   // Single-elimination bracket, head-to-head matchups
+  fastest_clear_race // All groups, same dungeon, fastest timed clear wins
+  speed_sprint // 30-min window, single attempt per group
+  random_draft // Bot assembles random role-balanced groups
+  key_climbing // Push highest key possible, peak level wins
+  marathon // Most runs in time window, accumulated score wins
+  best_average // Best average score across top N runs
+  bracket_tournament // Single-elimination bracket, head-to-head matchups
 }
 
 enum EventMode {
-  group   // Individual signup + auto-matchmaking into groups
-  team    // Pre-made team signup (no matchmaking)
+  group // Individual signup + auto-matchmaking into groups
+  team // Pre-made team signup (no matchmaking)
 }
 
 /// How the signup was created
 enum SignupSource {
-  discord_verified   // user has a linked Character, clicked button
-  discord_manual     // user entered character info via modal
-  web_oauth          // signed up through website
+  discord_verified // user has a linked Character, clicked button
+  discord_manual // user entered character info via modal
+  web_oauth // signed up through website
 }
 
 /// Signup intent status
 enum SignupStatus {
-  confirmed   // definitely attending
-  tentative   // interested but unsure
-  declined    // not attending (tracked for analytics)
+  confirmed // definitely attending
+  tentative // interested but unsure
+  declined // not attending (tracked for analytics)
 }
 
 model Event {
-  id              Int         @id @default(autoincrement())
-  name            String
-  type            EventType   @default(fastest_clear_race)
-  mode            EventMode   @default(group)
-  status          EventStatus @default(draft)
+  id         Int         @id @default(autoincrement())
+  name       String
+  type       EventType   @default(fastest_clear_race)
+  mode       EventMode   @default(group)
+  status     EventStatus @default(draft)
   /// Type-specific config (e.g., runsToCount for best_average)
-  typeConfig      Json?       @map("type_config")
+  typeConfig Json?       @map("type_config")
 
   /// Discord message ID of the event embed (for in-place updates)
-  discordMessageId String?    @map("discord_message_id")
+  discordMessageId String? @map("discord_message_id")
   /// Discord channel ID where the embed was posted
-  discordChannelId String?    @map("discord_channel_id")
+  discordChannelId String? @map("discord_channel_id")
 
   /// Which dungeon this event targets (null = any dungeon)
-  dungeonId       Int?        @map("dungeon_id")
-  dungeon         Dungeon?    @relation(fields: [dungeonId], references: [id])
+  dungeonId Int?     @map("dungeon_id")
+  dungeon   Dungeon? @relation(fields: [dungeonId], references: [id])
 
-  seasonId        Int         @map("season_id")
-  season          Season      @relation(fields: [seasonId], references: [id])
+  seasonId Int    @map("season_id")
+  season   Season @relation(fields: [seasonId], references: [id])
 
   /// Discord server this event belongs to
-  serverId        Int?        @map("server_id")
-  server          DiscordServer? @relation(fields: [serverId], references: [id])
+  serverId       Int?           @map("server_id")
+  server         DiscordServer? @relation(fields: [serverId], references: [id])
   /// Legacy: Discord guild snowflake (kept for backcompat during migration)
-  discordGuildId  String?     @map("discord_guild_id")
+  discordGuildId String?        @map("discord_guild_id")
 
   /// Key level constraints for the event
-  minKeyLevel     Int         @default(2) @map("min_key_level")
-  maxKeyLevel     Int         @default(40) @map("max_key_level")
+  minKeyLevel Int @default(2) @map("min_key_level")
+  maxKeyLevel Int @default(40) @map("max_key_level")
 
   /// Signup window
-  signupOpensAt   DateTime?   @map("signup_opens_at")
-  signupClosesAt  DateTime?   @map("signup_closes_at")
+  signupOpensAt  DateTime? @map("signup_opens_at")
+  signupClosesAt DateTime? @map("signup_closes_at")
 
   /// Event run window
-  startsAt        DateTime    @map("starts_at")
-  endsAt          DateTime    @map("ends_at")
+  startsAt DateTime @map("starts_at")
+  endsAt   DateTime @map("ends_at")
 
   /// Who created this event
-  createdByUserId Int         @map("created_by_user_id")
-  createdByUser   User        @relation("eventsCreated", fields: [createdByUserId], references: [id])
+  createdByUserId Int  @map("created_by_user_id")
+  createdByUser   User @relation("eventsCreated", fields: [createdByUserId], references: [id])
 
   /// Optional description / rules text
-  description     String?
+  description String?
 
-  signups         EventSignup[]
-  groups          EventGroup[]
-  teamSignups     TeamEventSignup[]
-  runs            Run[]
-  runEvents       RunEvent[]    @relation("eventRuns")
+  signups     EventSignup[]
+  groups      EventGroup[]
+  teamSignups TeamEventSignup[]
+  runs        Run[]
+  runEvents   RunEvent[]        @relation("eventRuns")
 
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([seasonId])
@@ -359,41 +364,41 @@ model Event {
 }
 
 model EventSignup {
-  id              Int       @id @default(autoincrement())
-  eventId         Int       @map("event_id")
-  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id      Int   @id @default(autoincrement())
+  eventId Int   @map("event_id")
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   /// Nullable: unverified manual signups may not have a User row.
-  userId          Int?      @map("user_id")
-  user            User?     @relation(fields: [userId], references: [id])
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id])
 
   /// Discord user snowflake of whoever clicked the button / submitted.
   /// Primary identity key for signups — used for dedup since userId can be null.
-  discordUserId   String?   @map("discord_user_id")
+  discordUserId String? @map("discord_user_id")
 
-  characterId     Int       @map("character_id")
-  character       Character @relation(fields: [characterId], references: [id])
+  characterId Int       @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id])
 
   /// The role this player wants to fill for this event. Validated
   /// against packages/wow-constants at signup time — a mage can't
   /// sign up as tank.
-  rolePreference  String    @map("role_preference") // "tank" | "healer" | "dps"
+  rolePreference String @map("role_preference") // "tank" | "healer" | "dps"
 
   /// The spec the player chose for this event. Always user-selected,
   /// never auto-set. Role is derived from spec.
-  spec            String?
+  spec String?
 
   /// How this signup was created
-  signupSource    SignupSource @default(discord_verified) @map("signup_source")
+  signupSource SignupSource @default(discord_verified) @map("signup_source")
 
   /// Signup intent: confirmed, tentative, or declined
-  signupStatus    SignupStatus @default(confirmed) @map("signup_status")
+  signupStatus SignupStatus @default(confirmed) @map("signup_status")
 
   /// Which group was this player assigned to? Null until assign-groups runs.
-  groupId         Int?      @map("group_id")
-  group           EventGroup? @relation(fields: [groupId], references: [id])
+  groupId Int?        @map("group_id")
+  group   EventGroup? @relation(fields: [groupId], references: [id])
 
-  signedUpAt      DateTime  @default(now()) @map("signed_up_at")
+  signedUpAt DateTime @default(now()) @map("signed_up_at")
 
   @@unique([eventId, discordUserId])
   @@index([eventId])
@@ -401,21 +406,21 @@ model EventSignup {
 }
 
 model EventGroup {
-  id          Int       @id @default(autoincrement())
-  eventId     Int       @map("event_id")
-  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id      Int   @id @default(autoincrement())
+  eventId Int   @map("event_id")
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   /// Display name, e.g. "Group Alpha", "Group 1", auto-generated
-  name        String
+  name String
 
   /// Status: "assigned" | "ready" | "completed"
-  status      String    @default("assigned")
+  status String @default("assigned")
 
-  members     EventSignup[]
-  runs        Run[]
-  runEvents   RunEvent[]
+  members   EventSignup[]
+  runs      Run[]
+  runEvents RunEvent[]
 
-  assignedAt  DateTime  @default(now()) @map("assigned_at")
+  assignedAt DateTime @default(now()) @map("assigned_at")
 
   @@index([eventId])
   @@map("event_groups")
@@ -427,15 +432,15 @@ model EventGroup {
 // ─────────────────────────────────────────────────────────────
 
 model RunEvent {
-  id          Int         @id @default(autoincrement())
-  runId       Int         @map("run_id")
-  run         Run         @relation(fields: [runId], references: [id], onDelete: Cascade)
-  eventId     Int         @map("event_id")
-  event       Event       @relation("eventRuns", fields: [eventId], references: [id], onDelete: Cascade)
-  groupId     Int?        @map("group_id")
-  group       EventGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  eventJuice  Int         @default(0) @map("event_juice")
-  matchedAt   DateTime    @default(now()) @map("matched_at")
+  id         Int         @id @default(autoincrement())
+  runId      Int         @map("run_id")
+  run        Run         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  eventId    Int         @map("event_id")
+  event      Event       @relation("eventRuns", fields: [eventId], references: [id], onDelete: Cascade)
+  groupId    Int?        @map("group_id")
+  group      EventGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  eventJuice Int         @default(0) @map("event_juice")
+  matchedAt  DateTime    @default(now()) @map("matched_at")
 
   @@unique([runId, eventId])
   @@index([eventId])
@@ -448,20 +453,20 @@ model RunEvent {
 // ─────────────────────────────────────────────────────────────
 
 model Team {
-  id            Int          @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   name          String
   /// User who created the team — only they can inactivate it
-  captainUserId Int          @map("captain_user_id")
-  captain       User         @relation("teamsCaptained", fields: [captainUserId], references: [id])
-  seasonId      Int          @map("season_id")
-  season        Season       @relation(fields: [seasonId], references: [id])
+  captainUserId Int     @map("captain_user_id")
+  captain       User    @relation("teamsCaptained", fields: [captainUserId], references: [id])
+  seasonId      Int     @map("season_id")
+  season        Season  @relation(fields: [seasonId], references: [id])
   /// Soft-delete: inactive teams don't appear in signup lists
-  active        Boolean      @default(true)
+  active        Boolean @default(true)
 
-  members       TeamMember[]
-  eventSignups  TeamEventSignup[]
+  members      TeamMember[]
+  eventSignups TeamEventSignup[]
 
-  createdAt     DateTime     @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   /// Team names are unique per season
   @@unique([seasonId, name])
@@ -479,7 +484,7 @@ model TeamMember {
   /// Role this member fills on the team: "tank" | "healer" | "dps"
   role        String
 
-  joinedAt    DateTime  @default(now()) @map("joined_at")
+  joinedAt DateTime @default(now()) @map("joined_at")
 
   @@unique([teamId, characterId])
   @@index([characterId])
@@ -487,13 +492,13 @@ model TeamMember {
 }
 
 model TeamEventSignup {
-  id        Int      @id @default(autoincrement())
-  eventId   Int      @map("event_id")
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  teamId    Int      @map("team_id")
-  team      Team     @relation(fields: [teamId], references: [id])
+  id      Int    @id @default(autoincrement())
+  eventId Int    @map("event_id")
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamId  Int    @map("team_id")
+  team    Team   @relation(fields: [teamId], references: [id])
   /// Status: "registered" | "withdrawn" | "no_show" | "completed"
-  status    String   @default("registered")
+  status  String @default("registered")
 
   signedUpAt DateTime @default(now()) @map("signed_up_at")
 
@@ -507,52 +512,52 @@ model TeamEventSignup {
 // ─────────────────────────────────────────────────────────────
 
 model DiscordServer {
-  id                    Int      @id @default(autoincrement())
-  discordGuildId        String   @unique @map("discord_guild_id")
-  guildName             String?  @map("guild_name")
-  guildIconUrl          String?  @map("guild_icon_url")
-  installedByDiscordId  String?  @map("installed_by_discord_id")
-  botActive             Boolean  @default(true) @map("bot_active")
+  id                   Int     @id @default(autoincrement())
+  discordGuildId       String  @unique @map("discord_guild_id")
+  guildName            String? @map("guild_name")
+  guildIconUrl         String? @map("guild_icon_url")
+  installedByDiscordId String? @map("installed_by_discord_id")
+  botActive            Boolean @default(true) @map("bot_active")
 
-  eventsChannelId       String?  @map("events_channel_id")
-  resultsChannelId      String?  @map("results_channel_id")
+  eventsChannelId        String? @map("events_channel_id")
+  resultsChannelId       String? @map("results_channel_id")
   announcementsChannelId String? @map("announcements_channel_id")
-  resultsWebhookUrl     String?  @map("results_webhook_url")
+  resultsWebhookUrl      String? @map("results_webhook_url")
 
-  allowPublicEvents     Boolean  @default(true) @map("allow_public_events")
-  timezone              String?
+  allowPublicEvents Boolean @default(true) @map("allow_public_events")
+  timezone          String?
 
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  admins   DiscordServerAdmin[]
-  members  DiscordServerMember[]
-  events   Event[]
+  admins  DiscordServerAdmin[]
+  members DiscordServerMember[]
+  events  Event[]
 
   @@map("discord_servers")
 }
 
 model DiscordServerAdmin {
-  id         Int      @id @default(autoincrement())
-  serverId   Int      @map("server_id")
+  id         Int           @id @default(autoincrement())
+  serverId   Int           @map("server_id")
   server     DiscordServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  userId     Int      @map("user_id")
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       String   @default("admin")
-  verifiedAt DateTime @default(now()) @map("verified_at")
+  userId     Int           @map("user_id")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String        @default("admin")
+  verifiedAt DateTime      @default(now()) @map("verified_at")
 
   @@unique([serverId, userId])
   @@map("discord_server_admins")
 }
 
 model DiscordServerMember {
-  id        Int      @id @default(autoincrement())
-  serverId  Int      @map("server_id")
+  id        Int           @id @default(autoincrement())
+  serverId  Int           @map("server_id")
   server    DiscordServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isPrimary Boolean  @default(false) @map("is_primary")
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  userId    Int           @map("user_id")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPrimary Boolean       @default(false) @map("is_primary")
+  joinedAt  DateTime      @default(now()) @map("joined_at")
 
   @@unique([serverId, userId])
   @@index([userId, isPrimary])
@@ -586,23 +591,23 @@ model EventFeedback {
 // ─────────────────────────────────────────────────────────────
 
 model TelemetryEvent {
-  id          BigInt   @id @default(autoincrement())
+  id         BigInt   @id @default(autoincrement())
   /// Anonymous install UUID from the companion's config. Persists
   /// across app restarts on one machine but reveals nothing about
   /// the player. Not a FK — the companion generates it locally.
-  installId   String   @map("install_id")
+  installId  String   @map("install_id")
   /// Event name enum from the companion's telemetry.ts module.
-  name        String
+  name       String
   /// Companion app version that sent the event, e.g. "0.1.0".
-  appVersion  String   @map("app_version")
+  appVersion String   @map("app_version")
   /// OS + release string, e.g. "win32 10.0.26200".
-  platform    String
+  platform   String
   /// Free-form JSON bag, caller's responsibility to keep PII-free.
-  meta        Json?
+  meta       Json?
   /// Timestamp from the companion (may lag when sent in a batch).
-  occurredAt  DateTime @map("occurred_at")
+  occurredAt DateTime @map("occurred_at")
   /// Timestamp the API persisted the row.
-  receivedAt  DateTime @default(now()) @map("received_at")
+  receivedAt DateTime @default(now()) @map("received_at")
 
   @@index([installId, occurredAt])
   @@index([name, occurredAt])
@@ -631,4 +636,115 @@ model RunMember {
   @@index([userId])
   @@index([characterId])
   @@map("run_members")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Combat-log enrichment (Sprint 15)
+//
+// Populated by the companion app after parsing WoWCombatLog.txt.
+// A Run without enrichment is still a valid run — enrichment is additive.
+// Designed to collect broadly (even raw COMBATANT_INFO blobs) so Phase E
+// event-type work isn't gated on a re-migration.
+// ─────────────────────────────────────────────────────────────
+
+enum EnrichmentStatus {
+  complete
+  partial
+  unavailable
+}
+
+model RunEnrichment {
+  id    Int @id @default(autoincrement())
+  runId Int @unique @map("run_id")
+  run   Run @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  status        EnrichmentStatus
+  /// When status != complete, short machine-readable reason string
+  /// ("log_not_found", "no_matching_segment", "parse_failed", "acl_disabled")
+  statusReason  String?          @map("status_reason")
+  /// Version of @mplus/combat-log-parser that produced this record
+  parserVersion String           @map("parser_version")
+
+  /// Aggregate totals across the M+ segment
+  totalDamage         BigInt @default(0) @map("total_damage")
+  totalDamageSupport  BigInt @default(0) @map("total_damage_support")
+  totalHealing        BigInt @default(0) @map("total_healing")
+  totalHealingSupport BigInt @default(0) @map("total_healing_support")
+  totalInterrupts     Int    @default(0) @map("total_interrupts")
+  totalDispels        Int    @default(0) @map("total_dispels")
+  partyDeaths         Int    @default(0) @map("party_deaths")
+
+  /// Raw trailing fields from CHALLENGE_MODE_END — currently undecoded
+  /// (suspected to contain rating-before/after or timer percentile data).
+  /// Captured verbatim so we can decode later without a re-migration.
+  endTrailingFields Float[] @default([]) @map("end_trailing_fields")
+
+  /// Event-type histogram for the M+ segment, for diagnostics
+  eventCountsRaw Json? @map("event_counts_raw")
+
+  players    RunEnrichmentPlayer[]
+  encounters RunEnrichmentEncounter[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("run_enrichments")
+}
+
+model RunEnrichmentPlayer {
+  id           Int           @id @default(autoincrement())
+  enrichmentId Int           @map("enrichment_id")
+  enrichment   RunEnrichment @relation(fields: [enrichmentId], references: [id], onDelete: Cascade)
+
+  /// WoW GUID from log, e.g. "Player-1175-0F92E4A5"
+  playerGuid  String     @map("player_guid")
+  /// Combined "Name-Realm-US" as it appeared in the log
+  playerName  String     @map("player_name")
+  /// Auto-detected from COMBATANT_INFO; null if we couldn't match a valid ID
+  specId      Int?       @map("spec_id")
+  /// Best-effort link to platform character (by name+realm). Null if unmatched.
+  characterId Int?       @map("character_id")
+  character   Character? @relation(fields: [characterId], references: [id])
+
+  damageDone         BigInt @default(0) @map("damage_done")
+  damageDoneSupport  BigInt @default(0) @map("damage_done_support")
+  healingDone        BigInt @default(0) @map("healing_done")
+  healingDoneSupport BigInt @default(0) @map("healing_done_support")
+  interrupts         Int    @default(0)
+  dispels            Int    @default(0)
+  deaths             Int    @default(0)
+
+  /// Full COMBATANT_INFO payload — gear, talents, stats, interesting auras.
+  /// Stored raw so Phase D/E work can decode additional fields without a
+  /// schema migration. Roughly a few KB per player per run.
+  combatantInfoRaw Json? @map("combatant_info_raw")
+
+  @@index([enrichmentId])
+  @@index([characterId])
+  @@index([specId])
+  @@map("run_enrichment_players")
+}
+
+model RunEnrichmentEncounter {
+  id           Int           @id @default(autoincrement())
+  enrichmentId Int           @map("enrichment_id")
+  enrichment   RunEnrichment @relation(fields: [enrichmentId], references: [id], onDelete: Cascade)
+
+  /// WoW DungeonEncounterID
+  encounterId   Int      @map("encounter_id")
+  encounterName String   @map("encounter_name")
+  /// true = kill, false = wipe
+  success       Boolean
+  fightTimeMs   Int      @map("fight_time_ms")
+  /// Difficulty from ENCOUNTER_START (M+ = 8, delve = 208). Preserved for
+  /// diagnostics even though our segment gate should only yield M+ encounters.
+  difficultyId  Int      @map("difficulty_id")
+  groupSize     Int      @map("group_size")
+  startedAt     DateTime @map("started_at")
+  /// 0-indexed order this encounter appeared in the run. Distinguishes a
+  /// wipe + kill of the same boss.
+  sequenceIndex Int      @map("sequence_index")
+
+  @@index([enrichmentId])
+  @@index([encounterId])
+  @@map("run_enrichment_encounters")
 }
