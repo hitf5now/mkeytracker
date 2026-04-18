@@ -83,6 +83,9 @@ model User {
   /// Mentor program opt-in
   isMentor      Boolean @default(false) @map("is_mentor")
   mentorJuice   Int     @default(0) @map("mentor_juice")
+  /// Where the bot should post this user's run-completed embeds.
+  /// See RunResultsMode docs.
+  runResultsMode RunResultsMode @default(all_my_servers) @map("run_results_mode")
 
   characters      Character[]
   runMembers      RunMember[]
@@ -161,6 +164,16 @@ enum RunSource {
   raiderio
 }
 
+/// Where the bot should announce a user's completed runs.
+/// - all_my_servers: every Discord server the user is a member of (default)
+/// - none: never post the user's runs to any server
+/// - primary: post only to the server marked DiscordServerMember.isPrimary
+enum RunResultsMode {
+  all_my_servers
+  none
+  primary
+}
+
 model Run {
   id              Int       @id @default(autoincrement())
   dungeonId       Int       @map("dungeon_id")
@@ -211,16 +224,34 @@ model Run {
   groupId         Int?       @map("group_id")
   eventGroup      EventGroup? @relation(fields: [groupId], references: [id])
 
-  dungeon   Dungeon     @relation(fields: [dungeonId], references: [id])
-  season    Season      @relation(fields: [seasonId], references: [id])
-  members   RunMember[]
-  runEvents RunEvent[]
+  dungeon       Dungeon          @relation(fields: [dungeonId], references: [id])
+  season        Season           @relation(fields: [seasonId], references: [id])
+  members       RunMember[]
+  runEvents     RunEvent[]
+  discordPosts  RunDiscordPost[]
 
   @@index([seasonId, dungeonId, completionMs])
   @@index([seasonId, keystoneLevel])
   @@index([recordedAt])
   @@index([eventId])
   @@map("runs")
+}
+
+/// Tracks which Discord channels have already received a run-completed embed
+/// for a given run. The bot consults this table before posting so a single
+/// run is never broadcast twice to the same channel, even when multiple
+/// party members submit it via the companion app.
+model RunDiscordPost {
+  id        Int      @id @default(autoincrement())
+  runId     Int      @map("run_id")
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// Discord channel snowflake the embed was posted to.
+  channelId String   @map("channel_id")
+  postedAt  DateTime @default(now()) @map("posted_at")
+
+  @@unique([runId, channelId])
+  @@index([runId])
+  @@map("run_discord_posts")
 }
 
 // ─────────────────────────────────────────────────────────────

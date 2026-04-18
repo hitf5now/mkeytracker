@@ -172,6 +172,254 @@ export async function discordServersRoutes(app: FastifyInstance): Promise<void> 
       return reply.code(200).send({ channelIds });
     });
 
+    // Resolve a user's preferred results channels for a single run.
+    // Returns the channel ids (Discord snowflakes) the bot SHOULD post to,
+    // based on the user's runResultsMode + their server memberships.
+    // Empty array means "skip posting for this user" (mode = none, or no
+    // memberships, or no configured channels).
+    scope.get<{ Params: { userId: string } }>(
+      "/users/:userId/run-results-channels",
+      async (req, reply) => {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return reply.code(400).send({ error: "invalid_user_id" });
+
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { runResultsMode: true },
+        });
+        if (!user) return reply.code(404).send({ error: "user_not_found" });
+
+        if (user.runResultsMode === "none") {
+          return reply.code(200).send({ mode: "none", channelIds: [] });
+        }
+
+        const memberships = await prisma.discordServerMember.findMany({
+          where: {
+            userId,
+            ...(user.runResultsMode === "primary" ? { isPrimary: true } : {}),
+            server: { botActive: true, resultsChannelId: { not: null } },
+          },
+          select: {
+            isPrimary: true,
+            server: {
+              select: { discordGuildId: true, resultsChannelId: true },
+            },
+          },
+        });
+
+        const channelIds = memberships
+          .map((m) => m.server.resultsChannelId)
+          .filter((id): id is string => id !== null);
+
+        return reply.code(200).send({
+          mode: user.runResultsMode,
+          channelIds,
+        });
+      },
+    );
+
+    // Atomically claim a set of channels for a run. Returns the subset of
+    // channel ids that were freshly claimed (i.e. no prior post). The bot
+    // calls this immediately before posting and only sends the embed to
+    // channels in the returned list — guarantees one-post-per-channel even
+    // when multiple party members submit the same run concurrently.
+    scope.post<{ Params: { runId: string } }>(
+      "/runs/:runId/claim-discord-channels",
+      async (req, reply) => {
+        const runId = parseInt(req.params.runId, 10);
+        if (isNaN(runId)) return reply.code(400).send({ error: "invalid_run_id" });
+
+        const body = z.object({
+          channelIds: z.array(z.string().regex(/^\d{17,20}$/)).max(50),
+        }).safeParse(req.body);
+        if (!body.success) {
+          return reply.code(400).send({ error: "invalid_body", issues: body.error.issues });
+        }
+
+        if (body.data.channelIds.length === 0) {
+          return reply.code(200).send({ claimedChannelIds: [] });
+        }
+
+        // INSERT ... ON CONFLICT DO NOTHING + RETURNING gives us only the
+        // rows we won. Anything missing from the result was claimed earlier.
+        const inserted = await prisma.$queryRaw<{ channel_id: string }[]>`
+          INSERT INTO run_discord_posts (run_id, channel_id)
+          SELECT ${runId}::int, ch FROM unnest(${body.data.channelIds}::text[]) AS t(ch)
+          ON CONFLICT (run_id, channel_id) DO NOTHING
+          RETURNING channel_id
+        `;
+
+        const claimedChannelIds = inserted.map((r) => r.channel_id);
+        return reply.code(200).send({ claimedChannelIds });
+      },
+    );
+
+    // Set or update a user's run-results posting preference. Internal-auth +
+    // userId in path because the web doesn't issue user JWTs (yet); the
+    // Next.js route handler verifies the NextAuth session, then calls this
+    // endpoint with the session's userId.
+    scope.patch<{ Params: { userId: string } }>(
+      "/users/:userId/run-results-preference",
+      async (req, reply) => {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return reply.code(400).send({ error: "invalid_user_id" });
+
+        const body = z.object({
+          mode: z.enum(["all_my_servers", "none", "primary"]),
+          primaryGuildId: z.string().regex(/^\d{17,20}$/).optional(),
+        }).safeParse(req.body);
+        if (!body.success) {
+          return reply.code(400).send({ error: "invalid_body", issues: body.error.issues });
+        }
+        const { mode, primaryGuildId } = body.data;
+
+        if (mode === "primary" && !primaryGuildId) {
+          return reply.code(400).send({
+            error: "missing_primary_guild_id",
+            message: "primaryGuildId is required when mode is 'primary'.",
+          });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return reply.code(404).send({ error: "user_not_found" });
+
+        // For mode=primary, validate the user belongs to the chosen server
+        // and flip its isPrimary flag exclusively.
+        if (mode === "primary") {
+          const server = await prisma.discordServer.findUnique({
+            where: { discordGuildId: primaryGuildId! },
+          });
+          if (!server) return reply.code(404).send({ error: "server_not_found" });
+
+          const membership = await prisma.discordServerMember.findUnique({
+            where: { serverId_userId: { serverId: server.id, userId } },
+          });
+          if (!membership) {
+            return reply.code(409).send({
+              error: "not_a_member",
+              message: "You can only set a primary server you've joined.",
+            });
+          }
+
+          await prisma.$transaction([
+            prisma.discordServerMember.updateMany({
+              where: { userId, isPrimary: true },
+              data: { isPrimary: false },
+            }),
+            prisma.discordServerMember.update({
+              where: { id: membership.id },
+              data: { isPrimary: true },
+            }),
+            prisma.user.update({
+              where: { id: userId },
+              data: { runResultsMode: "primary" },
+            }),
+          ]);
+        } else {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { runResultsMode: mode },
+          });
+        }
+
+        return reply.code(200).send({ mode, primaryGuildId: mode === "primary" ? primaryGuildId : null });
+      },
+    );
+
+    // Sync a user's DiscordServerMember rows from a list of guild snowflakes
+    // (the web reads the user's Discord guild list via OAuth and forwards it
+    // here). Creates missing memberships for any listed guild that the bot is
+    // also installed in. Existing memberships untouched. Does not delete —
+    // dropping a server is a separate explicit action.
+    scope.post<{ Params: { userId: string } }>(
+      "/users/:userId/sync-server-memberships",
+      async (req, reply) => {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return reply.code(400).send({ error: "invalid_user_id" });
+
+        const body = z.object({
+          guildIds: z.array(z.string().regex(/^\d{17,20}$/)).max(200),
+        }).safeParse(req.body);
+        if (!body.success) {
+          return reply.code(400).send({ error: "invalid_body", issues: body.error.issues });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+        if (!user) return reply.code(404).send({ error: "user_not_found" });
+
+        if (body.data.guildIds.length === 0) {
+          return reply.code(200).send({ created: 0, skipped: 0 });
+        }
+
+        // Find all bot-installed servers in the requested set
+        const servers = await prisma.discordServer.findMany({
+          where: { discordGuildId: { in: body.data.guildIds }, botActive: true },
+          select: { id: true },
+        });
+
+        if (servers.length === 0) return reply.code(200).send({ created: 0, skipped: 0 });
+
+        // createMany with skipDuplicates relies on the unique constraint
+        // (server_id, user_id). Returns count of new rows created.
+        const result = await prisma.discordServerMember.createMany({
+          data: servers.map((s) => ({ serverId: s.id, userId })),
+          skipDuplicates: true,
+        });
+
+        return reply.code(200).send({
+          created: result.count,
+          skipped: servers.length - result.count,
+        });
+      },
+    );
+
+    // Read a user's current run-results preference + their joined servers
+    // (for rendering the picker UI on the website).
+    scope.get<{ Params: { userId: string } }>(
+      "/users/:userId/run-results-preference",
+      async (req, reply) => {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return reply.code(400).send({ error: "invalid_user_id" });
+
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { runResultsMode: true },
+        });
+        if (!user) return reply.code(404).send({ error: "user_not_found" });
+
+        const memberships = await prisma.discordServerMember.findMany({
+          where: { userId, server: { botActive: true } },
+          orderBy: { joinedAt: "asc" },
+          select: {
+            isPrimary: true,
+            server: {
+              select: {
+                discordGuildId: true,
+                guildName: true,
+                guildIconUrl: true,
+                resultsChannelId: true,
+              },
+            },
+          },
+        });
+
+        const primaryGuildId =
+          memberships.find((m) => m.isPrimary)?.server.discordGuildId ?? null;
+
+        return reply.code(200).send({
+          mode: user.runResultsMode,
+          primaryGuildId,
+          servers: memberships.map((m) => ({
+            discordGuildId: m.server.discordGuildId,
+            guildName: m.server.guildName,
+            guildIconUrl: m.server.guildIconUrl,
+            hasResultsChannel: m.server.resultsChannelId !== null,
+            isPrimary: m.isPrimary,
+          })),
+        });
+      },
+    );
+
     // Bot's guild cache
     scope.get("/bot/guilds", async (_req, reply) => {
       const raw = await redis.get("bot:guilds");

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { PrimaryServerPicker } from "@/components/primary-server-picker";
+import { RunResultsPreference } from "@/components/run-results-preference";
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +14,24 @@ const API_BASE =
   process.env.API_INTERNAL_URL?.replace(/\/$/, "") ?? "http://localhost:3001";
 const API_SECRET = process.env.API_INTERNAL_SECRET ?? "";
 
-interface BotGuild {
+interface DiscordGuild {
   id: string;
   name: string;
   icon: string | null;
 }
 
-interface DiscordGuild {
-  id: string;
-  name: string;
-  icon: string | null;
+type Mode = "all_my_servers" | "none" | "primary";
+
+interface PreferenceResponse {
+  mode: Mode;
+  primaryGuildId: string | null;
+  servers: Array<{
+    discordGuildId: string;
+    guildName: string | null;
+    guildIconUrl: string | null;
+    hasResultsChannel: boolean;
+    isPrimary: boolean;
+  }>;
 }
 
 export default async function DiscordSettingsPage() {
@@ -33,44 +41,56 @@ export default async function DiscordSettingsPage() {
     redirect("/api/auth/signin?callbackUrl=/account/discord");
   }
 
+  const userId = session.userId as number | undefined;
   const discordAccessToken = session.discordAccessToken as string | undefined;
   const discordId = session.discordId as string | undefined;
   const displayName = session.displayName as string | undefined;
   const avatar = session.avatar as string | null;
 
-  // Fetch user's guilds from Discord
-  let userGuilds: DiscordGuild[] = [];
-  if (discordAccessToken) {
-    const discordRes = await fetch("https://discord.com/api/v10/users/@me/guilds", {
-      headers: { Authorization: `Bearer ${discordAccessToken}` },
-      next: { revalidate: 0 },
-    });
-    if (discordRes.ok) {
-      userGuilds = (await discordRes.json()) as DiscordGuild[];
+  // 1. Fetch the user's Discord guild list (OAuth-scoped) and sync any
+  //    bot-installed guilds into our DiscordServerMember table. This makes
+  //    "all my servers" mean what users intuitively expect.
+  if (userId && discordAccessToken) {
+    try {
+      const discordRes = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+        headers: { Authorization: `Bearer ${discordAccessToken}` },
+        next: { revalidate: 0 },
+      });
+      if (discordRes.ok) {
+        const guilds = (await discordRes.json()) as DiscordGuild[];
+        const guildIds = guilds.map((g) => g.id);
+        if (guildIds.length > 0) {
+          await fetch(`${API_BASE}/api/v1/users/${userId}/sync-server-memberships`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${API_SECRET}`,
+            },
+            body: JSON.stringify({ guildIds }),
+            cache: "no-store",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync Discord memberships:", err);
     }
   }
 
-  // Fetch bot's guilds
-  const botRes = await fetch(`${API_BASE}/api/v1/bot/guilds`, {
-    headers: { Authorization: `Bearer ${API_SECRET}` },
-    next: { revalidate: 0 },
-  });
-  let botGuilds: BotGuild[] = [];
-  if (botRes.ok) {
-    const data = (await botRes.json()) as { guilds: BotGuild[] };
-    botGuilds = data.guilds;
+  // 2. Read the user's current preference + joined-server list.
+  let preference: PreferenceResponse = {
+    mode: "all_my_servers",
+    primaryGuildId: null,
+    servers: [],
+  };
+  if (userId) {
+    const prefRes = await fetch(`${API_BASE}/api/v1/users/${userId}/run-results-preference`, {
+      headers: { Authorization: `Bearer ${API_SECRET}` },
+      cache: "no-store",
+    });
+    if (prefRes.ok) {
+      preference = (await prefRes.json()) as PreferenceResponse;
+    }
   }
-
-  const botGuildIds = new Set(botGuilds.map((g) => g.id));
-  const sharedGuilds = userGuilds
-    .filter((g) => botGuildIds.has(g.id))
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      icon: g.icon
-        ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`
-        : null,
-    }));
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -97,14 +117,27 @@ export default async function DiscordSettingsPage() {
 
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-foreground">
-          Publish Personal Runs
+          Where to post my completed runs
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose which Discord server your non-event run results are posted to.
-          This is opt-in — leave it unset to disable personal run broadcasting.
+          Pick which Discord server(s) the bot should announce your run results to.
+          This only changes Discord posting — every run is still logged on the
+          website and counts toward any matching events.
         </p>
 
-        <PrimaryServerPicker servers={sharedGuilds} />
+        {preference.servers.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            You don&apos;t share any servers with the M+ Tracker bot yet. Install
+            the bot in a Discord server you&apos;re a member of, then refresh this
+            page.
+          </p>
+        ) : (
+          <RunResultsPreference
+            initialMode={preference.mode}
+            initialPrimaryGuildId={preference.primaryGuildId}
+            servers={preference.servers}
+          />
+        )}
       </div>
     </div>
   );

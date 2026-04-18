@@ -133,50 +133,58 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Auto-generated Rules & Scoring */}
+      {/* Auto-generated Rules & Scoring (collapsed by default) */}
       {typeInfo && (
-        <div className="mt-6 rounded-lg border border-border bg-card p-5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">Rules & Scoring</h2>
-            <span className="rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
-              {typeInfo.label}
+        <details className="group mt-6 rounded-lg border border-border bg-card">
+          <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Rules & Scoring</h2>
+              <span className="rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
+                {typeInfo.label}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground transition group-open:rotate-180">
+              ▾
             </span>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">{typeInfo.description}</p>
+          </summary>
 
-          <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Win Condition</p>
-            <p className="mt-1 text-sm text-foreground">{typeInfo.winCondition}</p>
-          </div>
+          <div className="border-t border-border/40 px-5 py-4">
+            <p className="text-sm text-muted-foreground">{typeInfo.description}</p>
 
-          <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rules</p>
-            <ul className="mt-2 space-y-1.5">
-              {typeInfo.rules.map((rule, i) => (
-                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
-                  <span className="text-gold shrink-0">-</span>
-                  <span>{rule}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Win Condition</p>
+              <p className="mt-1 text-sm text-foreground">{typeInfo.winCondition}</p>
+            </div>
 
-          <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Point System</p>
-            <p className="mt-1 text-xs text-muted-foreground">{typeInfo.scoringDescription}</p>
-            <div className="mt-2 rounded-md border border-border/50 bg-background">
-              {typeInfo.juiceTable.map((row, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""}`}
-                >
-                  <span className="text-muted-foreground">{row.label}</span>
-                  <span className="font-mono text-xs text-foreground">{row.juice}</span>
-                </div>
-              ))}
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rules</p>
+              <ul className="mt-2 space-y-1.5">
+                {typeInfo.rules.map((rule, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                    <span className="text-gold shrink-0">-</span>
+                    <span>{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Point System</p>
+              <p className="mt-1 text-xs text-muted-foreground">{typeInfo.scoringDescription}</p>
+              <div className="mt-2 rounded-md border border-border/50 bg-background">
+                {typeInfo.juiceTable.map((row, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""}`}
+                  >
+                    <span className="text-muted-foreground">{row.label}</span>
+                    <span className="font-mono text-xs text-foreground">{row.juice}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        </details>
       )}
 
       {/* Team Signups (team-mode events) */}

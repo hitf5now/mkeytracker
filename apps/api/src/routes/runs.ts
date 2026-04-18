@@ -78,6 +78,48 @@ function serializeRun<T extends { serverTime: bigint }>(run: T): Omit<T, "server
 }
 
 /**
+ * Publish a run_completed notification so the bot can announce the run in
+ * Discord. Includes `submitterUserId` so the bot can apply the submitter's
+ * `runResultsMode` preference. Skips publishing when no submitter is known
+ * (e.g. internal-auth submissions from tests/admin tooling).
+ *
+ * Called from both the fresh-insert path and the dedup path: every party
+ * member who runs the companion app gets the chance to publish to their
+ * own preferred server(s); the bot deduplicates per-channel via
+ * RunDiscordPost so the same channel never receives the same run twice.
+ */
+function publishRunCompleted(args: {
+  runId: number;
+  submitterUserId: number | null;
+  dungeonName: string;
+  keystoneLevel: number;
+  onTime: boolean;
+  upgrades: number;
+  completionMs: number;
+  parMs: number;
+  deaths: number;
+  juice: number;
+  members: Array<{ name: string; realm: string; class: string; role: string }>;
+  log: { warn: (...a: unknown[]) => void };
+}): void {
+  if (args.submitterUserId == null) return; // internal/admin submission — no Discord post
+  void redis.publish("mplus:bot-notifications", JSON.stringify({
+    type: "run_completed",
+    runId: args.runId,
+    submitterUserId: args.submitterUserId,
+    dungeonName: args.dungeonName,
+    keystoneLevel: args.keystoneLevel,
+    onTime: args.onTime,
+    upgrades: args.upgrades,
+    completionMs: args.completionMs,
+    parMs: args.parMs,
+    deaths: args.deaths,
+    juice: args.juice,
+    members: args.members,
+  })).catch((err) => args.log.warn({ err }, "Failed to publish run notification"));
+}
+
+/**
  * Dual-auth resolver.
  *
  * A /runs request can come from two sources:
@@ -287,6 +329,28 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       const existing = await prisma.run.findUnique({ where: { dedupHash } });
       if (existing) {
         req.log.info({ runId: existing.id, dedupHash }, "Duplicate run — returning existing");
+        // Each companion submitter should still drive their own publish so
+        // the bot can apply their preference. RunDiscordPost dedupes per
+        // channel, so a server is never spammed with the same run twice.
+        publishRunCompleted({
+          runId: existing.id,
+          submitterUserId: auth.mode === "jwt" ? auth.userId : null,
+          dungeonName: dungeon.name,
+          keystoneLevel: existing.keystoneLevel,
+          onTime: existing.onTime,
+          upgrades: existing.upgrades,
+          completionMs: existing.completionMs,
+          parMs: existing.parMs,
+          deaths: existing.deaths,
+          juice: existing.personalJuice,
+          members: normalizedMembers.map((m) => ({
+            name: m.name,
+            realm: m.realmSlug,
+            class: m.class,
+            role: m.role,
+          })),
+          log: req.log,
+        });
         return reply.code(200).send({
           run: serializeRun(existing),
           deduplicated: true,
@@ -403,9 +467,9 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         );
 
         // Publish run-completed notification for bot to announce
-        void redis.publish("mplus:bot-notifications", JSON.stringify({
-          type: "run_completed",
+        publishRunCompleted({
           runId: run.id,
+          submitterUserId: auth.mode === "jwt" ? auth.userId : null,
           dungeonName: dungeon.name,
           keystoneLevel: body.keystoneLevel,
           onTime: body.onTime,
@@ -420,7 +484,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             class: m.class,
             role: m.role,
           })),
-        })).catch((err) => req.log.warn({ err }, "Failed to publish run notification"));
+          log: req.log,
+        });
 
         return reply.code(201).send({
           run: serializeRun(run),
@@ -436,6 +501,25 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         ) {
           const winner = await prisma.run.findUnique({ where: { dedupHash } });
           if (winner) {
+            publishRunCompleted({
+              runId: winner.id,
+              submitterUserId: auth.mode === "jwt" ? auth.userId : null,
+              dungeonName: dungeon.name,
+              keystoneLevel: winner.keystoneLevel,
+              onTime: winner.onTime,
+              upgrades: winner.upgrades,
+              completionMs: winner.completionMs,
+              parMs: winner.parMs,
+              deaths: winner.deaths,
+              juice: winner.personalJuice,
+              members: normalizedMembers.map((m) => ({
+                name: m.name,
+                realm: m.realmSlug,
+                class: m.class,
+                role: m.role,
+              })),
+              log: req.log,
+            });
             return reply.code(200).send({
               run: serializeRun(winner),
               deduplicated: true,

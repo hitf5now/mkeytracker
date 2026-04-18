@@ -493,4 +493,18 @@ export const apiClient = {
 
   getResultsChannels: (): Promise<{ channelIds: string[] }> =>
     apiGetInternal("/api/v1/servers/results-channels"),
+
+  // Per-user resolved channels for run-completed posting (respects mode).
+  getRunResultsChannelsForUser: (
+    userId: number,
+  ): Promise<{ mode: "all_my_servers" | "none" | "primary"; channelIds: string[] }> =>
+    apiGetInternal(`/api/v1/users/${userId}/run-results-channels`),
+
+  // Atomically claim a set of channels for a run; returns only the freshly
+  // claimed subset (others were already posted by an earlier submitter).
+  claimRunDiscordChannels: (
+    runId: number,
+    channelIds: string[],
+  ): Promise<{ claimedChannelIds: string[] }> =>
+    apiPost(`/api/v1/runs/${runId}/claim-discord-channels`, { channelIds }),
 };

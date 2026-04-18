@@ -45,6 +45,8 @@ interface BotNotification {
   type: string;
   eventId?: number;
   runId?: number;
+  /** Internal user id of the submitting companion-app user — drives per-user posting preference. */
+  submitterUserId?: number;
   dungeonName?: string;
   keystoneLevel?: number;
   onTime?: boolean;
@@ -474,13 +476,48 @@ function formatRunDuration(ms: number): string {
 async function handleRunCompleted(client: Client, notification: BotNotification): Promise<void> {
   try {
     const {
-      dungeonName, keystoneLevel, onTime, upgrades, completionMs, parMs,
-      deaths, juice, members,
+      runId, submitterUserId, dungeonName, keystoneLevel, onTime, upgrades,
+      completionMs, parMs, deaths, juice, members,
     } = notification;
 
-    if (!dungeonName || !keystoneLevel || !members) return;
+    if (!runId || !dungeonName || !keystoneLevel || !members) return;
 
-    // Build the embed
+    // Per-user posting: resolve the submitter's preferred channels, claim
+    // them atomically, and only post to the freshly-claimed subset.
+    // No submitter (e.g. internal/admin submission) → don't post anywhere.
+    if (!submitterUserId) {
+      console.log(`Run #${runId} has no submitterUserId — skipping Discord post`);
+      return;
+    }
+
+    let candidateChannels: string[];
+    try {
+      const { mode, channelIds } = await apiClient.getRunResultsChannelsForUser(submitterUserId);
+      if (mode === "none" || channelIds.length === 0) {
+        console.log(`Run #${runId}: submitter ${submitterUserId} mode=${mode} resolves to no channels`);
+        return;
+      }
+      candidateChannels = channelIds;
+    } catch (err) {
+      console.error(`Failed to resolve channels for user ${submitterUserId}:`, err);
+      return;
+    }
+
+    let claimedChannels: string[];
+    try {
+      const { claimedChannelIds } = await apiClient.claimRunDiscordChannels(runId, candidateChannels);
+      claimedChannels = claimedChannelIds;
+    } catch (err) {
+      console.error(`Failed to claim channels for run ${runId}:`, err);
+      return;
+    }
+
+    if (claimedChannels.length === 0) {
+      console.log(`Run #${runId}: all candidate channels already claimed by earlier submitters`);
+      return;
+    }
+
+    // Build the embed (only after we know we have somewhere to post)
     const resultLabel = onTime
       ? (upgrades && upgrades > 0 ? `✅ Timed **+${upgrades}**` : "✅ Timed")
       : "❌ Depleted";
@@ -507,10 +544,7 @@ async function handleRunCompleted(client: Client, notification: BotNotification)
       .setFooter({ text: "M+ Challenge Platform" })
       .setTimestamp();
 
-    // Post to all active servers with a results channel configured
-    // For now, broadcast to all configured servers. Phase 4 (user primary server) will narrow this.
-    const servers = await getAllResultsChannels();
-    for (const channelId of servers) {
+    for (const channelId of claimedChannels) {
       try {
         const channel = await client.channels.fetch(channelId) as TextChannel | null;
         if (channel) {
@@ -522,15 +556,5 @@ async function handleRunCompleted(client: Client, notification: BotNotification)
     }
   } catch (err) {
     console.error("Failed to handle run_completed notification:", err);
-  }
-}
-
-async function getAllResultsChannels(): Promise<string[]> {
-  try {
-    const result = await apiClient.getResultsChannels();
-    return result.channelIds;
-  } catch (err) {
-    console.error("Failed to fetch results channels:", err);
-    return [];
   }
 }
