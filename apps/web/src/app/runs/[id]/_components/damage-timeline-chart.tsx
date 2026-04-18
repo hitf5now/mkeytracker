@@ -85,7 +85,9 @@ export function DamageTimelineChart({
           <XAxis
             dataKey="timeSec"
             type="number"
-            domain={[0, runDurationSec]}
+            // Pad a few seconds past run end so the final boss kill
+            // marker and last bucket aren't clipped at the right edge.
+            domain={[0, runDurationSec + 10]}
             tick={{ fill: "#888", fontSize: 11 }}
             axisLine={{ stroke: "#333" }}
             tickLine={false}
