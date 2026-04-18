@@ -860,4 +860,143 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       },
     });
   });
+
+  // ─── POST /api/v1/runs/:id/enrichment — retroactive enrichment ───────────
+  //
+  // Attach combat-log enrichment to a run that was submitted without it
+  // (e.g. because the companion couldn't find the log file at submission
+  // time). Idempotent: 409 if enrichment already exists for the run.
+  //
+  // Auth: same as POST /runs — JWT holder must own at least one member, or
+  // internal bearer bypasses the check.
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    "/runs/:id/enrichment",
+    async (req, reply) => {
+      const auth = await resolveAuth(req, reply);
+      if (auth === null) return;
+
+      const id = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({ error: "invalid_run_id" });
+      }
+
+      const parsed = RunEnrichmentSubmissionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: "invalid_body",
+          issues: parsed.error.issues,
+        });
+      }
+      const e = parsed.data;
+
+      const run = await prisma.run.findUnique({
+        where: { id },
+        include: {
+          enrichment: { select: { id: true } },
+          members: {
+            select: {
+              characterId: true,
+              character: {
+                select: { id: true, userId: true, name: true, realm: true },
+              },
+            },
+          },
+        },
+      });
+      if (!run) {
+        return reply.code(404).send({ error: "run_not_found" });
+      }
+      if (run.enrichment) {
+        return reply.code(409).send({
+          error: "enrichment_exists",
+          message: `Run ${id} already has enrichment id=${run.enrichment.id}.`,
+          enrichmentId: run.enrichment.id,
+        });
+      }
+
+      if (auth.mode === "jwt") {
+        const ownsMember = run.members.some(
+          (m) => m.character?.userId === auth.userId,
+        );
+        if (!ownsMember) {
+          return reply.code(403).send({
+            error: "not_party_member",
+            message:
+              "You can only enrich runs you participated in. None of the party members belong to your account.",
+          });
+        }
+      }
+
+      const characterByKey = new Map<string, number>();
+      for (const m of run.members) {
+        if (!m.character) continue;
+        characterByKey.set(
+          `${m.character.name.toLowerCase()}|${m.character.realm}`,
+          m.character.id,
+        );
+      }
+
+      const enrichment = await prisma.runEnrichment.create({
+        data: {
+          runId: id,
+          status: e.status,
+          statusReason: e.statusReason ?? null,
+          parserVersion: e.parserVersion,
+          totalDamage: BigInt(Math.floor(e.totalDamage)),
+          totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+          totalHealing: BigInt(Math.floor(e.totalHealing)),
+          totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+          totalInterrupts: e.totalInterrupts,
+          totalDispels: e.totalDispels,
+          partyDeaths: e.partyDeaths,
+          endTrailingFields: e.endTrailingFields,
+          eventCountsRaw: (e.eventCountsRaw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          players: {
+            create: e.players.map((p) => ({
+              playerGuid: p.playerGuid,
+              playerName: p.playerName,
+              specId: p.specId,
+              characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
+              damageDone: BigInt(Math.floor(p.damageDone)),
+              damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+              healingDone: BigInt(Math.floor(p.healingDone)),
+              healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+              interrupts: p.interrupts,
+              dispels: p.dispels,
+              deaths: p.deaths,
+              combatantInfoRaw:
+                p.combatantInfoRaw === undefined
+                  ? Prisma.JsonNull
+                  : (p.combatantInfoRaw as Prisma.InputJsonValue),
+            })),
+          },
+          encounters: {
+            create: e.encounters.map((enc) => ({
+              encounterId: enc.encounterId,
+              encounterName: enc.encounterName,
+              success: enc.success,
+              fightTimeMs: enc.fightTimeMs,
+              difficultyId: enc.difficultyId,
+              groupSize: enc.groupSize,
+              startedAt: new Date(enc.startedAt),
+              sequenceIndex: enc.sequenceIndex,
+            })),
+          },
+        },
+      });
+
+      req.log.info(
+        {
+          runId: id,
+          enrichmentId: enrichment.id,
+          status: e.status,
+          players: e.players.length,
+          encounters: e.encounters.length,
+        },
+        "Run enrichment persisted (retroactive)",
+      );
+
+      return reply.code(201).send({ enrichmentId: enrichment.id });
+    },
+  );
 }
