@@ -525,6 +525,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         challengeModeId: body.challengeModeId,
         keystoneLevel: body.keystoneLevel,
         serverTime: body.serverTime,
+        completionMs: body.completionMs,
         members: normalizedMembers.map((m) => ({
           name: m.name,
           realm: m.realmSlug,
