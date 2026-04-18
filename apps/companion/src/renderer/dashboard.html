@@ -109,6 +109,23 @@
                     </div>
                 </div>
 
+                <!-- diagnostics -->
+                <div class="row" style="justify-content: space-between; align-items: center; margin-top: 8px">
+                    <span class="text-xs text-dim">Diagnostics</span>
+                    <div class="row">
+                        <button class="btn btn-ghost btn-sm" id="diagnose-enrichment-btn"
+                                title="Scan the WoW Logs folder and parse the newest combat log — shows what the companion can actually see.">
+                            Check Combat Log
+                        </button>
+                        <button class="btn btn-ghost btn-sm" id="open-log-btn"
+                                title="Open the companion's log file so you can see what it's doing.">
+                            Open Companion Log
+                        </button>
+                    </div>
+                </div>
+                <pre id="diagnose-output"
+                     style="display:none; margin-top: 8px; padding: 10px; background: #0a0c0f; border: 1px solid #1f2328; border-radius: 6px; font-size: 11px; font-family: ui-monospace, monospace; white-space: pre-wrap; max-height: 260px; overflow: auto;"></pre>
+
                 <!-- updater status -->
                 <div class="text-xs text-dim" id="updater-status-line" style="text-align: center">Updates: checking…</div>
             </section>

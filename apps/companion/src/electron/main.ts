@@ -25,6 +25,7 @@ import {
   loadConfig,
   updateConfig,
 } from "../core/config.js";
+import { fileLogger, getLogFilePath, initFileLogger } from "../core/file-logger.js";
 import { RunQueue } from "../core/queue.js";
 import { recordEvent, startTelemetry, stopTelemetry } from "../core/telemetry.js";
 import { SavedVariablesWatcher } from "../core/watcher.js";
@@ -48,12 +49,16 @@ import { detectWowInstall, hasRetailSubfolder, scanWowAccounts } from "./wow-det
 import {
   IPC,
   type AppInfo,
+  type EnrichmentDiagnoseResult,
   type PairRequest,
   type PairResponse,
   type ResyncResult,
   type SetWowRequest,
   type StatusSnapshot,
 } from "./ipc-channels.js";
+import { resolveCombatLogsDir } from "../core/combat-log.js";
+import { summarizeAllSegmentsInLogFile } from "@mplus/combat-log-parser";
+import { readdirSync, statSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -121,7 +126,7 @@ function startWatcherIfReady(): void {
   }
 
   const apiClient = new CompanionApiClient(cfg.apiBaseUrl, cfg.jwt);
-  queue = new RunQueue(apiClient);
+  queue = new RunQueue(apiClient, fileLogger);
 
   watcher = new SavedVariablesWatcher(cfg.savedVariablesPath, 500);
   watcher.on("ready", () => {
@@ -378,6 +383,102 @@ function registerIpcHandlers(): void {
     await shell.openExternal(url);
     return { ok: true };
   });
+
+  ipcMain.handle(IPC.LOG_OPEN, async () => {
+    const p = getLogFilePath();
+    if (!p) return { ok: false, reason: "log not initialized yet" };
+    const res = await shell.openPath(p);
+    return { ok: res === "", path: p, error: res || undefined };
+  });
+
+  ipcMain.handle(IPC.ENRICHMENT_DIAGNOSE, async (): Promise<EnrichmentDiagnoseResult> => {
+    const cfg = loadConfig();
+    const result: EnrichmentDiagnoseResult = {
+      logFilePath: getLogFilePath(),
+      logsDir: null,
+      logsDirExists: false,
+      combatLogFiles: [],
+      pickedFile: null,
+      segments: [],
+      message: "",
+    };
+
+    const logsDir = resolveCombatLogsDir(cfg);
+    result.logsDir = logsDir;
+    if (!logsDir) {
+      result.message = "WoW install path is not configured — finish the setup wizard first.";
+      fileLogger.warn("[diagnose] no WoW install path");
+      return result;
+    }
+    result.logsDirExists = existsSync(logsDir);
+    if (!result.logsDirExists) {
+      result.message = `Logs directory doesn't exist: ${logsDir}. Is WoW installed here?`;
+      fileLogger.warn(`[diagnose] logs dir missing: ${logsDir}`);
+      return result;
+    }
+
+    try {
+      const entries = readdirSync(logsDir);
+      const files = entries
+        .filter((n) => /^WoWCombatLog.*\.txt$/i.test(n))
+        .map((n) => {
+          const p = join(logsDir, n);
+          const st = statSync(p);
+          return {
+            path: p,
+            name: n,
+            size: st.size,
+            mtimeMs: st.mtimeMs,
+          };
+        })
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      result.combatLogFiles = files.map((f) => ({
+        name: f.name,
+        size: f.size,
+        mtime: new Date(f.mtimeMs).toISOString(),
+      }));
+      fileLogger.log(`[diagnose] found ${files.length} WoWCombatLog*.txt file(s) in ${logsDir}`);
+
+      if (files.length === 0) {
+        result.message =
+          "No WoWCombatLog*.txt files found. Enable combat logging in-game with /combatlog.";
+        return result;
+      }
+
+      const newest = files[0]!;
+      result.pickedFile = newest.path;
+      fileLogger.log(`[diagnose] parsing newest file: ${newest.path}`);
+
+      try {
+        const segments = await summarizeAllSegmentsInLogFile(newest.path);
+        result.segments = segments.map((s, i) => ({
+          index: i,
+          challengeModeId: s.challengeModeId,
+          zoneName: s.zoneName,
+          keystoneLevel: s.keystoneLevel,
+          playerCount: s.players.length,
+          encounterCount: s.encounters.length,
+          totalDamage: s.totals.damage,
+          endedAt: s.endedAt.toISOString(),
+        }));
+        result.message =
+          segments.length === 0
+            ? "File parsed but contained no completed CHALLENGE_MODE segments."
+            : `Parsed ${segments.length} segment(s) successfully.`;
+        fileLogger.log(`[diagnose] parsed ${segments.length} segment(s) from ${newest.name}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.message = `Parse failed: ${msg}`;
+        fileLogger.error(`[diagnose] parse failed for ${newest.path}: ${msg}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.message = `Couldn't scan logs dir: ${msg}`;
+      fileLogger.error(`[diagnose] scan failed: ${msg}`);
+    }
+
+    return result;
+  });
 }
 
 // ─── Auto-update addon on startup ────────────────────────────────────
@@ -401,6 +502,10 @@ function syncAddonOnStartup(): void {
 
 // ─── App lifecycle ────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // File logger first so every subsequent step is recorded.
+  const logPath = initFileLogger(app.getPath("userData"));
+  fileLogger.log(`companion v${app.getVersion()} starting — log at ${logPath}`);
+
   registerIpcHandlers();
   mainWindow = createMainWindow();
   setupTray(trayCallbacks);

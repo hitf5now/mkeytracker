@@ -97,13 +97,49 @@ export async function enrichRun(
   config: CompanionConfig,
   log: { warn: (...a: unknown[]) => void; log: (...a: unknown[]) => void } = console,
 ): Promise<EnrichmentAttemptResult> {
+  log.log(
+    `[combat-log] enrichRun called: wowInstallPath=${config.wowInstallPath ?? "(unset)"}, runChallengeModeId=${run.challengeModeId}, runServerTime=${run.serverTime}`,
+  );
+
   const logsDir = resolveCombatLogsDir(config);
   if (!logsDir) {
+    log.warn(`[combat-log] no logs dir resolved — wowInstallPath is not set`);
     return unavailable(
       "log_path_unresolvable",
       "WoW install path not configured — finish the setup wizard",
     );
   }
+  log.log(`[combat-log] scanning logs dir: ${logsDir} (exists=${existsSync(logsDir)})`);
+
+  // List every candidate for debugging — tells us what files the
+  // companion can see and which one we picked.
+  if (existsSync(logsDir)) {
+    try {
+      const all = readdirSync(logsDir)
+        .filter((n) => /^WoWCombatLog.*\.txt$/i.test(n))
+        .map((n) => {
+          const p = join(logsDir, n);
+          const st = statSync(p);
+          return { name: n, size: st.size, mtime: st.mtimeMs };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+      log.log(
+        `[combat-log] found ${all.length} WoWCombatLog*.txt file(s):` +
+          (all.length === 0
+            ? " (none)"
+            : "\n" +
+              all
+                .map(
+                  (f) =>
+                    `    - ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB, mtime ${new Date(f.mtime).toISOString()})`,
+                )
+                .join("\n")),
+      );
+    } catch (err) {
+      log.warn(`[combat-log] couldn't list logs dir: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   const logPath = findLatestCombatLogFile(logsDir);
   if (!logPath) {
     return unavailable(
@@ -111,7 +147,7 @@ export async function enrichRun(
       `No WoWCombatLog*.txt found in ${logsDir} — ensure /combatlog is active in-game`,
     );
   }
-  log.log(`[combat-log] using ${logPath}`);
+  log.log(`[combat-log] picked ${logPath}`);
 
   let summary: RunSummary | null;
   try {
@@ -132,7 +168,17 @@ export async function enrichRun(
   // The parser returns the FIRST complete segment in the file. If the user
   // has run multiple keys without deleting the log, it may be a stale match.
   // Verify it lines up with this run.
+  log.log(
+    `[combat-log] first segment in file: challengeModeId=${summary.challengeModeId}, ` +
+      `key=+${summary.keystoneLevel}, zone=${summary.zoneName}, ` +
+      `segmentEnd=${summary.endedAt.toISOString()}`,
+  );
+
   if (summary.challengeModeId !== run.challengeModeId) {
+    log.warn(
+      `[combat-log] challengeModeId mismatch: log=${summary.challengeModeId} vs run=${run.challengeModeId}. ` +
+        `If you played multiple keys in this log file, the parser only sees the first segment.`,
+    );
     return unavailable(
       "segment_mismatch",
       `Log segment challengeModeId=${summary.challengeModeId} does not match run challengeModeId=${run.challengeModeId}`,
@@ -143,6 +189,10 @@ export async function enrichRun(
   const segmentEndMs = summary.endedAt.getTime();
   const skewMs = Math.abs(runTimeMs - segmentEndMs);
   if (skewMs > SEGMENT_MATCH_WINDOW_MS) {
+    log.warn(
+      `[combat-log] segment time mismatch: run=${new Date(runTimeMs).toISOString()}, ` +
+        `segmentEnd=${new Date(segmentEndMs).toISOString()}, skew=${Math.round(skewMs / 1000)}s`,
+    );
     return unavailable(
       "segment_mismatch",
       `Log segment end differs from run by ${Math.round(skewMs / 1000)}s (over ${SEGMENT_MATCH_WINDOW_MS / 1000}s window)`,
@@ -150,7 +200,7 @@ export async function enrichRun(
   }
 
   log.log(
-    `[combat-log] matched segment: ${summary.zoneName} +${summary.keystoneLevel}, ${summary.players.length} players, ${summary.encounters.length} encounters`,
+    `[combat-log] matched segment: ${summary.zoneName} +${summary.keystoneLevel}, ${summary.players.length} players, ${summary.encounters.length} encounters, ${summary.totals.damage.toLocaleString()} damage`,
   );
 
   return {

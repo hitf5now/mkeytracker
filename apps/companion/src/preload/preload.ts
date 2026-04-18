@@ -17,6 +17,7 @@ import {
   IPC,
   type AddonInstallResult,
   type AppInfo,
+  type EnrichmentDiagnoseResult,
   type PairRequest,
   type PairResponse,
   type ResyncResult,
@@ -92,6 +93,13 @@ const api = {
   // Open URL in the default browser
   openExternal: (url: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.SHELL_OPEN_EXTERNAL, url),
+
+  // Diagnostics — dry-run enrichment against the user's combat logs.
+  enrichmentDiagnose: (): Promise<EnrichmentDiagnoseResult> =>
+    ipcRenderer.invoke(IPC.ENRICHMENT_DIAGNOSE),
+  // Open the companion log file in the OS default viewer.
+  openLogFile: (): Promise<{ ok: boolean; path?: string; error?: string; reason?: string }> =>
+    ipcRenderer.invoke(IPC.LOG_OPEN),
 
   // Push events from main → renderer
   onQueueUpdate: (cb: () => void): (() => void) => {

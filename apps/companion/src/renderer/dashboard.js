@@ -151,6 +151,65 @@ autoLaunchCheck?.addEventListener("change", async () => {
 });
 void loadAutoLaunchState();
 
+// ─── Combat-log diagnostics ─────────────────────────────────────
+function formatDiagnose(result) {
+    const lines = [];
+    lines.push(`Companion log: ${result.logFilePath ?? "(not initialized)"}`);
+    lines.push(`WoW Logs dir: ${result.logsDir ?? "(not configured)"} ${result.logsDir ? (result.logsDirExists ? "[exists]" : "[missing]") : ""}`);
+    lines.push("");
+    lines.push(`Combat log files (${result.combatLogFiles.length} found):`);
+    if (result.combatLogFiles.length === 0) {
+        lines.push("  (none — enable /combatlog in-game)");
+    } else {
+        for (const f of result.combatLogFiles.slice(0, 8)) {
+            const sizeMB = (f.size / 1024 / 1024).toFixed(2);
+            lines.push(`  ${f.name}  ${sizeMB} MB  (${f.mtime})`);
+        }
+        if (result.combatLogFiles.length > 8) {
+            lines.push(`  ... ${result.combatLogFiles.length - 8} more`);
+        }
+    }
+    lines.push("");
+    lines.push(`Picked for enrichment: ${result.pickedFile ?? "(none)"}`);
+    lines.push("");
+    lines.push(`Segments parsed (${result.segments.length}):`);
+    if (result.segments.length === 0) {
+        lines.push("  (no CHALLENGE_MODE segments in picked file)");
+    } else {
+        for (const s of result.segments) {
+            const dmgM = (s.totalDamage / 1_000_000).toFixed(1);
+            lines.push(`  #${s.index}  cmId=${s.challengeModeId}  ${s.zoneName} +${s.keystoneLevel}  ${s.playerCount}p/${s.encounterCount}b  ${dmgM}M dmg  end ${s.endedAt}`);
+        }
+    }
+    lines.push("");
+    lines.push(`→ ${result.message}`);
+    return lines.join("\n");
+}
+
+document.getElementById("diagnose-enrichment-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("diagnose-enrichment-btn");
+    const out = document.getElementById("diagnose-output");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking..."; }
+    out.style.display = "block";
+    out.textContent = "Scanning...";
+    try {
+        const result = await window.mplus.enrichmentDiagnose();
+        out.textContent = formatDiagnose(result);
+    } catch (err) {
+        out.textContent = "Diagnose failed: " + (err && err.message ? err.message : String(err));
+    }
+    if (btn) { btn.disabled = false; btn.textContent = "Check Combat Log"; }
+});
+
+document.getElementById("open-log-btn")?.addEventListener("click", async () => {
+    const res = await window.mplus.openLogFile();
+    if (!res.ok) {
+        const out = document.getElementById("diagnose-output");
+        out.style.display = "block";
+        out.textContent = "Couldn't open log: " + (res.reason || res.error || "unknown");
+    }
+});
+
 // ─── Check for updates button ───────────────────────────────────
 document.getElementById("check-updates-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("check-updates-btn");

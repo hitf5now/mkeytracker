@@ -51,6 +51,10 @@ export const IPC = {
   UPDATE_CHECK: "mplus:update:check",
   /** Open a URL in the default browser */
   SHELL_OPEN_EXTERNAL: "mplus:shell:openExternal",
+  /** Dry-run combat-log enrichment against the latest WoWCombatLog and report what the companion sees — without needing a real submission. */
+  ENRICHMENT_DIAGNOSE: "mplus:enrichment:diagnose",
+  /** Open the companion log file in the OS default viewer. */
+  LOG_OPEN: "mplus:log:open",
 } as const;
 
 // ─── Payload types ────────────────────────────────────────────────────
@@ -100,6 +104,43 @@ export interface UpdateStateSnapshot {
   progress?: number;
   notes?: string;
   error?: string;
+}
+
+export interface EnrichmentDiagnoseFile {
+  name: string;
+  /** Size in bytes */
+  size: number;
+  /** ISO string */
+  mtime: string;
+}
+
+export interface EnrichmentDiagnoseSegment {
+  index: number;
+  challengeModeId: number;
+  zoneName: string;
+  keystoneLevel: number;
+  playerCount: number;
+  encounterCount: number;
+  totalDamage: number;
+  /** ISO string */
+  endedAt: string;
+}
+
+export interface EnrichmentDiagnoseResult {
+  /** Where the companion log file lives. */
+  logFilePath: string | null;
+  /** Resolved WoW logs dir, or null if wowInstallPath isn't set. */
+  logsDir: string | null;
+  /** true if the resolved logs dir exists on disk. */
+  logsDirExists: boolean;
+  /** All WoWCombatLog*.txt files found (newest first). */
+  combatLogFiles: EnrichmentDiagnoseFile[];
+  /** The file we'd pick for enrichment (most recent mtime). */
+  pickedFile: string | null;
+  /** All CHALLENGE_MODE segments parsed from the picked file. */
+  segments: EnrichmentDiagnoseSegment[];
+  /** Free-form error or status message. */
+  message: string;
 }
 
 export interface AppInfo {
