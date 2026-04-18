@@ -5,6 +5,11 @@ import type { RunDetail, RunDetailEnrichmentPlayer } from "@/types/api";
 import { formatDuration, formatNumber, formatDateTime, formatUpgrades } from "@/lib/format";
 import { getClassColor, getClassName } from "@/lib/class-colors";
 import { getSpecById } from "@mplus/wow-constants";
+import {
+  DamageTimelineChart,
+  type TimelineBossMarker,
+  type TimelinePlayer,
+} from "./_components/damage-timeline-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +115,15 @@ export default async function RunDetailPage({ params }: Props) {
       {run.enrichment && run.enrichment.status === "complete" ? (
         <>
           <EnrichmentOverview enrichment={run.enrichment} />
-          <PlayersTable players={run.enrichment.players} runDurationMs={run.completionMs} />
+          <TimelineSection
+            enrichment={run.enrichment}
+            runDurationMs={run.completionMs}
+          />
+          <PlayersTable
+            players={run.enrichment.players}
+            runDurationMs={run.completionMs}
+            bucketSizeMs={run.enrichment.bucketSizeMs}
+          />
           <EncountersTable encounters={run.enrichment.encounters} />
         </>
       ) : (
@@ -160,12 +173,74 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
   );
 }
 
+function TimelineSection({
+  enrichment,
+  runDurationMs,
+}: {
+  enrichment: NonNullable<RunDetail["enrichment"]>;
+  runDurationMs: number;
+}) {
+  const bucketSizeMs = enrichment.bucketSizeMs;
+  const segmentStartedAt = enrichment.segmentStartedAt;
+  // Legacy rows (pre-timeline) won't have bucket data — just skip the chart.
+  if (!bucketSizeMs || !segmentStartedAt) return null;
+  const havePlayerBuckets = enrichment.players.some(
+    (p) => Array.isArray(p.damageBuckets) && p.damageBuckets.length > 0,
+  );
+  if (!havePlayerBuckets) return null;
+
+  const segmentStartMs = new Date(segmentStartedAt).getTime();
+  const runDurationSec = Math.max(1, runDurationMs / 1000);
+
+  const timelinePlayers: TimelinePlayer[] = enrichment.players
+    .filter((p) => Array.isArray(p.damageBuckets) && p.damageBuckets.length > 0)
+    .map((p) => {
+      const spec = p.specId ? getSpecById(p.specId) : undefined;
+      const colorHex = spec
+        ? `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`
+        : "#999999";
+      return {
+        shortName: p.playerName.split("-")[0] ?? p.playerName,
+        colorHex,
+        buckets: p.damageBuckets ?? [],
+      };
+    });
+
+  const bosses: TimelineBossMarker[] = enrichment.encounters.map((e) => ({
+    name: e.encounterName,
+    offsetSec: Math.max(
+      0,
+      (new Date(e.startedAt).getTime() - segmentStartMs + e.fightTimeMs) / 1000,
+    ),
+    success: e.success,
+  }));
+
+  return (
+    <section className="mt-10">
+      <h2 className="text-lg font-semibold">Damage Timeline</h2>
+      <p className="text-xs text-muted-foreground">
+        DPS in {bucketSizeMs / 1000}s buckets. Dashed lines mark boss kills.
+      </p>
+      <div className="mt-3 rounded-lg border border-border bg-card p-3">
+        <DamageTimelineChart
+          bucketSizeMs={bucketSizeMs}
+          runDurationSec={runDurationSec}
+          players={timelinePlayers}
+          bosses={bosses}
+        />
+      </div>
+    </section>
+  );
+}
+
 function PlayersTable({
   players,
   runDurationMs,
+  bucketSizeMs,
 }: {
   players: RunDetailEnrichmentPlayer[];
   runDurationMs: number;
+  bucketSizeMs: number | null;
 }) {
   const durationSec = Math.max(1, runDurationMs / 1000);
   const sorted = [...players].sort(
@@ -178,8 +253,14 @@ function PlayersTable({
   const maxHealing = Math.max(...sorted.map((p) => Number(p.healingDone)));
   const maxInterrupts = Math.max(...sorted.map((p) => p.interrupts));
   const maxDispels = Math.max(...sorted.map((p) => p.dispels));
+  const maxPeakDps = Math.max(
+    ...sorted.map((p) => (p.peakDamage ? Number(p.peakDamage) : 0)),
+  );
   const leader = (isLeader: boolean, baseClass = "") =>
     `${baseClass} ${isLeader ? "font-bold text-gold" : ""}`.trim();
+
+  const bucketSizeSec = bucketSizeMs ? bucketSizeMs / 1000 : null;
+  const showPeakColumn = bucketSizeSec !== null && maxPeakDps > 0;
 
   return (
     <section className="mt-8">
@@ -195,6 +276,14 @@ function PlayersTable({
               <th className="px-3 py-2 font-medium">Spec</th>
               <th className="px-3 py-2 text-right font-medium">Damage</th>
               <th className="px-3 py-2 text-right font-medium">DPS</th>
+              {showPeakColumn && (
+                <th
+                  className="px-3 py-2 text-right font-medium"
+                  title={`Highest DPS in any ${bucketSizeSec}-second window`}
+                >
+                  Peak DPS
+                </th>
+              )}
               <th className="px-3 py-2 text-right font-medium">Healing</th>
               <th className="px-3 py-2 text-right font-medium">HPS</th>
               <th className="px-3 py-2 text-right font-medium">Intr</th>
@@ -216,6 +305,9 @@ function PlayersTable({
               const isTopHealing = healing > 0 && healing === maxHealing;
               const isTopInterrupts = p.interrupts > 0 && p.interrupts === maxInterrupts;
               const isTopDispels = p.dispels > 0 && p.dispels === maxDispels;
+              const peakDamage = p.peakDamage ? Number(p.peakDamage) : 0;
+              const peakDps = bucketSizeSec ? Math.round(peakDamage / bucketSizeSec) : 0;
+              const isTopPeak = peakDamage > 0 && peakDamage === maxPeakDps;
 
               return (
                 <tr key={p.id} className="border-b border-border/50">
@@ -245,6 +337,11 @@ function PlayersTable({
                   >
                     {formatNumber(Math.round(damage / durationSec))}
                   </td>
+                  {showPeakColumn && (
+                    <td className={leader(isTopPeak, "px-3 py-2 text-right font-mono")}>
+                      {peakDps > 0 ? formatNumber(peakDps) : "—"}
+                    </td>
+                  )}
                   <td className={leader(isTopHealing, "px-3 py-2 text-right font-mono")}>
                     {formatNumber(healing)}
                   </td>

@@ -52,6 +52,10 @@ const EnrichmentPlayerStatsSchema = z.object({
   interrupts: z.number().int().nonnegative().default(0),
   dispels: z.number().int().nonnegative().default(0),
   deaths: z.number().int().nonnegative().default(0),
+  /** Per-5s-bucket damage from segment start. Optional for legacy payloads. */
+  damageBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  peakBucketIndex: z.number().int().nonnegative().optional(),
+  peakDamage: z.number().nonnegative().optional(),
   /** Full COMBATANT_INFO payload (gear/talents/auras). Opaque JSON. */
   combatantInfoRaw: z.unknown().optional(),
 });
@@ -81,6 +85,10 @@ const RunEnrichmentSubmissionSchema = z.object({
   partyDeaths: z.number().int().nonnegative().default(0),
   endTrailingFields: z.array(z.number()).default([]),
   eventCountsRaw: z.record(z.string(), z.number()).optional(),
+  /** Width of each damageBuckets entry, in ms. Omitted on legacy payloads. */
+  bucketSizeMs: z.number().int().positive().optional(),
+  /** CHALLENGE_MODE_START as unix ms. Reference for boss-kill markers. */
+  segmentStartedAt: z.number().int().positive().optional(),
   players: z.array(EnrichmentPlayerStatsSchema).default([]),
   encounters: z.array(EnrichmentEncounterSchema).default([]),
 });
@@ -149,6 +157,8 @@ function serializeEnrichment(enrichment: {
   partyDeaths: number;
   endTrailingFields: number[];
   eventCountsRaw: unknown;
+  bucketSizeMs: number | null;
+  segmentStartedAt: Date | null;
   createdAt: Date;
   players: Array<{
     id: number;
@@ -163,6 +173,9 @@ function serializeEnrichment(enrichment: {
     interrupts: number;
     dispels: number;
     deaths: number;
+    damageBuckets: unknown;
+    peakBucketIndex: number | null;
+    peakDamage: bigint | null;
     combatantInfoRaw: unknown;
   }>;
   encounters: Array<{
@@ -191,6 +204,10 @@ function serializeEnrichment(enrichment: {
     partyDeaths: enrichment.partyDeaths,
     endTrailingFields: enrichment.endTrailingFields,
     eventCountsRaw: enrichment.eventCountsRaw,
+    bucketSizeMs: enrichment.bucketSizeMs,
+    segmentStartedAt: enrichment.segmentStartedAt
+      ? enrichment.segmentStartedAt.toISOString()
+      : null,
     createdAt: enrichment.createdAt.toISOString(),
     players: enrichment.players.map((p) => ({
       id: p.id,
@@ -205,6 +222,9 @@ function serializeEnrichment(enrichment: {
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
+      damageBuckets: (p.damageBuckets as number[] | null) ?? null,
+      peakBucketIndex: p.peakBucketIndex,
+      peakDamage: p.peakDamage !== null ? p.peakDamage.toString() : null,
       combatantInfoRaw: p.combatantInfoRaw,
     })),
     encounters: enrichment.encounters.map((e) => ({
@@ -602,6 +622,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 partyDeaths: e.partyDeaths,
                 endTrailingFields: e.endTrailingFields,
                 eventCountsRaw: (e.eventCountsRaw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+                bucketSizeMs: e.bucketSizeMs ?? null,
+                segmentStartedAt: e.segmentStartedAt ? new Date(e.segmentStartedAt) : null,
                 players: {
                   create: e.players.map((p) => ({
                     playerGuid: p.playerGuid,
@@ -615,6 +637,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                     interrupts: p.interrupts,
                     dispels: p.dispels,
                     deaths: p.deaths,
+                    damageBuckets:
+                      p.damageBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.damageBuckets as Prisma.InputJsonValue),
+                    peakBucketIndex: p.peakBucketIndex ?? null,
+                    peakDamage:
+                      p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
                     combatantInfoRaw:
                       p.combatantInfoRaw === undefined
                         ? Prisma.JsonNull
@@ -951,6 +980,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           partyDeaths: e.partyDeaths,
           endTrailingFields: e.endTrailingFields,
           eventCountsRaw: (e.eventCountsRaw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          bucketSizeMs: e.bucketSizeMs ?? null,
+          segmentStartedAt: e.segmentStartedAt ? new Date(e.segmentStartedAt) : null,
           players: {
             create: e.players.map((p) => ({
               playerGuid: p.playerGuid,
@@ -964,6 +995,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               interrupts: p.interrupts,
               dispels: p.dispels,
               deaths: p.deaths,
+              damageBuckets:
+                p.damageBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.damageBuckets as Prisma.InputJsonValue),
+              peakBucketIndex: p.peakBucketIndex ?? null,
+              peakDamage:
+                p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
               combatantInfoRaw:
                 p.combatantInfoRaw === undefined
                   ? Prisma.JsonNull

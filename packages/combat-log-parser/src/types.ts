@@ -138,6 +138,16 @@ export interface PlayerStats {
   interrupts: number;
   dispels: number;
   deaths: number;
+  /**
+   * Damage done in each 5-second bucket from CHALLENGE_MODE_START.
+   * buckets[i] covers [i * bucketSizeMs, (i+1) * bucketSizeMs). The array
+   * length equals the run duration in buckets (ceil(durationMs / bucketSizeMs)).
+   */
+  damageBuckets: number[];
+  /** Index of the bucket with the most damage (argmax of damageBuckets). */
+  peakBucketIndex: number;
+  /** Damage in the peak bucket. DPS = peakDamage / (bucketSizeMs / 1000). */
+  peakDamage: number;
 }
 
 export interface EncounterSummary {
@@ -162,6 +172,8 @@ export interface RunSummary {
   durationMs: number;
   success: boolean;
   endingTrailingFields: number[];
+  /** Bucket size used for player damage timelines, in milliseconds. */
+  bucketSizeMs: number;
   encounters: EncounterSummary[];
   players: PlayerStats[];
   totals: {

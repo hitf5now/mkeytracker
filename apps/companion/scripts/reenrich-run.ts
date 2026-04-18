@@ -78,6 +78,8 @@ function summaryToSubmissionBody(summary: RunSummary) {
     partyDeaths: summary.totals.deaths,
     endTrailingFields: summary.endingTrailingFields,
     eventCountsRaw: summary.eventCounts,
+    bucketSizeMs: summary.bucketSizeMs,
+    segmentStartedAt: summary.startedAt.getTime(),
     players: summary.players.map((p) => ({
       playerGuid: p.guid,
       playerName: p.name,
@@ -89,6 +91,9 @@ function summaryToSubmissionBody(summary: RunSummary) {
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
+      damageBuckets: p.damageBuckets,
+      peakBucketIndex: p.peakBucketIndex,
+      peakDamage: p.peakDamage,
     })),
     encounters: summary.encounters.map((e, i) => ({
       encounterId: e.encounterId,

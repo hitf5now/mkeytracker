@@ -433,6 +433,11 @@ export interface RunDetailEnrichmentPlayer {
   interrupts: number;
   dispels: number;
   deaths: number;
+  /** Per-bucket damage from segment start. Null on legacy rows. */
+  damageBuckets: number[] | null;
+  peakBucketIndex: number | null;
+  /** BigInt serialized as string — damage in peak bucket. */
+  peakDamage: string | null;
   combatantInfoRaw: unknown;
 }
 
@@ -462,6 +467,10 @@ export interface RunDetailEnrichment {
   partyDeaths: number;
   endTrailingFields: number[];
   eventCountsRaw: Record<string, number> | null;
+  /** Width of each damageBuckets entry, in ms. Null on legacy rows. */
+  bucketSizeMs: number | null;
+  /** CHALLENGE_MODE_START as ISO string — reference for boss-kill markers. */
+  segmentStartedAt: string | null;
   createdAt: string;
   players: RunDetailEnrichmentPlayer[];
   encounters: RunDetailEnrichmentEncounter[];

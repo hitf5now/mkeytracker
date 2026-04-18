@@ -209,6 +209,8 @@ function summaryToSubmission(
     partyDeaths: summary.totals.deaths,
     endTrailingFields: summary.endingTrailingFields,
     eventCountsRaw: summary.eventCounts,
+    bucketSizeMs: summary.bucketSizeMs,
+    segmentStartedAt: summary.startedAt.getTime(),
     players: summary.players.map((p) => ({
       playerGuid: p.guid,
       playerName: p.name,
@@ -220,6 +222,9 @@ function summaryToSubmission(
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
+      damageBuckets: p.damageBuckets,
+      peakBucketIndex: p.peakBucketIndex,
+      peakDamage: p.peakDamage,
       // combatantInfoRaw: not yet emitted by the parser (Phase A only extracts
       // specId); populate when the parser learns to surface the full blob.
     })),

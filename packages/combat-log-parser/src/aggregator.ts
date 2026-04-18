@@ -5,6 +5,9 @@ import type {
   RunSummary,
 } from './types.js';
 
+/** Width of a player-damage timeline bucket, in milliseconds. */
+export const DAMAGE_BUCKET_SIZE_MS = 5000;
+
 interface MutablePlayerStats extends PlayerStats {}
 
 /**
@@ -94,13 +97,19 @@ export class RunAggregator {
       case 'RANGE_DAMAGE':
       case 'SWING_DAMAGE':
       case 'SWING_DAMAGE_LANDED':
-        this.addDamage(event.source.guid, event.source.name, event.amount, false);
+        this.addDamage(
+          event.source.guid,
+          event.source.name,
+          event.amount,
+          false,
+          event.timestamp,
+        );
         return;
 
       case 'SPELL_DAMAGE_SUPPORT':
         // Support credits go to the supporter (the Augmentation Evoker / etc.)
         if (event.supporterGuid) {
-          this.addDamage(event.supporterGuid, '', event.amount, true);
+          this.addDamage(event.supporterGuid, '', event.amount, true, event.timestamp);
         }
         return;
 
@@ -156,12 +165,27 @@ export class RunAggregator {
         interrupts: 0,
         dispels: 0,
         deaths: 0,
+        damageBuckets: [],
+        peakBucketIndex: 0,
+        peakDamage: 0,
       };
       this.players.set(guid, p);
     } else if (!p.name && name) {
       p.name = name;
     }
     return p;
+  }
+
+  /**
+   * Bucket index for a given event timestamp, relative to CHALLENGE_MODE_START.
+   * Returns -1 if the segment hasn't started (shouldn't happen inside the
+   * damage handlers due to the `started && !ended` gate, but defensive).
+   */
+  private bucketIndexFor(eventTimestamp: Date): number {
+    if (!this.startEvent) return -1;
+    const offsetMs = eventTimestamp.getTime() - this.startEvent.timestamp.getTime();
+    if (offsetMs < 0) return -1;
+    return Math.floor(offsetMs / DAMAGE_BUCKET_SIZE_MS);
   }
 
   private recordSpec(guid: string, specId: number): void {
@@ -174,11 +198,22 @@ export class RunAggregator {
     name: string,
     amount: number,
     isSupport: boolean,
+    timestamp: Date,
   ): void {
     if (!guid || !guid.startsWith('Player-')) return;
     const p = this.getOrCreatePlayer(guid, name);
-    if (isSupport) p.damageDoneSupport += amount;
-    else p.damageDone += amount;
+    if (isSupport) {
+      p.damageDoneSupport += amount;
+    } else {
+      p.damageDone += amount;
+      // Timeline bucketing — only for primary damage, not the support credit,
+      // so the line chart reflects what the player personally put out.
+      const bucketIndex = this.bucketIndexFor(timestamp);
+      if (bucketIndex >= 0) {
+        while (p.damageBuckets.length <= bucketIndex) p.damageBuckets.push(0);
+        p.damageBuckets[bucketIndex]! += amount;
+      }
+    }
   }
 
   private addHealing(
@@ -203,6 +238,31 @@ export class RunAggregator {
 
   finalize(): RunSummary | null {
     if (!this.startEvent || !this.endEvent) return null;
+
+    // Normalize bucket arrays to the full run length, then compute each
+    // player's peak. Short arrays are padded with zeros; this keeps the
+    // client-side chart x-axis consistent across players.
+    const totalBuckets = Math.max(
+      1,
+      Math.ceil(this.endEvent.durationMs / DAMAGE_BUCKET_SIZE_MS),
+    );
+    for (const p of this.players.values()) {
+      while (p.damageBuckets.length < totalBuckets) p.damageBuckets.push(0);
+      // Trim any stragglers past run end (shouldn't happen, but defensive).
+      if (p.damageBuckets.length > totalBuckets) {
+        p.damageBuckets.length = totalBuckets;
+      }
+      let peakIdx = 0;
+      let peakVal = p.damageBuckets[0] ?? 0;
+      for (let i = 1; i < p.damageBuckets.length; i++) {
+        if (p.damageBuckets[i]! > peakVal) {
+          peakVal = p.damageBuckets[i]!;
+          peakIdx = i;
+        }
+      }
+      p.peakBucketIndex = peakIdx;
+      p.peakDamage = peakVal;
+    }
 
     const players = Array.from(this.players.values())
       .filter((p) => p.guid.startsWith('Player-'))
@@ -241,6 +301,7 @@ export class RunAggregator {
       durationMs: this.endEvent.durationMs,
       success: this.endEvent.success,
       endingTrailingFields: this.endEvent.trailing,
+      bucketSizeMs: DAMAGE_BUCKET_SIZE_MS,
       encounters: this.encounters,
       players,
       totals,

@@ -83,6 +83,15 @@ export interface EnrichmentPlayerStats {
   dispels: number;
   deaths: number;
   /**
+   * Per-bucket damage from CHALLENGE_MODE_START. Bucket width is stored on
+   * the parent submission (bucketSizeMs). Omitted on "unavailable" rows.
+   */
+  damageBuckets?: number[];
+  /** Index into damageBuckets of the highest-damage bucket. */
+  peakBucketIndex?: number;
+  /** Damage in the peak bucket. Peak DPS = peakDamage / (bucketSizeMs / 1000). */
+  peakDamage?: number;
+  /**
    * Full COMBATANT_INFO payload (gear, talents, stats, auras) captured as an
    * opaque JSON value. Stored so Phase D/E work can decode extra fields
    * without a re-migration. Null if no COMBATANT_INFO was observed for this
@@ -128,6 +137,17 @@ export interface RunEnrichmentSubmission {
 
   /** Event-type histogram within the segment (diagnostic) */
   eventCountsRaw?: Record<string, number>;
+
+  /**
+   * Width of each entry in the per-player damageBuckets arrays, in ms.
+   * Optional for backward compat with pre-timeline submissions.
+   */
+  bucketSizeMs?: number;
+  /**
+   * CHALLENGE_MODE_START timestamp as unix ms. The client aligns
+   * boss-kill markers against this reference point.
+   */
+  segmentStartedAt?: number;
 
   players: EnrichmentPlayerStats[];
   encounters: EnrichmentEncounter[];

@@ -682,6 +682,14 @@ model RunEnrichment {
   /// Event-type histogram for the M+ segment, for diagnostics
   eventCountsRaw Json? @map("event_counts_raw")
 
+  /// Width of each player.damageBuckets entry, in ms. Null on pre-timeline rows.
+  bucketSizeMs Int? @map("bucket_size_ms")
+
+  /// Absolute timestamp of CHALLENGE_MODE_START — the reference point clients
+  /// use to align boss-kill markers onto the damageBuckets timeline.
+  /// Null on pre-timeline rows.
+  segmentStartedAt DateTime? @map("segment_started_at")
+
   players    RunEnrichmentPlayer[]
   encounters RunEnrichmentEncounter[]
 
@@ -713,6 +721,15 @@ model RunEnrichmentPlayer {
   dispels            Int    @default(0)
   deaths             Int    @default(0)
 
+  /// Per-bucket damage from segment start. Array length = ceil(runDurationMs / bucketSizeMs).
+  /// Null on pre-timeline rows; stored as JSON int[] for Postgres.
+  damageBuckets   Json?   @map("damage_buckets")
+  /// Index into damageBuckets with the highest value (peak damage bucket).
+  peakBucketIndex Int?    @map("peak_bucket_index")
+  /// Damage in the peak bucket. Peak DPS = peakDamage / (bucketSizeMs / 1000).
+  /// Indexed for personal-record queries ("show me my highest peak burst ever").
+  peakDamage      BigInt? @map("peak_damage")
+
   /// Full COMBATANT_INFO payload — gear, talents, stats, interesting auras.
   /// Stored raw so Phase D/E work can decode additional fields without a
   /// schema migration. Roughly a few KB per player per run.
@@ -721,6 +738,7 @@ model RunEnrichmentPlayer {
   @@index([enrichmentId])
   @@index([characterId])
   @@index([specId])
+  @@index([characterId, peakDamage(sort: Desc)])
   @@map("run_enrichment_players")
 }
 
