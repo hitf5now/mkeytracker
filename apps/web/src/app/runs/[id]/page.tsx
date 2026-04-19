@@ -364,10 +364,10 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold">Total Combat Stats</h2>
-      {/* Even-column breakpoints so rows never have an orphan card:
-          2 on mobile, 4 on tablet, 8 on desktop. Ultrawide promotes to
-          10 so the full 10-card case lands on a single row. */}
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8 2xl:grid-cols-10">
+      {/* Fixed 4 columns on desktop so each card has more room — with the
+          typical 8 cards that lands as a clean 4×2 grid. Mobile falls back
+          to 2 per row. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label} className="rounded border border-border bg-card p-3">
             <div className="text-xs text-muted-foreground">{s.label}</div>
