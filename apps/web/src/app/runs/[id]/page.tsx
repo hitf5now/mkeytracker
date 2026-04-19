@@ -10,6 +10,8 @@ import {
   type TimelineBossMarker,
   type TimelinePlayer,
 } from "./_components/damage-timeline-chart";
+import { AchievementList } from "./_components/achievement-badges";
+import { evaluateRun, achievementsForMember } from "@/lib/achievements";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,7 @@ export default async function RunDetailPage({ params }: Props) {
 
   const dungeonName = run.dungeonName ?? run.dungeon.name;
   const resultClass = run.onTime ? "text-green-400" : "text-red-400";
+  const achievements = evaluateRun(run);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -85,17 +88,37 @@ export default async function RunDetailPage({ params }: Props) {
 
       {/* Party members (from run submission) */}
       <section className="mt-8">
-        <h2 className="text-lg font-semibold">Party</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Party</h2>
+          {achievements.party.length > 0 && (
+            <AchievementList
+              achievements={achievements.party}
+              stepMs={90}
+            />
+          )}
+        </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {run.members.map((m) => {
             const cls = m.character?.class ?? m.classSnapshot;
             const color = getClassColor(cls);
+            const memberAchievements = achievementsForMember(
+              run,
+              m,
+              achievements,
+            );
             return (
               <div
                 key={m.id}
                 className="rounded border border-border bg-card p-3"
                 style={{ borderTopColor: color, borderTopWidth: 3 }}
               >
+                {memberAchievements.length > 0 && (
+                  <AchievementList
+                    achievements={memberAchievements}
+                    baseDelayMs={120}
+                    className="mb-2"
+                  />
+                )}
                 <div className="text-sm font-semibold" style={{ color }}>
                   {m.character?.name ?? "Unknown"}
                 </div>
