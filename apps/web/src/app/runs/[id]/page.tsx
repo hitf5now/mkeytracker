@@ -106,28 +106,43 @@ export default async function RunDetailPage({ params }: Props) {
               m,
               achievements,
             );
+            const name = m.character?.name ?? "Unknown";
             return (
               <div
                 key={m.id}
-                className="rounded border border-border bg-card p-3"
+                className="flex flex-col rounded border border-border bg-card p-3"
                 style={{ borderTopColor: color, borderTopWidth: 3 }}
               >
-                {memberAchievements.length > 0 && (
-                  <AchievementList
-                    awarded={memberAchievements}
-                    baseDelayMs={120}
-                    className="mb-2"
+                <div className="flex items-start gap-2.5">
+                  <PlayerAvatar
+                    name={name}
+                    classSlug={cls}
+                    thumbnailUrl={m.character?.thumbnailUrl ?? null}
+                    color={color}
                   />
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="truncate text-sm font-semibold"
+                      style={{ color }}
+                    >
+                      {name}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {m.specSnapshot} {getClassName(cls)}
+                    </div>
+                    <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                      {m.roleSnapshot}
+                    </div>
+                  </div>
+                </div>
+                {memberAchievements.length > 0 && (
+                  <div className="mt-3 rounded-md border border-border/60 bg-background/40 p-2">
+                    <AchievementList
+                      awarded={memberAchievements}
+                      baseDelayMs={120}
+                    />
+                  </div>
                 )}
-                <div className="text-sm font-semibold" style={{ color }}>
-                  {m.character?.name ?? "Unknown"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {m.specSnapshot} {getClassName(cls)}
-                </div>
-                <div className="mt-1 text-xs capitalize text-muted-foreground">
-                  {m.roleSnapshot}
-                </div>
                 <JuiceBreakdown
                   breakdown={run.juiceBreakdown}
                   personalJuice={run.personalJuice}
@@ -160,6 +175,46 @@ export default async function RunDetailPage({ params }: Props) {
         />
       )}
     </main>
+  );
+}
+
+function PlayerAvatar({
+  name,
+  classSlug,
+  thumbnailUrl,
+  color,
+}: {
+  name: string;
+  classSlug: string;
+  thumbnailUrl: string | null;
+  color: string;
+}) {
+  const initial = name?.[0]?.toUpperCase() ?? "?";
+  if (thumbnailUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={thumbnailUrl}
+        alt=""
+        loading="lazy"
+        className="h-11 w-11 flex-shrink-0 rounded-md object-cover"
+        style={{ border: `2px solid ${color}` }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md text-sm font-bold uppercase"
+      style={{
+        border: `2px solid ${color}`,
+        color,
+        backgroundColor: `${color}1A`,
+      }}
+      aria-hidden
+      title={classSlug}
+    >
+      {initial}
+    </div>
   );
 }
 
