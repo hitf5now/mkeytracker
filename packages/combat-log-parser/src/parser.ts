@@ -350,12 +350,14 @@ function parseHeal(
   const spellId = toNumber(tokens[nextIndex]);
   const spellName = unquote(tokens[nextIndex + 1] ?? '');
 
-  // Heal suffix observed (v12.0.1): amount, overhealing, absorbed, critical,
-  // and a trailing field (often `nil` or `1`). _SUPPORT appends supporterGUID.
-  // We grab the four we care about by position from the end.
+  // Heal suffix (v12.0.1), in order:
+  //   amount, baseAmount, overhealing, absorbed, critical
+  // _SUPPORT variants append supporterGUID. We skip baseAmount — it's the
+  // pre-modifier heal amount and we don't need it. Critical position we
+  // read but effectively ignore, keeping the field for API shape.
   const last = tokens[tokens.length - 1] ?? '';
   const isSupport = eventType === 'SPELL_HEAL_SUPPORT';
-  const trailingCount = isSupport ? 6 : 5; // conservative window
+  const trailingCount = isSupport ? 6 : 5;
 
   if (tokens.length < trailingCount) return null;
   const base = tokens.length - trailingCount;
@@ -368,9 +370,10 @@ function parseHeal(
     spellId,
     spellName,
     amount: toNumber(tokens[base]),
-    overhealing: toNumber(tokens[base + 1]),
-    absorbed: toNumber(tokens[base + 2]),
-    critical: toBool(tokens[base + 3]),
+    // tokens[base + 1] is baseAmount — intentionally skipped.
+    overhealing: toNumber(tokens[base + 2]),
+    absorbed: toNumber(tokens[base + 3]),
+    critical: toBool(tokens[base + 4]),
     supporterGuid: isSupport ? last : undefined,
   };
 }

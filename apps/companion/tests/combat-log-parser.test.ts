@@ -98,11 +98,11 @@ describe("heal events: effective vs overheal", () => {
   it("subtracts overheal+absorbed from healingDone; tracks overheal separately", () => {
     const summary = run([
       T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
-      // SPELL_HEAL suffix (heal-only): amount, overhealing, absorbed, critical, extra
-      // Raw 10000 heal, 3000 overheal, 500 absorbed -> effective = 6500
+      // SPELL_HEAL real suffix (v12.0.1): amount, baseAmount, overheal, absorbed, critical
+      // Raw 10000 heal (baseAmount also 10000), 3000 overheal, 500 absorbed -> effective = 6500
       T(
         "11:00:05",
-        `SPELL_HEAL,${PLAYER_A},${PLAYER_B},2060,"Flash Heal",0x2,10000,3000,500,false,nil`,
+        `SPELL_HEAL,${PLAYER_A},${PLAYER_B},2060,"Flash Heal",0x2,10000,10000,3000,500,false`,
       ),
       T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
     ]);
@@ -144,10 +144,10 @@ describe("self-heal bucket", () => {
   it("credits selfHealing when source = dest", () => {
     const summary = run([
       T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
-      // Alpha heals Alpha: amount=10000, overheal=2000, absorbed=0 -> effective 8000
+      // Alpha heals Alpha: amount=10000, baseAmount=10000, overheal=2000, absorbed=0
       T(
         "11:00:05",
-        `SPELL_HEAL,${PLAYER_A},${PLAYER_A},49998,"Death Strike",0x1,10000,2000,0,false,nil`,
+        `SPELL_HEAL,${PLAYER_A},${PLAYER_A},49998,"Death Strike",0x1,10000,10000,2000,0,false`,
       ),
       T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
     ]);
