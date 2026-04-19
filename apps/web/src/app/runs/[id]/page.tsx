@@ -537,7 +537,7 @@ function TimelineSection({
               id: "damage",
               label: "Damage",
               available: damagePlayers.length > 0,
-              render: () => (
+              content: (
                 <DamageTimelineChart
                   bucketSizeMs={bucketSizeMs}
                   runDurationSec={runDurationSec}
@@ -550,7 +550,7 @@ function TimelineSection({
               id: "healing",
               label: "Healing",
               available: healingPlayers.length > 0,
-              render: () => (
+              content: (
                 <HealingTimelineChart
                   bucketSizeMs={bucketSizeMs}
                   runDurationSec={runDurationSec}
@@ -563,32 +563,31 @@ function TimelineSection({
               id: "tanking",
               label: "Tanking",
               available: tankingAvailable,
-              render: () =>
-                multipleTanks ? (
-                  <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm">
-                    <p className="font-medium text-yellow-400">
-                      Multiple tanks detected
-                    </p>
-                    <p className="mt-1 text-muted-foreground">
-                      The tanking view is designed for single-tank M+ runs.
-                      This group has {tankMembers.length} tanks, so we
-                      don&apos;t render per-tank insights.
-                    </p>
-                  </div>
-                ) : tankEnrichment && tankHasData ? (
-                  <TankTabBody
-                    tankEnrichment={tankEnrichment}
-                    tankShortName={tankShortName}
-                    tankColorHex={tankColorHex}
-                    bucketSizeMs={bucketSizeMs}
-                    runDurationSec={runDurationSec}
-                    bosses={bosses}
-                  />
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    No tanking data available for this run.
-                  </div>
-                ),
+              content: multipleTanks ? (
+                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm">
+                  <p className="font-medium text-yellow-400">
+                    Multiple tanks detected
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    The tanking view is designed for single-tank M+ runs.
+                    This group has {tankMembers.length} tanks, so we
+                    don&apos;t render per-tank insights.
+                  </p>
+                </div>
+              ) : tankEnrichment && tankHasData ? (
+                <TankTabBody
+                  tankEnrichment={tankEnrichment}
+                  tankShortName={tankShortName}
+                  tankColorHex={tankColorHex}
+                  bucketSizeMs={bucketSizeMs}
+                  runDurationSec={runDurationSec}
+                  bosses={bosses}
+                />
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  No tanking data available for this run.
+                </div>
+              ),
             },
           ]}
         />

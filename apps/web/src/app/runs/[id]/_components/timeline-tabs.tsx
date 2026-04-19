@@ -10,8 +10,8 @@ interface TabDef {
   label: string;
   /** Optional — suppresses the tab if no data is available for it. */
   available: boolean;
-  /** Render the tab's body only when active (lazy). */
-  render: () => ReactNode;
+  /** Pre-rendered content for this tab (a ReactNode, not a function). */
+  content: ReactNode;
 }
 
 interface Props {
@@ -64,9 +64,15 @@ export function TimelineTabs({ tabs, defaultTab = "damage" }: Props) {
           );
         })}
       </div>
-      <div className="mt-3 rounded-lg border border-border bg-card p-3">
-        {activeTab.render()}
-      </div>
+      {visibleTabs.map((t) => (
+        <div
+          key={t.id}
+          className="mt-3 rounded-lg border border-border bg-card p-3"
+          hidden={t.id !== active}
+        >
+          {t.content}
+        </div>
+      ))}
     </div>
   );
 }
