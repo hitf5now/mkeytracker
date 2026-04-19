@@ -53,6 +53,7 @@ const computePartyStats = (
   let partyDeaths = 0;
   let maxDeaths = 0;
   let maxInterrupts = 0;
+  let maxDispels = 0;
   let topDamagePlayerId: number | null = null;
   let topDamage = 0;
   let tank: PartyStats["tank"] = null;
@@ -69,6 +70,7 @@ const computePartyStats = (
     partyDeaths += p.deaths;
     if (p.deaths > maxDeaths) maxDeaths = p.deaths;
     if (p.interrupts > maxInterrupts) maxInterrupts = p.interrupts;
+    if (p.dispels > maxDispels) maxDispels = p.dispels;
     if (dmg > topDamage) {
       topDamage = dmg;
       topDamagePlayerId = p.id;
@@ -98,6 +100,7 @@ const computePartyStats = (
     healer,
     dps,
     maxInterrupts,
+    maxDispels,
     topDamagePlayerId,
   };
 };

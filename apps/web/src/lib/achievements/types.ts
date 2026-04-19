@@ -42,6 +42,7 @@ export interface PartyStats {
   healer: { playerId: number; damage: number; healing: number } | null;
   dps: Array<{ playerId: number; damage: number }>;
   maxInterrupts: number;
+  maxDispels: number;
   topDamagePlayerId: number | null;
 }
 

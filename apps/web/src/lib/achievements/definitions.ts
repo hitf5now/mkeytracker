@@ -428,6 +428,55 @@ export const playerRules: Rule[] = [
       return `You did ${formatNumber(ctx.damageDone)} damage — above a party DPS who did ${beatenDmg}.`;
     },
   },
+  {
+    def: {
+      id: "steady_tap",
+      name: "Steady Tap",
+      flavor: "You survived the whole run. Job one, done.",
+      description:
+        "When the healer goes down, everyone's day gets complicated — the tank panics, the DPS spam 'BR?' in party chat, and the whole key wobbles sideways. You didn't. You stayed at the tap, keeping the juice flowing, watching the tank take hits with a calm 'I've got you.'",
+      icon: "🫖",
+      severity: "positive",
+      scope: "healer",
+    },
+    eligible: (ctx) => ctx.role === "healer",
+    matches: (ctx) => ctx.player.deaths === 0,
+    describe: () =>
+      "You finished the run without a single death. A healer who stays up keeps the party up.",
+  },
+  {
+    def: {
+      id: "juice_dispensary",
+      name: "Juice Dispensary",
+      flavor: "Most dispels in the party. Juice's purification wing.",
+      description:
+        "Curses, magics, diseases — whatever the dungeon threw at the group, you scrubbed it off before anyone else noticed. The rest of the party barely knew their debuffs existed. Somewhere a tooltip is thanking you by name.",
+      icon: "🧴",
+      severity: "positive",
+      scope: "healer",
+    },
+    eligible: (ctx) => ctx.role === "healer" && ctx.party.maxDispels >= 3,
+    matches: (ctx) =>
+      ctx.player.dispels === ctx.party.maxDispels && ctx.player.dispels > 0,
+    describe: (ctx) =>
+      `${ctx.player.dispels} dispels — the most in the party (party total: ${ctx.party.totalDispels}).`,
+  },
+  {
+    def: {
+      id: "keeper_of_the_pour",
+      name: "Keeper of the Pour",
+      flavor: "Zero party deaths on your watch. Every cup stayed full.",
+      description:
+        "The DPS stood in some bad things. The tank forgot some defensives. And somehow none of it mattered, because you were a healing machine. Every dip in health was a blip. Every close call a story nobody else noticed. Not one Spirit Healer visit, on any member, the entire run.",
+      icon: "⚱️",
+      severity: "positive",
+      scope: "healer",
+    },
+    eligible: (ctx) => ctx.role === "healer",
+    matches: (ctx) => ctx.party.partyDeaths === 0,
+    describe: () =>
+      "Zero party deaths across the entire run. You carried the cups and didn't spill one.",
+  },
 
   // ── Tank ─────────────────────────────────────────────────────────────────
   {
