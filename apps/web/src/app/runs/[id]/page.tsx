@@ -734,7 +734,6 @@ function PlayersTable({
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">Player</th>
-              <th className="px-3 py-2 font-medium">Spec</th>
               <th className="px-3 py-2 text-right font-medium">Damage</th>
               <th className="px-3 py-2 text-right font-medium">Average DPS</th>
               {showPeakColumn && (
@@ -795,19 +794,19 @@ function PlayersTable({
               return (
                 <tr key={p.id} className="border-b border-border/50">
                   <td className="px-3 py-2">
-                    <span
-                      className="font-medium"
+                    <div
+                      className="font-medium leading-tight"
                       style={colorHex ? { color: colorHex } : undefined}
                     >
                       {shortName}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {spec
-                      ? `${spec.name} ${spec.className}`
-                      : p.specId != null
-                        ? `spec ${p.specId}`
-                        : "—"}
+                    </div>
+                    <div className="text-[10px] leading-tight text-muted-foreground">
+                      {spec
+                        ? `${spec.name} ${spec.className}`
+                        : p.specId != null
+                          ? `spec ${p.specId}`
+                          : "—"}
+                    </div>
                   </td>
                   <td className={leader(isTopDamage, "px-3 py-2 text-right font-mono")}>
                     {formatNumber(damage)}
