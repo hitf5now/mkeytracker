@@ -155,20 +155,25 @@ export function evaluateRun(run: RunDetail): EvaluationResult {
         earned.push({ def: rule.def, reason: rule.describe(ctx) });
       }
     }
-    // Negatives first (the fun roasts), then positives, then neutrals
+    // Positives on top, roasts at the bottom.
     earned.sort(
       (a, b) => severityOrder(a.def.severity) - severityOrder(b.def.severity),
     );
     byPlayerId.set(player.id, earned);
   }
 
+  // Apply the same sort to party-level awards.
+  partyAchievements.sort(
+    (a, b) => severityOrder(a.def.severity) - severityOrder(b.def.severity),
+  );
+
   return { byPlayerId, party: partyAchievements };
 }
 
 const severityOrder = (s: AwardedAchievement["def"]["severity"]): number => {
-  if (s === "negative") return 0;
-  if (s === "positive") return 1;
-  return 2;
+  if (s === "positive") return 0;
+  if (s === "negative") return 2;
+  return 1;
 };
 
 /**

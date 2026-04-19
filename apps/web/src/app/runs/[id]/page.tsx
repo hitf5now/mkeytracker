@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { RunDetail, RunDetailEnrichmentPlayer, RunJuiceBreakdown } from "@/types/api";
+import type { RunDetail, RunDetailEnrichmentPlayer, RunDetailMember, RunJuiceBreakdown } from "@/types/api";
 import { formatDuration, formatNumber, formatDateTime, formatUpgrades } from "@/lib/format";
 import { getClassColor, getClassName } from "@/lib/class-colors";
 import { getSpecById } from "@mplus/wow-constants";
@@ -98,7 +98,7 @@ export default async function RunDetailPage({ params }: Props) {
           )}
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-          {run.members.map((m) => {
+          {sortPartyForDisplay(run).map((m) => {
             const cls = m.character?.class ?? m.classSnapshot;
             const color = getClassColor(cls);
             const memberAchievements = achievementsForMember(
@@ -107,22 +107,27 @@ export default async function RunDetailPage({ params }: Props) {
               achievements,
             );
             const name = m.character?.name ?? "Unknown";
+            const roleLabel = formatRoleLabel(m.roleSnapshot);
             return (
               <div
                 key={m.id}
                 className="flex flex-col rounded border border-border bg-card p-3"
                 style={{ borderTopColor: color, borderTopWidth: 3 }}
               >
-                <div className="flex items-start gap-2.5">
+                {/* Section 1: Role + identity */}
+                <SectionHeader>{roleLabel}</SectionHeader>
+                <div className="mt-1.5 flex items-start gap-2.5">
                   <PlayerAvatar
                     name={name}
                     classSlug={cls}
+                    avatarUrl={m.character?.avatarUrl ?? null}
                     thumbnailUrl={m.character?.thumbnailUrl ?? null}
+                    insetUrl={m.character?.insetUrl ?? null}
                     color={color}
                   />
                   <div className="min-w-0 flex-1">
                     <div
-                      className="truncate text-sm font-semibold"
+                      className="truncate text-sm font-semibold leading-tight"
                       style={{ color }}
                     >
                       {name}
@@ -130,23 +135,34 @@ export default async function RunDetailPage({ params }: Props) {
                     <div className="truncate text-xs text-muted-foreground">
                       {m.specSnapshot} {getClassName(cls)}
                     </div>
-                    <div className="mt-0.5 text-xs capitalize text-muted-foreground">
-                      {m.roleSnapshot}
-                    </div>
                   </div>
                 </div>
-                {memberAchievements.length > 0 && (
-                  <div className="mt-3 rounded-md border border-border/60 bg-background/40 p-2">
+
+                {/* Divider + Section 2: Juice earned */}
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <SectionHeader>Juice Earned</SectionHeader>
+                  <JuiceBreakdown
+                    breakdown={run.juiceBreakdown}
+                    personalJuice={run.personalJuice}
+                  />
+                </div>
+
+                {/* Divider + Section 3: Run achievements */}
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <SectionHeader>Run Achievements</SectionHeader>
+                  {memberAchievements.length > 0 ? (
                     <AchievementList
                       awarded={memberAchievements}
                       baseDelayMs={120}
+                      direction="col"
+                      className="mt-1.5"
                     />
-                  </div>
-                )}
-                <JuiceBreakdown
-                  breakdown={run.juiceBreakdown}
-                  personalJuice={run.personalJuice}
-                />
+                  ) : (
+                    <div className="mt-1.5 text-[11px] italic text-muted-foreground">
+                      Nothing earned this run.
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -178,23 +194,89 @@ export default async function RunDetailPage({ params }: Props) {
   );
 }
 
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+function formatRoleLabel(role: string): string {
+  const r = role.toLowerCase();
+  if (r === "tank") return "Tank";
+  if (r === "healer") return "Healer";
+  if (r === "dps") return "DPS";
+  return role;
+}
+
+/**
+ * Display ordering for the party grid: Tank, Healer, then DPS sorted by
+ * damageDone (descending) from enrichment. Falls back to submission order
+ * for any member whose enrichment row can't be matched.
+ */
+function sortPartyForDisplay(run: RunDetail): RunDetailMember[] {
+  const damageByCharId = new Map<number, number>();
+  const damageByName = new Map<string, number>();
+  if (run.enrichment && run.enrichment.status === "complete") {
+    for (const p of run.enrichment.players) {
+      const dmg = Number(p.damageDone);
+      if (p.characterId != null) damageByCharId.set(p.characterId, dmg);
+      const bare = p.playerName.split("-")[0]?.toLowerCase();
+      if (bare) damageByName.set(bare, dmg);
+    }
+  }
+
+  const damageFor = (m: RunDetailMember): number => {
+    if (m.character?.id != null) {
+      const byId = damageByCharId.get(m.character.id);
+      if (byId != null) return byId;
+    }
+    const bare = m.character?.name.toLowerCase();
+    if (bare && damageByName.has(bare)) return damageByName.get(bare) ?? 0;
+    return 0;
+  };
+
+  const bucket = (m: RunDetailMember): number => {
+    const r = m.roleSnapshot.toLowerCase();
+    if (r === "tank") return 0;
+    if (r === "healer") return 1;
+    if (r === "dps") return 2;
+    return 3;
+  };
+
+  return [...run.members].sort((a, b) => {
+    const ba = bucket(a);
+    const bb = bucket(b);
+    if (ba !== bb) return ba - bb;
+    // Within DPS bucket: higher damage first.
+    if (ba === 2) return damageFor(b) - damageFor(a);
+    return 0;
+  });
+}
+
 function PlayerAvatar({
   name,
   classSlug,
+  avatarUrl,
   thumbnailUrl,
+  insetUrl,
   color,
 }: {
   name: string;
   classSlug: string;
+  avatarUrl: string | null;
   thumbnailUrl: string | null;
+  insetUrl: string | null;
   color: string;
 }) {
+  const src = avatarUrl ?? thumbnailUrl ?? insetUrl;
   const initial = name?.[0]?.toUpperCase() ?? "?";
-  if (thumbnailUrl) {
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={thumbnailUrl}
+        src={src}
         alt=""
         loading="lazy"
         className="h-11 w-11 flex-shrink-0 rounded-md object-cover"
@@ -288,11 +370,9 @@ function JuiceBreakdown({
   }
 
   return (
-    <div className="mt-2 border-t border-border/60 pt-2">
+    <div className="mt-1.5">
       <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          Juice
-        </span>
+        <span className="text-[11px] text-muted-foreground">Total</span>
         <span className="font-mono text-sm font-semibold text-gold">
           {formatNumber(personalJuice)}
         </span>

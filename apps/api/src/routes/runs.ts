@@ -24,6 +24,7 @@ import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
 import { matchRunToEvents } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
+import { fetchCharacterMedia } from "../lib/blizzard.js";
 
 const RegionSchema = z.enum(["us", "eu", "kr", "tw", "cn"]);
 
@@ -860,6 +861,9 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 region: true,
                 class: true,
                 thumbnailUrl: true,
+                avatarUrl: true,
+                insetUrl: true,
+                mainRawUrl: true,
               },
             },
           },
@@ -888,6 +892,15 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       isPersonalOverallRecord: false,
       isEventParticipation: run.eventJuice !== null && run.eventJuice > 0,
     });
+
+    // Capture before the reply — inside the async callback below TS loses
+    // the null-narrow on `run` after `reply.send`.
+    const charactersNeedingPortraits = run.members
+      .map((m) => m.character)
+      .filter(
+        (c): c is NonNullable<typeof c> =>
+          c !== null && c.avatarUrl === null,
+      );
 
     return reply.send({
       run: {
@@ -931,12 +944,36 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 region: m.character.region,
                 class: m.character.class,
                 thumbnailUrl: m.character.thumbnailUrl,
+                avatarUrl: m.character.avatarUrl,
+                insetUrl: m.character.insetUrl,
+                mainRawUrl: m.character.mainRawUrl,
               }
             : null,
         })),
         enrichment: run.enrichment ? serializeEnrichment(run.enrichment) : null,
       },
     });
+
+    // Fire-and-forget: pull portraits from Blizzard for any character that
+    // doesn't have a cached avatarUrl yet. Does NOT block the response —
+    // the first view of a run may show the initial fallback, subsequent
+    // views will have the full portrait once the refresh completes.
+    if (charactersNeedingPortraits.length > 0) {
+      void Promise.allSettled(
+        charactersNeedingPortraits.map(async (c) => {
+          const media = await fetchCharacterMedia(c.region, c.realm, c.name);
+          if (!media) return;
+          await prisma.character.update({
+            where: { id: c.id },
+            data: {
+              avatarUrl: media.avatar,
+              insetUrl: media.inset,
+              mainRawUrl: media.mainRaw,
+            },
+          });
+        }),
+      );
+    }
   });
 
   // ─── POST /api/v1/runs/:id/enrichment — retroactive enrichment ───────────

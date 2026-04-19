@@ -416,6 +416,9 @@ export interface RunDetailMember {
     region: string;
     class: string;
     thumbnailUrl: string | null;
+    avatarUrl: string | null;
+    insetUrl: string | null;
+    mainRawUrl: string | null;
   } | null;
 }
 

@@ -48,6 +48,8 @@ interface AchievementListProps {
   awarded: AwardedAchievement[];
   baseDelayMs?: number;
   stepMs?: number;
+  /** "row" = inline flex-wrap (default). "col" = one badge per row. */
+  direction?: "row" | "col";
   className?: string;
 }
 
@@ -55,11 +57,16 @@ export function AchievementList({
   awarded,
   baseDelayMs = 0,
   stepMs = 70,
+  direction = "row",
   className,
 }: AchievementListProps) {
   if (awarded.length === 0) return null;
+  const layout =
+    direction === "col"
+      ? "flex flex-col items-start gap-1"
+      : "flex flex-wrap gap-1";
   return (
-    <div className={cn("flex flex-wrap gap-1", className)}>
+    <div className={cn(layout, className)}>
       {awarded.map((a, i) => (
         <AchievementBadge
           key={a.def.id}
