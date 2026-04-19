@@ -332,15 +332,16 @@ export const playerRules: Rule[] = [
     def: {
       id: "concentrate",
       name: "Concentrate",
-      flavor: "Your burst window was massively above your active average.",
+      flavor: "The biggest burst spike in the party. Flash-pressed.",
       description:
-        "There is a reason people dread standing near you in Bloodlust. A full cooldown cycle from you looks like a PvP crit screenshot. Details scrolled. The log chimed. The boss's healthbar remembered a different era. Flash-pressed.",
+        "There is a reason people dread standing near you in Bloodlust. A full cooldown cycle from you looks like a PvP crit screenshot. Of every DPS in this party, you had the most extreme gap between your best 5-second window and your normal combat output — a true burst specialist.",
       icon: "⚡",
       severity: "positive",
       scope: "dps",
     },
     eligible: (ctx) => {
       if (ctx.role !== "dps") return false;
+      if (ctx.party.dps.length < 2) return false;
       const peak = ctx.player.peakDamage ? Number(ctx.player.peakDamage) : 0;
       const aavg = activeAvgBucket(ctx.player.damageBuckets);
       return peak > 0 && aavg > 0;
@@ -348,13 +349,27 @@ export const playerRules: Rule[] = [
     matches: (ctx) => {
       const peak = Number(ctx.player.peakDamage);
       const aavg = activeAvgBucket(ctx.player.damageBuckets);
-      return peak / aavg > 2.5;
+      const myRatio = peak / aavg;
+      if (myRatio <= 4.0) return false;
+      // Must also be the highest peak/active-avg ratio among party DPS —
+      // Concentrate is reserved for the single most spikey player in the run.
+      const dpsIds = new Set(ctx.party.dps.map((d) => d.playerId));
+      const players = ctx.run.enrichment?.players ?? [];
+      for (const other of players) {
+        if (other.id === ctx.player.id) continue;
+        if (!dpsIds.has(other.id)) continue;
+        const theirPeak = other.peakDamage ? Number(other.peakDamage) : 0;
+        const theirAavg = activeAvgBucket(other.damageBuckets);
+        if (theirAavg <= 0) continue;
+        if (theirPeak / theirAavg > myRatio) return false;
+      }
+      return true;
     },
     describe: (ctx) => {
       const peak = Number(ctx.player.peakDamage);
       const aavg = activeAvgBucket(ctx.player.damageBuckets);
       const ratio = aavg > 0 ? (peak / aavg).toFixed(1) : "—";
-      return `Peak 5s burst was ${ratio}× your active-combat average.`;
+      return `Peak 5s burst was ${ratio}× your active-combat average — the largest spike among the party's DPS.`;
     },
   },
 

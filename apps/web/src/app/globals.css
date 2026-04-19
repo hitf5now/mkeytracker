@@ -159,11 +159,6 @@
   outline-offset: 2px;
 }
 
-.ach-badge-icon {
-  font-size: 11px;
-  line-height: 1;
-}
-
 .ach-badge.ach-negative {
   color: #fef2f2;
   border-color: rgba(248, 113, 113, 0.55);

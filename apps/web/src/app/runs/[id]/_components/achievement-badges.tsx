@@ -35,10 +35,7 @@ export function AchievementBadge({
         onClick={() => setOpen(true)}
         aria-label={`Achievement: ${def.name}`}
       >
-        <span className="ach-badge-icon" aria-hidden>
-          {def.icon}
-        </span>
-        <span>{def.name}</span>
+        {def.name}
       </button>
       {open && <AchievementDetailModal awarded={awarded} onClose={() => setOpen(false)} />}
     </>
