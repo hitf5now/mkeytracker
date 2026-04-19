@@ -189,7 +189,6 @@ export default async function RunDetailPage({ params }: Props) {
       {/* Enrichment section — falls back if not available */}
       {run.enrichment && run.enrichment.status === "complete" ? (
         <>
-          <EnrichmentOverview enrichment={run.enrichment} />
           <PlayersTable
             players={run.enrichment.players}
             runDurationMs={run.completionMs}
@@ -200,7 +199,9 @@ export default async function RunDetailPage({ params }: Props) {
             enrichment={run.enrichment}
             runDurationMs={run.completionMs}
           />
-          <EncountersTable encounters={run.enrichment.encounters} />
+          {/* Total Combat Stats — moved to bottom so the per-player table
+              and timeline get primary attention above the fold. */}
+          <EnrichmentOverview enrichment={run.enrichment} />
         </>
       ) : (
         <EnrichmentMissing
@@ -363,7 +364,10 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold">Total Combat Stats</h2>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      {/* Even-column breakpoints so rows never have an orphan card:
+          2 on mobile, 4 on tablet, 8 on desktop. Ultrawide promotes to
+          10 so the full 10-card case lands on a single row. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8 2xl:grid-cols-10">
         {stats.map((s) => (
           <div key={s.label} className="rounded border border-border bg-card p-3">
             <div className="text-xs text-muted-foreground">{s.label}</div>
@@ -875,43 +879,6 @@ function PlayersTable({
   );
 }
 
-function EncountersTable({
-  encounters,
-}: {
-  encounters: RunDetail["enrichment"] extends null ? never : NonNullable<RunDetail["enrichment"]>["encounters"];
-}) {
-  return (
-    <section className="mt-8">
-      <h3 className="text-base font-semibold">Boss fights</h3>
-      <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Boss</th>
-              <th className="px-3 py-2 font-medium">Outcome</th>
-              <th className="px-3 py-2 text-right font-medium">Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            {encounters.map((e) => (
-              <tr key={e.id} className="border-b border-border/50">
-                <td className="px-3 py-2 text-muted-foreground">{e.sequenceIndex + 1}</td>
-                <td className="px-3 py-2">{e.encounterName}</td>
-                <td className="px-3 py-2">
-                  <span className={e.success ? "text-green-400" : "text-red-400"}>
-                    {e.success ? "Kill" : "Wipe"}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right font-mono">{formatDuration(e.fightTimeMs)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
 
 function EnrichmentMissing({ reason, hasAttempt }: { reason: string; hasAttempt: boolean }) {
   const friendly =
