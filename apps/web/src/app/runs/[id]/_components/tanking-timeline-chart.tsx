@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Area,
   CartesianGrid,
@@ -14,7 +13,6 @@ import {
   YAxis,
 } from "recharts";
 import type { TimelineBossMarker } from "./damage-timeline-chart";
-import { cn } from "@/lib/utils";
 
 interface Props {
   bucketSizeMs: number;
@@ -34,14 +32,8 @@ const TAKEN_COLOR = "#ef4444"; // red — what actually hit
 const MITIGATED_COLOR = "#64748b"; // slate — what was absorbed/blocked/resisted
 const SELF_HEAL_COLOR = "#22c55e"; // green — mitigator response
 
-/** Available aggregation windows, in multiples of the stored 5s bucket size. */
-const AGG_OPTIONS = [
-  { label: "5s", factor: 1 },
-  { label: "15s", factor: 3 },
-  { label: "30s", factor: 6 },
-] as const;
-
-type AggFactor = (typeof AGG_OPTIONS)[number]["factor"];
+/** Aggregation window in multiples of the stored 5s bucket. 6 × 5s = 30s. */
+const AGG_FACTOR = 6;
 
 function formatMmSs(totalSec: number): string {
   const m = Math.floor(totalSec / 60);
@@ -83,14 +75,12 @@ export function TankingTimelineChart({
   selfHealingBuckets,
   bosses,
 }: Props) {
-  const [aggFactor, setAggFactor] = useState<AggFactor>(3); // default 15s
-
   const bucketSec = bucketSizeMs / 1000;
-  const windowSec = bucketSec * aggFactor;
+  const windowSec = bucketSec * AGG_FACTOR;
 
-  const incoming = aggregate(damageIncomingBuckets, aggFactor);
-  const taken = aggregate(damageTakenBuckets, aggFactor);
-  const selfHeal = aggregate(selfHealingBuckets, aggFactor);
+  const incoming = aggregate(damageIncomingBuckets, AGG_FACTOR);
+  const taken = aggregate(damageTakenBuckets, AGG_FACTOR);
+  const selfHeal = aggregate(selfHealingBuckets, AGG_FACTOR);
   const numBuckets = Math.max(incoming.length, taken.length, selfHeal.length, 1);
 
   const data = Array.from({ length: numBuckets }, (_, i) => {
@@ -111,33 +101,6 @@ export function TankingTimelineChart({
 
   return (
     <div>
-      {/* Bucket size toggle */}
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Bucket size
-        </span>
-        <div className="inline-flex rounded-md border border-border bg-background/40 p-0.5">
-          {AGG_OPTIONS.map((opt) => {
-            const selected = opt.factor === aggFactor;
-            return (
-              <button
-                key={opt.factor}
-                type="button"
-                onClick={() => setAggFactor(opt.factor)}
-                className={cn(
-                  "rounded px-3 py-1 text-xs font-semibold transition-colors",
-                  selected
-                    ? "bg-card text-gold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="h-96 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 36, right: 16, bottom: 8, left: 0 }}>
