@@ -107,6 +107,92 @@ export async function getEndorsementSummaryForUser(
   };
 }
 
+/**
+ * Character-scoped endorsement summary. Used on the character profile
+ * page and anywhere the view should be scoped to one specific character
+ * rather than aggregated across the user's whole account.
+ *
+ * Favorite is only returned if the user's pinned favorite was received
+ * on this exact character — otherwise null.
+ */
+export async function getEndorsementSummaryForCharacter(
+  characterId: number,
+): Promise<EndorsementSummary> {
+  const [character, activeSeason] = await Promise.all([
+    prisma.character.findUnique({
+      where: { id: characterId },
+      select: {
+        id: true,
+        userId: true,
+        user: { select: { favoriteEndorsementId: true } },
+      },
+    }),
+    prisma.season.findFirst({
+      where: { isActive: true },
+      select: { id: true },
+    }),
+  ]);
+  if (!character) {
+    return emptySummary();
+  }
+
+  const favoriteId = character.user?.favoriteEndorsementId ?? null;
+
+  const [totalReceived, seasonReceived, breakdownRaw, recentRaw, favoriteRaw] =
+    await Promise.all([
+      prisma.endorsement.count({ where: { receiverCharacterId: characterId } }),
+      activeSeason
+        ? prisma.endorsement.count({
+            where: {
+              receiverCharacterId: characterId,
+              seasonId: activeSeason.id,
+            },
+          })
+        : Promise.resolve(0),
+      prisma.endorsement.groupBy({
+        by: ["category"],
+        where: { receiverCharacterId: characterId },
+        _count: { category: true },
+      }),
+      prisma.endorsement.findMany({
+        where: { receiverCharacterId: characterId },
+        orderBy: { createdAt: "desc" },
+        take: RECENT_LIMIT,
+        include: {
+          giver: { select: { id: true, discordId: true } },
+        },
+      }),
+      favoriteId !== null
+        ? prisma.endorsement.findUnique({
+            where: { id: favoriteId },
+            include: {
+              giver: { select: { id: true, discordId: true } },
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+
+  const categoryBreakdown = breakdownRaw
+    .map((r) => ({ category: r.category, count: r._count.category }))
+    .sort((a, b) => b.count - a.count);
+
+  const recent = recentRaw.map(toListItem);
+  // Only show the pinned favorite if it was received on THIS character;
+  // otherwise it belongs on a different character's profile.
+  const favorite =
+    favoriteRaw && favoriteRaw.receiverCharacterId === characterId
+      ? toListItem(favoriteRaw)
+      : null;
+
+  return {
+    totalReceived,
+    seasonReceived,
+    categoryBreakdown,
+    recent,
+    favorite,
+  };
+}
+
 function emptySummary(): EndorsementSummary {
   return {
     totalReceived: 0,

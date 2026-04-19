@@ -106,19 +106,22 @@ export async function endorsementsRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Both participants must have been in this run (RunMember.userId match).
+      // Both participants must have been in this run — pull the specific
+      // characters they played so the endorsement is scoped to the character
+      // who earned it, not every character on the account.
       const members = await prisma.runMember.findMany({
         where: {
           runId: run.id,
           userId: { in: [giver.id, receiver.id] },
         },
-        select: { userId: true },
+        select: { userId: true, characterId: true },
       });
-      const memberUserIds = new Set(members.map((m) => m.userId));
-      if (!memberUserIds.has(giver.id)) {
+      const giverMember = members.find((m) => m.userId === giver.id);
+      const receiverMember = members.find((m) => m.userId === receiver.id);
+      if (!giverMember) {
         return reply.code(403).send({ error: "giver_not_in_run" });
       }
-      if (!memberUserIds.has(receiver.id)) {
+      if (!receiverMember) {
         return reply.code(400).send({ error: "receiver_not_in_run" });
       }
 
@@ -132,6 +135,8 @@ export async function endorsementsRoutes(app: FastifyInstance): Promise<void> {
             data: {
               giverId: giver.id,
               receiverId: receiver.id,
+              giverCharacterId: giverMember.characterId,
+              receiverCharacterId: receiverMember.characterId,
               runId: run.id,
               category: body.category,
               note: body.note ?? null,

@@ -13,7 +13,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import {
-  getEndorsementSummaryForUser,
+  getEndorsementSummaryForCharacter,
   type EndorsementSummary,
 } from "./endorsement-stats.js";
 
@@ -216,9 +216,12 @@ export async function getCharacterProfile(
     recordedAt: rm.run.recordedAt.toISOString(),
   }));
 
+  // Scope endorsements to this specific character, not the whole
+  // account — a "Great Tank" earned on my warrior shouldn't show up
+  // on my mage's profile.
   const endorsements =
     character.userId !== null
-      ? await getEndorsementSummaryForUser(character.userId)
+      ? await getEndorsementSummaryForCharacter(character.id)
       : null;
 
   return {
@@ -365,22 +368,19 @@ async function leaderboardSeasonJuice(
 
   const charMap = await loadCharactersById(rows.map((r) => r.characterId));
 
-  // Lifetime endorsement counts per user, batched for the users behind
-  // these characters. Characters without a linked user get 0.
-  const userIds: number[] = [];
-  for (const row of rows) {
-    const c = charMap.get(row.characterId) as { userId: number | null };
-    if (c?.userId != null) userIds.push(c.userId);
-  }
+  // Endorsement counts PER CHARACTER (not per user) — a player's warrior
+  // and mage each earn their own endorsements. Batched via groupBy on
+  // receiver_character_id.
+  const characterIds = rows.map((r) => r.characterId);
   const endorsementCounts = new Map<number, number>();
-  if (userIds.length > 0) {
+  if (characterIds.length > 0) {
     const counts = await prisma.endorsement.groupBy({
-      by: ["receiverId"],
-      where: { receiverId: { in: userIds } },
-      _count: { receiverId: true },
+      by: ["receiverCharacterId"],
+      where: { receiverCharacterId: { in: characterIds } },
+      _count: { receiverCharacterId: true },
     });
     for (const c of counts) {
-      endorsementCounts.set(c.receiverId, c._count.receiverId);
+      endorsementCounts.set(c.receiverCharacterId, c._count.receiverCharacterId);
     }
   }
 
@@ -398,8 +398,7 @@ async function leaderboardSeasonJuice(
     const teamJuice = Number(row.teamJuice);
     const eventJuice = Number(row.eventJuice);
     const runCount = Number(row.runCount);
-    const endorsements =
-      c.userId != null ? endorsementCounts.get(c.userId) ?? 0 : 0;
+    const endorsements = endorsementCounts.get(row.characterId) ?? 0;
     return {
       rank: i + 1,
       character: {

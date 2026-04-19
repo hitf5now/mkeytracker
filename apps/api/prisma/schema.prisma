@@ -173,6 +173,8 @@ model Character {
   eventSignups         EventSignup[]
   teamMembers          TeamMember[]
   runEnrichmentPlayers RunEnrichmentPlayer[]
+  endorsementsGivenByCharacter    Endorsement[] @relation("endorsementsGivenByCharacter")
+  endorsementsReceivedByCharacter Endorsement[] @relation("endorsementsReceivedByCharacter")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -649,6 +651,14 @@ model Endorsement {
   giver      User                @relation("endorsementsGiven", fields: [giverId], references: [id], onDelete: Cascade)
   receiverId Int                 @map("receiver_id")
   receiver   User                @relation("endorsementsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  /// The specific character the giver played in this run. Scopes
+  /// endorsement display to the character who earned it, not every
+  /// character on the account.
+  giverCharacterId    Int       @map("giver_character_id")
+  giverCharacter      Character @relation("endorsementsGivenByCharacter", fields: [giverCharacterId], references: [id], onDelete: Cascade)
+  /// The specific character the receiver played in this run. Same rationale.
+  receiverCharacterId Int       @map("receiver_character_id")
+  receiverCharacter   Character @relation("endorsementsReceivedByCharacter", fields: [receiverCharacterId], references: [id], onDelete: Cascade)
   runId      Int                 @map("run_id")
   run        Run                 @relation(fields: [runId], references: [id], onDelete: Cascade)
   category   EndorsementCategory
@@ -670,6 +680,9 @@ model Endorsement {
   @@index([runId])
   @@index([receiverId, category])
   @@index([receiverId, seasonId])
+  @@index([receiverCharacterId])
+  @@index([giverCharacterId])
+  @@index([receiverCharacterId, category])
   @@map("endorsements")
 }
 
