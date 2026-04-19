@@ -182,7 +182,7 @@ async function main() {
   console.log(`[reenrich] matched log file: ${matchedPath}`);
   const body = summaryToSubmissionBody(matchedSummary);
   console.log(
-    `[reenrich] posting enrichment: ${body.players.length} players, ${body.encounters.length} encounters, damage=${body.totalDamage}, healing=${body.totalHealing}`,
+    `[reenrich] posting enrichment: ${body.players.length} players, ${body.encounters.length} encounters, damage=${body.totalDamage}, healing=${body.totalHealing}, overheal=${body.totalOverhealing}`,
   );
 
   const url = `${cfg.apiBaseUrl}/api/v1/runs/${runId}/enrichment${overwrite ? "?overwrite=true" : ""}`;
