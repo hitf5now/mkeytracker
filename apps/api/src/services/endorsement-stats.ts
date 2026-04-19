@@ -21,12 +21,32 @@ export interface EndorsementListItem {
   giverUserId: number;
 }
 
+/** Sent endorsement — keys the "other party" as receiver rather than giver. */
+export interface SentEndorsementListItem {
+  id: number;
+  runId: number;
+  category: EndorsementCategory;
+  note: string | null;
+  createdAt: string;
+  receiverUserId: number;
+  receiverDiscordId: string;
+  /** The specific character the endorsement was attached to (if any). */
+  receiverCharacterId: number | null;
+  receiverCharacterName: string | null;
+}
+
 export interface EndorsementSummary {
   totalReceived: number;
   seasonReceived: number;
   categoryBreakdown: Array<{ category: EndorsementCategory; count: number }>;
   recent: EndorsementListItem[];
   favorite: EndorsementListItem | null;
+  /** Lifetime count of endorsements this user has GIVEN. */
+  totalSent: number;
+  /** Endorsements given in the active season. */
+  seasonSent: number;
+  /** Most recent endorsements given by this user. */
+  sentRecent: SentEndorsementListItem[];
 }
 
 const RECENT_LIMIT = 10;
@@ -57,36 +77,59 @@ export async function getEndorsementSummaryForUser(
   // Use parallel count-style queries rather than one mega-query; Prisma's
   // groupBy is cleaner than raw SQL and the volume is tiny (<<1k rows per
   // user at any foreseeable scale).
-  const [totalReceived, seasonReceived, breakdownRaw, recentRaw, favoriteRaw] =
-    await Promise.all([
-      prisma.endorsement.count({ where: { receiverId: userId } }),
-      activeSeason
-        ? prisma.endorsement.count({
-            where: { receiverId: userId, seasonId: activeSeason.id },
-          })
-        : Promise.resolve(0),
-      prisma.endorsement.groupBy({
-        by: ["category"],
-        where: { receiverId: userId },
-        _count: { category: true },
-      }),
-      prisma.endorsement.findMany({
-        where: { receiverId: userId },
-        orderBy: { createdAt: "desc" },
-        take: RECENT_LIMIT,
-        include: {
-          giver: { select: { id: true, discordId: true } },
-        },
-      }),
-      user.favoriteEndorsementId !== null
-        ? prisma.endorsement.findUnique({
-            where: { id: user.favoriteEndorsementId },
-            include: {
-              giver: { select: { id: true, discordId: true } },
-            },
-          })
-        : Promise.resolve(null),
-    ]);
+  const [
+    totalReceived,
+    seasonReceived,
+    breakdownRaw,
+    recentRaw,
+    favoriteRaw,
+    totalSent,
+    seasonSent,
+    sentRecentRaw,
+  ] = await Promise.all([
+    prisma.endorsement.count({ where: { receiverId: userId } }),
+    activeSeason
+      ? prisma.endorsement.count({
+          where: { receiverId: userId, seasonId: activeSeason.id },
+        })
+      : Promise.resolve(0),
+    prisma.endorsement.groupBy({
+      by: ["category"],
+      where: { receiverId: userId },
+      _count: { category: true },
+    }),
+    prisma.endorsement.findMany({
+      where: { receiverId: userId },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_LIMIT,
+      include: {
+        giver: { select: { id: true, discordId: true } },
+      },
+    }),
+    user.favoriteEndorsementId !== null
+      ? prisma.endorsement.findUnique({
+          where: { id: user.favoriteEndorsementId },
+          include: {
+            giver: { select: { id: true, discordId: true } },
+          },
+        })
+      : Promise.resolve(null),
+    prisma.endorsement.count({ where: { giverId: userId } }),
+    activeSeason
+      ? prisma.endorsement.count({
+          where: { giverId: userId, seasonId: activeSeason.id },
+        })
+      : Promise.resolve(0),
+    prisma.endorsement.findMany({
+      where: { giverId: userId },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_LIMIT,
+      include: {
+        receiver: { select: { id: true, discordId: true } },
+        receiverCharacter: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
 
   const categoryBreakdown = breakdownRaw
     .map((r) => ({ category: r.category, count: r._count.category }))
@@ -97,6 +140,7 @@ export async function getEndorsementSummaryForUser(
     favoriteRaw && favoriteRaw.receiverId === userId
       ? toListItem(favoriteRaw)
       : null;
+  const sentRecent = sentRecentRaw.map(toSentListItem);
 
   return {
     totalReceived,
@@ -104,6 +148,9 @@ export async function getEndorsementSummaryForUser(
     categoryBreakdown,
     recent,
     favorite,
+    totalSent,
+    seasonSent,
+    sentRecent,
   };
 }
 
@@ -190,6 +237,11 @@ export async function getEndorsementSummaryForCharacter(
     categoryBreakdown,
     recent,
     favorite,
+    // Sent-endorsement fields aren't meaningful at character scope — they're
+    // per-user. The dashboard surface fills them; this view leaves them zeroed.
+    totalSent: 0,
+    seasonSent: 0,
+    sentRecent: [],
   };
 }
 
@@ -200,6 +252,9 @@ function emptySummary(): EndorsementSummary {
     categoryBreakdown: [],
     recent: [],
     favorite: null,
+    totalSent: 0,
+    seasonSent: 0,
+    sentRecent: [],
   };
 }
 
@@ -221,6 +276,30 @@ function toListItem(
     createdAt: row.createdAt.toISOString(),
     giverDiscordId: row.giver.discordId,
     giverUserId: row.giver.id,
+  };
+}
+
+function toSentListItem(
+  row: {
+    id: number;
+    runId: number;
+    category: EndorsementCategory;
+    note: string | null;
+    createdAt: Date;
+    receiver: { id: number; discordId: string };
+    receiverCharacter: { id: number; name: string } | null;
+  },
+): SentEndorsementListItem {
+  return {
+    id: row.id,
+    runId: row.runId,
+    category: row.category,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+    receiverUserId: row.receiver.id,
+    receiverDiscordId: row.receiver.discordId,
+    receiverCharacterId: row.receiverCharacter?.id ?? null,
+    receiverCharacterName: row.receiverCharacter?.name ?? null,
   };
 }
 

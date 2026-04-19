@@ -3,10 +3,10 @@
  *
  * Loads all of a user's characters and their runs in the active season,
  * then aggregates into sections for the personal dashboard:
- *   - Overview stats (total runs, timed, Juice, etc.)
+ *   - Overview stats (total runs, timed vs depleted, highest keys, Juice totals)
  *   - Per-character cards
- *   - Role breakdown (tank/healer/dps)
- *   - Dungeon breakdown (best key, fastest clear per dungeon)
+ *   - Role breakdown with best-run context per role
+ *   - Dungeon breakdown with best completed + best timed context
  *   - Recent runs (across all characters)
  *   - Chart data (runs per week, key progression)
  */
@@ -28,9 +28,18 @@ export interface DashboardOverview {
   timedRuns: number;
   depletedRuns: number;
   totalDeaths: number;
+  /** Highest keystone level finished (timed OR depleted). */
   highestKeyCompleted: number;
+  /** Highest keystone level beat within par time. */
+  highestKeyTimed: number;
+  /** Personal Juice total for this season. */
   totalJuice: number;
+  /** Event Juice — only accumulated on event-linked runs. */
+  totalEventJuice: number;
+  /** Team Juice — only accumulated when the full 5 shared a team. */
+  totalTeamJuice: number;
   weeklyJuice: number;
+  /** Percent of completed runs that were timed. 0–100. */
   timedRate: number;
 }
 
@@ -50,24 +59,41 @@ export interface DashboardCharacter {
   totalJuice: number;
 }
 
+/**
+ * A "best run" pointer — level plus the dungeon + character where it happened.
+ * Null when the role has no matching run (e.g. the user never tanked timed).
+ */
+export interface BestRunRef {
+  level: number;
+  dungeonName: string;
+  dungeonShortCode: string;
+  characterName: string;
+  characterClass: string;
+}
+
 export interface DashboardRoleBreakdown {
-  role: string;
+  role: "tank" | "healer" | "dps";
   totalRuns: number;
   timedRuns: number;
-  bestKey: number;
   totalJuice: number;
+  /** Highest finished key in this role (timed OR depleted). Null if never played. */
+  bestKeyCompleted: BestRunRef | null;
+  /** Highest timed key in this role. Null if never timed in this role. */
+  bestKeyTimed: BestRunRef | null;
 }
 
 export interface DashboardDungeonBreakdown {
   dungeonSlug: string;
   dungeonName: string;
   dungeonShortCode: string;
-  bestKeyLevel: number;
+  /** Highest key finished for this dungeon (timed or depleted). Null = never run. */
+  bestKeyCompleted: { level: number; characterName: string; characterClass: string } | null;
+  /** Highest key timed for this dungeon. Null = never timed. */
+  bestKeyTimed: { level: number; characterName: string; characterClass: string } | null;
+  /** Fastest timed clear in ms. Null = never timed. */
   fastestClearMs: number | null;
   totalJuice: number;
   timedCount: number;
-  bestCharacterName: string;
-  bestCharacterClass: string;
 }
 
 export interface DashboardRecentRun {
@@ -105,15 +131,6 @@ export interface DashboardResult {
 // ─── Helpers ─────────────────────────────────────────────────────
 
 function getISOWeekLabel(date: Date): string {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  // Thursday of current week determines the year/week
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const yearStart = new Date(d.getFullYear(), 0, 4);
-  const weekNum = Math.ceil(
-    ((d.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7,
-  );
-  // Return the Monday of that week as a readable label
   const monday = new Date(date);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   return monday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -124,6 +141,20 @@ function getISOWeekKey(date: Date): string {
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
   return d.toISOString().slice(0, 10);
 }
+
+const EMPTY_OVERVIEW: DashboardOverview = {
+  totalRuns: 0,
+  timedRuns: 0,
+  depletedRuns: 0,
+  totalDeaths: 0,
+  highestKeyCompleted: 0,
+  highestKeyTimed: 0,
+  totalJuice: 0,
+  totalEventJuice: 0,
+  totalTeamJuice: 0,
+  weeklyJuice: 0,
+  timedRate: 0,
+};
 
 // ─── Main function ───────────────────────────────────────────────
 
@@ -142,10 +173,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       getTokenBalance(userId),
     ]);
     return {
-      overview: {
-        totalRuns: 0, timedRuns: 0, depletedRuns: 0, totalDeaths: 0,
-        highestKeyCompleted: 0, totalJuice: 0, weeklyJuice: 0, timedRate: 0,
-      },
+      overview: EMPTY_OVERVIEW,
       characters: [],
       roleBreakdown: [],
       dungeonBreakdown: [],
@@ -177,18 +205,43 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   const timedRuns = memberRuns.filter((rm) => rm.run.onTime).length;
   const depletedRuns = totalRuns - timedRuns;
   const totalDeaths = memberRuns.reduce((sum, rm) => sum + rm.run.deaths, 0);
-  const highestKeyCompleted = memberRuns
+
+  // Highest completed = any finished run (timed or depleted).
+  const highestKeyCompleted = memberRuns.reduce(
+    (max, rm) => Math.max(max, rm.run.keystoneLevel),
+    0,
+  );
+  // Highest timed = only onTime runs.
+  const highestKeyTimed = memberRuns
     .filter((rm) => rm.run.onTime)
     .reduce((max, rm) => Math.max(max, rm.run.keystoneLevel), 0);
+
   const totalJuice = memberRuns.reduce((sum, rm) => sum + rm.run.personalJuice, 0);
+  const totalEventJuice = memberRuns.reduce(
+    (sum, rm) => sum + (rm.run.eventJuice ?? 0),
+    0,
+  );
+  const totalTeamJuice = memberRuns.reduce(
+    (sum, rm) => sum + (rm.run.teamJuice ?? 0),
+    0,
+  );
   const weeklyJuice = memberRuns
     .filter((rm) => rm.run.recordedAt >= oneWeekAgo)
     .reduce((sum, rm) => sum + rm.run.personalJuice, 0);
   const timedRate = totalRuns > 0 ? Math.round((timedRuns / totalRuns) * 100) : 0;
 
   const overview: DashboardOverview = {
-    totalRuns, timedRuns, depletedRuns, totalDeaths,
-    highestKeyCompleted, totalJuice, weeklyJuice, timedRate,
+    totalRuns,
+    timedRuns,
+    depletedRuns,
+    totalDeaths,
+    highestKeyCompleted,
+    highestKeyTimed,
+    totalJuice,
+    totalEventJuice,
+    totalTeamJuice,
+    weeklyJuice,
+    timedRate,
   };
 
   // ── Per-character stats ───────────────────────────────────
@@ -214,77 +267,146 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   });
 
   // ── Role breakdown ────────────────────────────────────────
-  const roleMap = new Map<string, { totalRuns: number; timedRuns: number; bestKey: number; totalJuice: number }>();
+  // Iterate once, track both best-completed and best-timed with full context.
+  interface RoleAggregate {
+    totalRuns: number;
+    timedRuns: number;
+    totalJuice: number;
+    bestCompleted: { rm: (typeof memberRuns)[number]; level: number } | null;
+    bestTimed: { rm: (typeof memberRuns)[number]; level: number } | null;
+  }
+  const roleMap = new Map<string, RoleAggregate>();
   for (const rm of memberRuns) {
-    const role = rm.roleSnapshot || "dps";
-    const entry = roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalJuice: 0 };
+    const role = (rm.roleSnapshot || "dps").toLowerCase();
+    const entry =
+      roleMap.get(role) ?? {
+        totalRuns: 0,
+        timedRuns: 0,
+        totalJuice: 0,
+        bestCompleted: null,
+        bestTimed: null,
+      };
     entry.totalRuns++;
-    if (rm.run.onTime) {
-      entry.timedRuns++;
-      entry.bestKey = Math.max(entry.bestKey, rm.run.keystoneLevel);
-    }
     entry.totalJuice += rm.run.personalJuice;
+    if (rm.run.onTime) entry.timedRuns++;
+    if (
+      entry.bestCompleted === null ||
+      rm.run.keystoneLevel > entry.bestCompleted.level
+    ) {
+      entry.bestCompleted = { rm, level: rm.run.keystoneLevel };
+    }
+    if (
+      rm.run.onTime &&
+      (entry.bestTimed === null || rm.run.keystoneLevel > entry.bestTimed.level)
+    ) {
+      entry.bestTimed = { rm, level: rm.run.keystoneLevel };
+    }
     roleMap.set(role, entry);
   }
 
-  const roleBreakdown: DashboardRoleBreakdown[] = ["tank", "healer", "dps"]
-    .map((role) => ({
+  const toBestRef = (pick: RoleAggregate["bestCompleted"]): BestRunRef | null => {
+    if (!pick) return null;
+    const char = characterMap.get(pick.rm.characterId);
+    return {
+      level: pick.level,
+      dungeonName: pick.rm.run.dungeon.name,
+      dungeonShortCode: pick.rm.run.dungeon.shortCode,
+      characterName: char?.name ?? "Unknown",
+      characterClass: char?.class ?? "warrior",
+    };
+  };
+
+  const roleBreakdown: DashboardRoleBreakdown[] = (
+    ["tank", "healer", "dps"] as const
+  ).map((role) => {
+    const entry = roleMap.get(role);
+    return {
       role,
-      ...(roleMap.get(role) ?? { totalRuns: 0, timedRuns: 0, bestKey: 0, totalJuice: 0 }),
-    }));
+      totalRuns: entry?.totalRuns ?? 0,
+      timedRuns: entry?.timedRuns ?? 0,
+      totalJuice: entry?.totalJuice ?? 0,
+      bestKeyCompleted: toBestRef(entry?.bestCompleted ?? null),
+      bestKeyTimed: toBestRef(entry?.bestTimed ?? null),
+    };
+  });
 
   // ── Dungeon breakdown ─────────────────────────────────────
-  const dungeonMap = new Map<number, {
+  interface DungeonAggregate {
     dungeon: { slug: string; name: string; shortCode: string };
-    bestKeyLevel: number;
-    fastestClearMs: number | null;
     totalJuice: number;
     timedCount: number;
-    bestRunJuice: number;
-    bestCharId: number;
-  }>();
+    fastestClearMs: number | null;
+    bestCompleted: { level: number; characterId: number } | null;
+    bestTimed: { level: number; characterId: number } | null;
+  }
+  const dungeonMap = new Map<number, DungeonAggregate>();
 
   for (const rm of memberRuns) {
     const d = rm.run.dungeon;
-    const entry = dungeonMap.get(rm.run.dungeonId) ?? {
-      dungeon: { slug: d.slug, name: d.name, shortCode: d.shortCode },
-      bestKeyLevel: 0, fastestClearMs: null, totalJuice: 0, timedCount: 0,
-      bestRunJuice: 0, bestCharId: rm.characterId,
-    };
+    const entry =
+      dungeonMap.get(rm.run.dungeonId) ?? {
+        dungeon: { slug: d.slug, name: d.name, shortCode: d.shortCode },
+        totalJuice: 0,
+        timedCount: 0,
+        fastestClearMs: null,
+        bestCompleted: null,
+        bestTimed: null,
+      };
 
     entry.totalJuice += rm.run.personalJuice;
     if (rm.run.onTime) {
       entry.timedCount++;
-      entry.bestKeyLevel = Math.max(entry.bestKeyLevel, rm.run.keystoneLevel);
       if (entry.fastestClearMs === null || rm.run.completionMs < entry.fastestClearMs) {
         entry.fastestClearMs = rm.run.completionMs;
       }
+      if (entry.bestTimed === null || rm.run.keystoneLevel > entry.bestTimed.level) {
+        entry.bestTimed = {
+          level: rm.run.keystoneLevel,
+          characterId: rm.characterId,
+        };
+      }
     }
-    if (rm.run.personalJuice > entry.bestRunJuice) {
-      entry.bestRunJuice = rm.run.personalJuice;
-      entry.bestCharId = rm.characterId;
+    if (
+      entry.bestCompleted === null ||
+      rm.run.keystoneLevel > entry.bestCompleted.level
+    ) {
+      entry.bestCompleted = {
+        level: rm.run.keystoneLevel,
+        characterId: rm.characterId,
+      };
     }
     dungeonMap.set(rm.run.dungeonId, entry);
   }
 
-  const dungeonBreakdown: DashboardDungeonBreakdown[] = Array.from(dungeonMap.values())
-    .map((entry) => {
-      const bestChar = characterMap.get(entry.bestCharId);
-      return {
-        dungeonSlug: entry.dungeon.slug,
-        dungeonName: entry.dungeon.name,
-        dungeonShortCode: entry.dungeon.shortCode,
-        bestKeyLevel: entry.bestKeyLevel,
-        fastestClearMs: entry.fastestClearMs,
-        totalJuice: entry.totalJuice,
-        timedCount: entry.timedCount,
-        bestCharacterName: bestChar?.name ?? "Unknown",
-        bestCharacterClass: bestChar?.class ?? "warrior",
-      };
-    })
+  const toDungeonRef = (
+    pick: DungeonAggregate["bestCompleted"],
+  ): DashboardDungeonBreakdown["bestKeyCompleted"] => {
+    if (!pick) return null;
+    const char = characterMap.get(pick.characterId);
+    return {
+      level: pick.level,
+      characterName: char?.name ?? "Unknown",
+      characterClass: char?.class ?? "warrior",
+    };
+  };
+
+  const dungeonBreakdown: DashboardDungeonBreakdown[] = Array.from(
+    dungeonMap.values(),
+  )
+    .map((entry) => ({
+      dungeonSlug: entry.dungeon.slug,
+      dungeonName: entry.dungeon.name,
+      dungeonShortCode: entry.dungeon.shortCode,
+      bestKeyCompleted: toDungeonRef(entry.bestCompleted),
+      bestKeyTimed: toDungeonRef(entry.bestTimed),
+      fastestClearMs: entry.fastestClearMs,
+      totalJuice: entry.totalJuice,
+      timedCount: entry.timedCount,
+    }))
     .sort((a, b) => b.totalJuice - a.totalJuice);
 
-  // ── Recent runs (20) ──────────────────────────────────────
+  // ── Recent runs (20) — stays in dashboard for backwards compat; full
+  //    filter/pagination lives on /api/v1/users/:userId/runs. ──────────
   const recentRuns: DashboardRecentRun[] = memberRuns.slice(0, 20).map((rm) => {
     const char = characterMap.get(rm.characterId);
     return {
@@ -307,7 +429,10 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   const weekMap = new Map<string, { label: string; count: number }>();
   for (const rm of memberRuns) {
     const key = getISOWeekKey(rm.run.recordedAt);
-    const entry = weekMap.get(key) ?? { label: getISOWeekLabel(rm.run.recordedAt), count: 0 };
+    const entry = weekMap.get(key) ?? {
+      label: getISOWeekLabel(rm.run.recordedAt),
+      count: 0,
+    };
     entry.count++;
     weekMap.set(key, entry);
   }

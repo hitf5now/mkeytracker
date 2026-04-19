@@ -107,12 +107,27 @@ export interface EndorsementListItem {
   giverUserId: number;
 }
 
+export interface SentEndorsementListItem {
+  id: number;
+  runId: number;
+  category: EndorsementCategory;
+  note: string | null;
+  createdAt: string;
+  receiverUserId: number;
+  receiverDiscordId: string;
+  receiverCharacterId: number | null;
+  receiverCharacterName: string | null;
+}
+
 export interface EndorsementSummary {
   totalReceived: number;
   seasonReceived: number;
   categoryBreakdown: Array<{ category: EndorsementCategory; count: number }>;
   recent: EndorsementListItem[];
   favorite: EndorsementListItem | null;
+  totalSent: number;
+  seasonSent: number;
+  sentRecent: SentEndorsementListItem[];
 }
 
 // ─── Events ─────────────────────────────────────────────────────────
@@ -354,10 +369,23 @@ export interface DashboardOverview {
   timedRuns: number;
   depletedRuns: number;
   totalDeaths: number;
+  /** Highest keystone level finished at all (timed OR depleted). */
   highestKeyCompleted: number;
+  /** Highest keystone level beat within timer. */
+  highestKeyTimed: number;
   totalJuice: number;
+  totalEventJuice: number;
+  totalTeamJuice: number;
   weeklyJuice: number;
   timedRate: number;
+}
+
+export interface BestRunRef {
+  level: number;
+  dungeonName: string;
+  dungeonShortCode: string;
+  characterName: string;
+  characterClass: string;
 }
 
 export interface DashboardCharacter {
@@ -377,23 +405,23 @@ export interface DashboardCharacter {
 }
 
 export interface DashboardRoleBreakdown {
-  role: string;
+  role: "tank" | "healer" | "dps";
   totalRuns: number;
   timedRuns: number;
-  bestKey: number;
   totalJuice: number;
+  bestKeyCompleted: BestRunRef | null;
+  bestKeyTimed: BestRunRef | null;
 }
 
 export interface DashboardDungeonBreakdown {
   dungeonSlug: string;
   dungeonName: string;
   dungeonShortCode: string;
-  bestKeyLevel: number;
+  bestKeyCompleted: { level: number; characterName: string; characterClass: string } | null;
+  bestKeyTimed: { level: number; characterName: string; characterClass: string } | null;
   fastestClearMs: number | null;
   totalJuice: number;
   timedCount: number;
-  bestCharacterName: string;
-  bestCharacterClass: string;
 }
 
 export interface DashboardRecentRun {
@@ -592,6 +620,49 @@ export interface TokenBalance {
   seasonalTokensRemaining: number;
   starterTokensRemaining: number;
   total: number;
+  lifetimeJuiceEarned: number;
+  juiceConsumedByTokens: number;
+  juiceTowardNextToken: number;
+  juiceToNextToken: number;
+  juicePerToken: number;
+}
+
+// ─── User runs (paginated list for dashboard Runs tab) ──────────────
+
+export type UserRunsRange = "7d" | "30d" | "season" | "all";
+
+export interface UserRunsListItem {
+  id: number;
+  dungeonId: number;
+  dungeonName: string;
+  dungeonSlug: string;
+  dungeonShortCode: string;
+  keystoneLevel: number;
+  completionMs: number;
+  onTime: boolean;
+  upgrades: number;
+  deaths: number;
+  juice: number;
+  recordedAt: string;
+  characterId: number;
+  characterName: string;
+  characterClass: string;
+  roleSnapshot: string;
+}
+
+export interface UserRunsFilterOption<T> {
+  id: T;
+  label: string;
+}
+
+export interface UserRunsResult {
+  runs: UserRunsListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  season: { slug: string; name: string };
+  filterCharacters: UserRunsFilterOption<number>[];
+  filterDungeons: UserRunsFilterOption<number>[];
 }
 
 export interface RunDetail {

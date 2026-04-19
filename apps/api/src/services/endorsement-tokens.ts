@@ -38,6 +38,16 @@ export interface TokenBalance {
   seasonalTokensRemaining: number;
   starterTokensRemaining: number;
   total: number;
+  /** Lifetime Personal Juice earned (drives token minting). */
+  lifetimeJuiceEarned: number;
+  /** Juice already "spent" toward minted tokens (tokensGrantedFromJuice × 15,000). */
+  juiceConsumedByTokens: number;
+  /** Juice accumulated within the current not-yet-minted token. 0..TOKEN_COST_JUICE-1. */
+  juiceTowardNextToken: number;
+  /** Juice still required to mint the next token. */
+  juiceToNextToken: number;
+  /** Same as TOKEN_COST_JUICE, echoed for client convenience. */
+  juicePerToken: number;
 }
 
 /**
@@ -166,19 +176,41 @@ export async function getTokenBalance(
       seasonalTokensRemaining: true,
       seasonalTokensSeasonId: true,
       starterTokensRemaining: true,
+      lifetimeJuiceEarned: true,
+      tokensGrantedFromJuice: true,
     },
   });
   if (!user) {
-    return { seasonalTokensRemaining: 0, starterTokensRemaining: 0, total: 0 };
+    return {
+      seasonalTokensRemaining: 0,
+      starterTokensRemaining: 0,
+      total: 0,
+      lifetimeJuiceEarned: 0,
+      juiceConsumedByTokens: 0,
+      juiceTowardNextToken: 0,
+      juiceToNextToken: TOKEN_COST_JUICE,
+      juicePerToken: TOKEN_COST_JUICE,
+    };
   }
   const seasonal =
     user.seasonalTokensSeasonId === activeSeasonId
       ? user.seasonalTokensRemaining
       : 0;
+  const juiceConsumedByTokens = user.tokensGrantedFromJuice * TOKEN_COST_JUICE;
+  const juiceTowardNextToken = Math.max(
+    0,
+    user.lifetimeJuiceEarned - juiceConsumedByTokens,
+  );
+  const juiceToNextToken = Math.max(0, TOKEN_COST_JUICE - juiceTowardNextToken);
   return {
     seasonalTokensRemaining: seasonal,
     starterTokensRemaining: user.starterTokensRemaining,
     total: seasonal + user.starterTokensRemaining,
+    lifetimeJuiceEarned: user.lifetimeJuiceEarned,
+    juiceConsumedByTokens,
+    juiceTowardNextToken,
+    juiceToNextToken,
+    juicePerToken: TOKEN_COST_JUICE,
   };
 }
 
