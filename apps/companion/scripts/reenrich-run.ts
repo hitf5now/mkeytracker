@@ -28,7 +28,7 @@ import {
   type RunSummary,
 } from "@mplus/combat-log-parser";
 
-const PARSER_VERSION = "0.1.0";
+const PARSER_VERSION = "0.2.0";
 
 interface CompanionConfig {
   jwt: string;
