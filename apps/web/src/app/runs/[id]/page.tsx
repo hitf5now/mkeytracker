@@ -10,6 +10,9 @@ import {
   type TimelineBossMarker,
   type TimelinePlayer,
 } from "./_components/damage-timeline-chart";
+import { HealingTimelineChart } from "./_components/healing-timeline-chart";
+import { TankingTimelineChart } from "./_components/tanking-timeline-chart";
+import { TimelineTabs } from "./_components/timeline-tabs";
 import { AchievementList } from "./_components/achievement-badges";
 import { EndorsementsBox } from "./_components/endorsements-box";
 import { evaluateRun, achievementsForMember } from "@/lib/achievements";
@@ -193,6 +196,7 @@ export default async function RunDetailPage({ params }: Props) {
             bucketSizeMs={run.enrichment.bucketSizeMs}
           />
           <TimelineSection
+            run={run}
             enrichment={run.enrichment}
             runDurationMs={run.completionMs}
           />
@@ -315,6 +319,11 @@ function PlayerAvatar({
 }
 
 function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail["enrichment"]> }) {
+  // "Healing" shown to users = raw output (effective + overheal). That's
+  // what most people mean by "total healing done" in a WoW context.
+  const totalEffectiveHealing = Number(enrichment.totalHealing);
+  const totalOverheal = Number(enrichment.totalOverhealing);
+  const totalRawHealing = totalEffectiveHealing + totalOverheal;
   const stats = [
     { label: "Damage", value: formatNumber(Number(enrichment.totalDamage)) },
     {
@@ -322,11 +331,24 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
       value: formatNumber(Number(enrichment.totalDamageSupport)),
       hide: Number(enrichment.totalDamageSupport) === 0,
     },
-    { label: "Healing", value: formatNumber(Number(enrichment.totalHealing)) },
+    {
+      label: "Healing",
+      value: formatNumber(totalRawHealing),
+    },
     {
       label: "Overheal",
-      value: formatNumber(Number(enrichment.totalOverhealing)),
-      hide: Number(enrichment.totalOverhealing) === 0,
+      value: formatNumber(totalOverheal),
+      hide: totalOverheal === 0,
+    },
+    {
+      label: "Absorbs",
+      value: formatNumber(Number(enrichment.totalAbsorbProvided)),
+      hide: Number(enrichment.totalAbsorbProvided) === 0,
+    },
+    {
+      label: "Damage Taken",
+      value: formatNumber(Number(enrichment.totalDamageTaken)),
+      hide: Number(enrichment.totalDamageTaken) === 0,
     },
     {
       label: "Support Healing",
@@ -415,9 +437,11 @@ function JuiceBreakdown({
 }
 
 function TimelineSection({
+  run,
   enrichment,
   runDurationMs,
 }: {
+  run: RunDetail;
   enrichment: NonNullable<RunDetail["enrichment"]>;
   runDurationMs: number;
 }) {
@@ -425,27 +449,40 @@ function TimelineSection({
   const segmentStartedAt = enrichment.segmentStartedAt;
   // Legacy rows (pre-timeline) won't have bucket data — just skip the chart.
   if (!bucketSizeMs || !segmentStartedAt) return null;
-  const havePlayerBuckets = enrichment.players.some(
+  const haveAnyBuckets = enrichment.players.some(
     (p) => Array.isArray(p.damageBuckets) && p.damageBuckets.length > 0,
   );
-  if (!havePlayerBuckets) return null;
+  if (!haveAnyBuckets) return null;
 
   const segmentStartMs = new Date(segmentStartedAt).getTime();
   const runDurationSec = Math.max(1, runDurationMs / 1000);
 
-  const timelinePlayers: TimelinePlayer[] = enrichment.players
+  const colorFor = (specId: number | null): string => {
+    const spec = specId ? getSpecById(specId) : undefined;
+    return spec
+      ? `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`
+      : "#999999";
+  };
+
+  const damagePlayers: TimelinePlayer[] = enrichment.players
     .filter((p) => Array.isArray(p.damageBuckets) && p.damageBuckets.length > 0)
-    .map((p) => {
-      const spec = p.specId ? getSpecById(p.specId) : undefined;
-      const colorHex = spec
-        ? `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`
-        : "#999999";
-      return {
-        shortName: p.playerName.split("-")[0] ?? p.playerName,
-        colorHex,
-        buckets: p.damageBuckets ?? [],
-      };
-    });
+    .map((p) => ({
+      shortName: p.playerName.split("-")[0] ?? p.playerName,
+      colorHex: colorFor(p.specId),
+      buckets: p.damageBuckets ?? [],
+    }));
+
+  const healingPlayers: TimelinePlayer[] = enrichment.players
+    .filter(
+      (p) => Array.isArray(p.healingBuckets) && p.healingBuckets.length > 0,
+    )
+    // Hide players who did no healing at all — they'd just clutter the legend.
+    .filter((p) => (p.healingBuckets ?? []).some((v) => v > 0))
+    .map((p) => ({
+      shortName: p.playerName.split("-")[0] ?? p.playerName,
+      colorHex: colorFor(p.specId),
+      buckets: p.healingBuckets ?? [],
+    }));
 
   const bosses: TimelineBossMarker[] = enrichment.encounters.map((e) => ({
     name: e.encounterName,
@@ -456,21 +493,197 @@ function TimelineSection({
     success: e.success,
   }));
 
+  // Tank detection: use the submission roleSnapshot (not enrichment, which
+  // doesn't carry role). Match enrichment players to tanks by characterId
+  // first, falling back to bare-name case-insensitive.
+  const tankMembers = run.members.filter(
+    (m) => m.roleSnapshot.toLowerCase() === "tank",
+  );
+  const multipleTanks = tankMembers.length > 1;
+
+  const tankEnrichment =
+    tankMembers.length === 1
+      ? enrichment.players.find((p) => {
+          const m = tankMembers[0]!;
+          if (p.characterId != null && m.character?.id === p.characterId)
+            return true;
+          const bare = p.playerName.split("-")[0]?.toLowerCase();
+          return bare != null && m.character?.name.toLowerCase() === bare;
+        })
+      : undefined;
+
+  const tankHasData =
+    !!tankEnrichment &&
+    Array.isArray(tankEnrichment.damageTakenBuckets) &&
+    tankEnrichment.damageTakenBuckets.length > 0;
+
+  const tankShortName = tankEnrichment
+    ? tankEnrichment.playerName.split("-")[0] ?? tankEnrichment.playerName
+    : "";
+  const tankColorHex = tankEnrichment ? colorFor(tankEnrichment.specId) : "#999";
+
+  const tankingAvailable = multipleTanks || tankHasData;
+
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold">Damage Timeline</h2>
+      <h2 className="text-lg font-semibold">Timeline</h2>
       <p className="text-xs text-muted-foreground">
-        DPS in {bucketSizeMs / 1000}s buckets. Dashed lines mark boss kills.
+        {bucketSizeMs / 1000}s buckets. Dashed lines mark boss kills.
       </p>
-      <div className="mt-3 rounded-lg border border-border bg-card p-3">
-        <DamageTimelineChart
-          bucketSizeMs={bucketSizeMs}
-          runDurationSec={runDurationSec}
-          players={timelinePlayers}
-          bosses={bosses}
+      <div className="mt-3">
+        <TimelineTabs
+          tabs={[
+            {
+              id: "damage",
+              label: "Damage",
+              available: damagePlayers.length > 0,
+              render: () => (
+                <DamageTimelineChart
+                  bucketSizeMs={bucketSizeMs}
+                  runDurationSec={runDurationSec}
+                  players={damagePlayers}
+                  bosses={bosses}
+                />
+              ),
+            },
+            {
+              id: "healing",
+              label: "Healing",
+              available: healingPlayers.length > 0,
+              render: () => (
+                <HealingTimelineChart
+                  bucketSizeMs={bucketSizeMs}
+                  runDurationSec={runDurationSec}
+                  players={healingPlayers}
+                  bosses={bosses}
+                />
+              ),
+            },
+            {
+              id: "tanking",
+              label: "Tanking",
+              available: tankingAvailable,
+              render: () =>
+                multipleTanks ? (
+                  <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-4 text-sm">
+                    <p className="font-medium text-yellow-400">
+                      Multiple tanks detected
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      The tanking view is designed for single-tank M+ runs.
+                      This group has {tankMembers.length} tanks, so we
+                      don&apos;t render per-tank insights.
+                    </p>
+                  </div>
+                ) : tankEnrichment && tankHasData ? (
+                  <TankTabBody
+                    tankEnrichment={tankEnrichment}
+                    tankShortName={tankShortName}
+                    tankColorHex={tankColorHex}
+                    bucketSizeMs={bucketSizeMs}
+                    runDurationSec={runDurationSec}
+                    bosses={bosses}
+                  />
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    No tanking data available for this run.
+                  </div>
+                ),
+            },
+          ]}
         />
       </div>
     </section>
+  );
+}
+
+function TankTabBody({
+  tankEnrichment,
+  tankShortName,
+  tankColorHex,
+  bucketSizeMs,
+  runDurationSec,
+  bosses,
+}: {
+  tankEnrichment: RunDetailEnrichmentPlayer;
+  tankShortName: string;
+  tankColorHex: string;
+  bucketSizeMs: number;
+  runDurationSec: number;
+  bosses: TimelineBossMarker[];
+}) {
+  const damageIncoming = Number(tankEnrichment.damageIncoming);
+  const damageTaken = Number(tankEnrichment.damageTaken);
+  const selfHealing = Number(tankEnrichment.selfHealing);
+  const mitigationRatio =
+    damageIncoming > 0 ? (damageIncoming - damageTaken) / damageIncoming : 0;
+  const avoidanceCount =
+    tankEnrichment.parries + tankEnrichment.dodges + tankEnrichment.misses;
+
+  return (
+    <div>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <KpiCard label="Damage Incoming" value={formatNumber(damageIncoming)} />
+        <KpiCard label="Damage Taken" value={formatNumber(damageTaken)} />
+        <KpiCard
+          label="Mitigated"
+          value={`${Math.round(mitigationRatio * 100)}%`}
+          hint="measurable only — excludes armor"
+        />
+        <KpiCard
+          label="Self-Healing"
+          value={formatNumber(selfHealing)}
+          hint={
+            avoidanceCount > 0
+              ? `avoided ${avoidanceCount} (${tankEnrichment.parries}P / ${tankEnrichment.dodges}D / ${tankEnrichment.misses}M)`
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="mt-3">
+        <TankingTimelineChart
+          bucketSizeMs={bucketSizeMs}
+          runDurationSec={runDurationSec}
+          tankShortName={tankShortName}
+          tankColorHex={tankColorHex}
+          damageIncomingBuckets={tankEnrichment.damageIncomingBuckets ?? []}
+          damageTakenBuckets={tankEnrichment.damageTakenBuckets ?? []}
+          selfHealingBuckets={tankEnrichment.selfHealingBuckets ?? []}
+          bosses={bosses}
+        />
+      </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        Armor mitigation and avoided-hit amounts (parry / dodge / miss)
+        aren&apos;t in the combat log, so they&apos;re excluded from the
+        mitigated figure above. The gap between Incoming and Taken lines is
+        the portion we can measure precisely (shields, blocks, resists).
+      </p>
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded border border-border bg-background/40 p-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-0.5 font-mono text-sm font-semibold">{value}</div>
+      {hint && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>
+      )}
+    </div>
   );
 }
 
@@ -488,10 +701,18 @@ function PlayersTable({
     (a, b) => Number(b.damageDone) - Number(a.damageDone),
   );
 
+  // "Healing" shown to users is raw output (effective + overheal) to match
+  // what they see in-game. Top-healing crown keyed off the same raw value.
+  const rawHealingOf = (p: RunDetailEnrichmentPlayer): number =>
+    Number(p.healingDone) + Number(p.overhealing);
+
   // Per-column maxima for highlighting the top performer in each category.
   // Deaths is intentionally excluded — "most deaths" isn't a positive stat.
   const maxDamage = Math.max(...sorted.map((p) => Number(p.damageDone)));
-  const maxHealing = Math.max(...sorted.map((p) => Number(p.healingDone)));
+  const maxHealing = Math.max(...sorted.map((p) => rawHealingOf(p)));
+  const maxAbsorbs = Math.max(
+    ...sorted.map((p) => Number(p.absorbProvided)),
+  );
   const maxInterrupts = Math.max(...sorted.map((p) => p.interrupts));
   const maxDispels = Math.max(...sorted.map((p) => p.dispels));
   const maxPeakDps = Math.max(
@@ -527,7 +748,7 @@ function PlayersTable({
               )}
               <th
                 className="px-3 py-2 text-right font-medium"
-                title="Effective healing — includes shield absorbs, excludes overheal"
+                title="Total raw healing output — effective healing + overheal. Excludes shield absorbs (shown in Absorbs column)."
               >
                 Healing
               </th>
@@ -538,6 +759,12 @@ function PlayersTable({
               >
                 Overheal
               </th>
+              <th
+                className="px-3 py-2 text-right font-medium"
+                title="Damage absorbed by shields this player cast (Ignore Pain, PW:Shield, etc.)"
+              >
+                Absorbs
+              </th>
               <th className="px-3 py-2 text-right font-medium">Intr</th>
               <th className="px-3 py-2 text-right font-medium">Disp</th>
               <th className="px-3 py-2 text-right font-medium">Deaths</th>
@@ -546,7 +773,12 @@ function PlayersTable({
           <tbody>
             {sorted.map((p) => {
               const damage = Number(p.damageDone);
-              const healing = Number(p.healingDone);
+              // Raw healing = effective + overheal (what WoW shows in-game).
+              const effectiveHealing = Number(p.healingDone);
+              const overheal = Number(p.overhealing);
+              const healing = effectiveHealing + overheal;
+              const absorbs = Number(p.absorbProvided);
+              const isTopAbsorbs = absorbs > 0 && absorbs === maxAbsorbs;
               const spec = p.specId ? getSpecById(p.specId) : undefined;
               const colorHex = spec
                 ? `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`
@@ -612,23 +844,21 @@ function PlayersTable({
                     {formatNumber(Math.round(healing / durationSec))}
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-muted-foreground">
-                    {Number(p.overhealing) > 0 ? (
+                    {overheal > 0 ? (
                       <>
-                        {formatNumber(Number(p.overhealing))}
+                        {formatNumber(overheal)}
                         {healing > 0 && (
                           <div className="text-xs font-normal">
-                            {Math.round(
-                              (Number(p.overhealing) /
-                                (healing + Number(p.overhealing))) *
-                                100,
-                            )}
-                            %
+                            {Math.round((overheal / healing) * 100)}%
                           </div>
                         )}
                       </>
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td className={leader(isTopAbsorbs, "px-3 py-2 text-right font-mono")}>
+                    {absorbs > 0 ? formatNumber(absorbs) : "—"}
                   </td>
                   <td className={leader(isTopInterrupts, "px-3 py-2 text-right")}>
                     {p.interrupts}

@@ -73,6 +73,10 @@ export interface DamageEvent extends CombatEventSourceDest {
   spellName?: string;
   amount: number;
   overkill: number;
+  /** Magic resistance portion (school-specific). */
+  resisted: number;
+  /** Partial-block amount when the dest has a shield up. */
+  blocked: number;
   absorbed: number;
   critical: boolean;
   /** Present on _SUPPORT events: the GUID actually being supported. */
@@ -132,6 +136,46 @@ export interface SpellAbsorbedEvent extends CombatEventSourceDest {
   amount: number;
 }
 
+/** Spell cast landed successfully. Used for future cooldown-overlay mapping. */
+export interface SpellCastSuccessEvent extends CombatEventSourceDest {
+  eventType: 'SPELL_CAST_SUCCESS';
+  spellId: number;
+  spellName: string;
+}
+
+export type MissType =
+  | 'ABSORB'
+  | 'BLOCK'
+  | 'DEFLECT'
+  | 'DODGE'
+  | 'EVADE'
+  | 'IMMUNE'
+  | 'MISS'
+  | 'PARRY'
+  | 'REFLECT'
+  | 'RESIST';
+
+/**
+ * Swing-based avoidance (parry/dodge/miss/immune) or full absorb/block of a
+ * melee hit. amountMissed is present for ABSORB and BLOCK, otherwise 0.
+ */
+export interface SwingMissedEvent extends CombatEventSourceDest {
+  eventType: 'SWING_MISSED';
+  missType: MissType;
+  amountMissed: number;
+  baseAmount: number;
+}
+
+/** Spell equivalent of SWING_MISSED. */
+export interface SpellMissedEvent extends CombatEventSourceDest {
+  eventType: 'SPELL_MISSED';
+  spellId: number;
+  spellName: string;
+  missType: MissType;
+  amountMissed: number;
+  baseAmount: number;
+}
+
 export type ParsedEvent =
   | ChallengeModeStart
   | ChallengeModeEnd
@@ -144,7 +188,10 @@ export type ParsedEvent =
   | DispelEvent
   | UnitDiedEvent
   | SummonEvent
-  | SpellAbsorbedEvent;
+  | SpellAbsorbedEvent
+  | SpellCastSuccessEvent
+  | SwingMissedEvent
+  | SpellMissedEvent;
 
 // ---------------------------------------------------------------------------
 // Aggregated output
@@ -177,6 +224,27 @@ export interface PlayerStats {
    * roast people who spam heal fully-topped targets.
    */
   overhealing: number;
+  /**
+   * Damage absorbed by shields this player cast (sum of SPELL_ABSORBED
+   * amounts where caster = this player). Split out of healingDone so the
+   * UI can show shield output separately from raw heal output.
+   */
+  absorbProvided: number;
+  /** Actual damage received by this player (sum of SPELL/SWING/RANGE_DAMAGE dest=player). */
+  damageTaken: number;
+  /**
+   * Damage the log showed aiming at this player: damageTaken + absorbed +
+   * blocked + resisted + amountMissed(full-absorb/block). Post-armor,
+   * pre-shield/block/resist. Does NOT include fully avoided hits
+   * (parry/dodge/miss) since the log doesn't compute an amount for them.
+   */
+  damageIncoming: number;
+  /** Healing where source = dest = this player (self-heals). Effective amounts. */
+  selfHealing: number;
+  /** Avoidance counts — events only, no amount data in the log. */
+  parries: number;
+  dodges: number;
+  misses: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -190,6 +258,22 @@ export interface PlayerStats {
   peakBucketIndex: number;
   /** Damage in the peak bucket. DPS = peakDamage / (bucketSizeMs / 1000). */
   peakDamage: number;
+  /** Raw healing output per bucket (includes overheal). For the Healing tab. */
+  healingBuckets: number[];
+  /** Shield-absorb output per bucket. For the Absorbs section. */
+  absorbProvidedBuckets: number[];
+  /** Damage received per bucket. For the Tanking tab (line 2). */
+  damageTakenBuckets: number[];
+  /** Damage directed per bucket (post-armor, pre-shield/block/resist). For the Tanking tab (line 1). */
+  damageIncomingBuckets: number[];
+  /** Self-heals per bucket. For the Tanking tab (line 3). */
+  selfHealingBuckets: number[];
+  /**
+   * Cast events the player landed — stored for future cooldown-overlay
+   * rendering. Keeping this lightweight: only spellId + offsetMs (ms from
+   * segment start). Typically tens to a few hundred entries per player.
+   */
+  castEvents: Array<{ spellId: number; offsetMs: number }>;
 }
 
 export interface EncounterSummary {
@@ -226,6 +310,8 @@ export interface RunSummary {
     healingSupport: number;
     petHealing: number;
     overhealing: number;
+    absorbProvided: number;
+    damageTaken: number;
     deaths: number;
     interrupts: number;
     dispels: number;

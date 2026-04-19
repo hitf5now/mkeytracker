@@ -767,6 +767,11 @@ model RunEnrichment {
   /// separately so UI can show "1.2M / 300k overheal" and achievements can
   /// compute overheal ratios without a schema migration.
   totalOverhealing    BigInt @default(0) @map("total_overhealing")
+  /// Total shield absorbs cast across all party members (split out of
+  /// totalHealing so UI can show heal output and shield output separately).
+  totalAbsorbProvided BigInt @default(0) @map("total_absorb_provided")
+  /// Total damage received across all party members (sum of dest=player damage).
+  totalDamageTaken    BigInt @default(0) @map("total_damage_taken")
   totalInterrupts     Int    @default(0) @map("total_interrupts")
   totalDispels        Int    @default(0) @map("total_dispels")
   partyDeaths         Int    @default(0) @map("party_deaths")
@@ -823,6 +828,19 @@ model RunEnrichmentPlayer {
   /// Raw overheal — healing that went to fully-topped targets. Displayed
   /// separately so healers can see how much they wasted on GCDs.
   overhealing        BigInt @default(0) @map("overhealing")
+  /// Shield absorbs cast by this player (SPELL_ABSORBED where caster=this).
+  /// Split out of healingDone so the UI can show heals and absorbs separately.
+  absorbProvided     BigInt @default(0) @map("absorb_provided")
+  /// Damage actually received (lands in HP). Tank-chart "line 2".
+  damageTaken        BigInt @default(0) @map("damage_taken")
+  /// Damage directed (post-armor, pre-shield/block/resist). Tank-chart "line 1".
+  damageIncoming     BigInt @default(0) @map("damage_incoming")
+  /// Self-healing (source = dest). Tank-chart "line 3".
+  selfHealing        BigInt @default(0) @map("self_healing")
+  /// Avoidance counts — the log doesn't record amount for these.
+  parries            Int    @default(0) @map("parries")
+  dodges             Int    @default(0) @map("dodges")
+  misses             Int    @default(0) @map("misses")
   interrupts         Int    @default(0)
   dispels            Int    @default(0)
   deaths             Int    @default(0)
@@ -835,6 +853,20 @@ model RunEnrichmentPlayer {
   /// Damage in the peak bucket. Peak DPS = peakDamage / (bucketSizeMs / 1000).
   /// Indexed for personal-record queries ("show me my highest peak burst ever").
   peakDamage      BigInt? @map("peak_damage")
+
+  /// Raw healing output per bucket (for the Healing tab chart).
+  healingBuckets         Json? @map("healing_buckets")
+  /// Shield-absorb output per bucket.
+  absorbProvidedBuckets  Json? @map("absorb_provided_buckets")
+  /// Damage received per bucket (Tank chart line 2).
+  damageTakenBuckets     Json? @map("damage_taken_buckets")
+  /// Damage directed per bucket (Tank chart line 1).
+  damageIncomingBuckets  Json? @map("damage_incoming_buckets")
+  /// Self-heals per bucket (Tank chart line 3).
+  selfHealingBuckets     Json? @map("self_healing_buckets")
+  /// Cast events for future cooldown-overlay rendering:
+  /// [{ spellId: number, offsetMs: number }]
+  castEvents             Json? @map("cast_events")
 
   /// Full COMBATANT_INFO payload — gear, talents, stats, interesting auras.
   /// Stored raw so Phase D/E work can decode additional fields without a

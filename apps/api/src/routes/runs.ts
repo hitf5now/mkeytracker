@@ -54,6 +54,13 @@ const EnrichmentPlayerStatsSchema = z.object({
   healingDoneSupport: z.number().nonnegative().default(0),
   petHealingDone: z.number().nonnegative().default(0),
   overhealing: z.number().nonnegative().default(0),
+  absorbProvided: z.number().nonnegative().default(0),
+  damageTaken: z.number().nonnegative().default(0),
+  damageIncoming: z.number().nonnegative().default(0),
+  selfHealing: z.number().nonnegative().default(0),
+  parries: z.number().int().nonnegative().default(0),
+  dodges: z.number().int().nonnegative().default(0),
+  misses: z.number().int().nonnegative().default(0),
   interrupts: z.number().int().nonnegative().default(0),
   dispels: z.number().int().nonnegative().default(0),
   deaths: z.number().int().nonnegative().default(0),
@@ -61,6 +68,26 @@ const EnrichmentPlayerStatsSchema = z.object({
   damageBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
   peakBucketIndex: z.number().int().nonnegative().optional(),
   peakDamage: z.number().nonnegative().optional(),
+  /** Raw healing output per bucket (for Healing tab chart). */
+  healingBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  /** Shield-absorb output per bucket. */
+  absorbProvidedBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  /** Damage received per bucket. */
+  damageTakenBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  /** Damage directed per bucket (post-armor, pre-shield/block/resist). */
+  damageIncomingBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  /** Self-heals per bucket. */
+  selfHealingBuckets: z.array(z.number().nonnegative()).max(2000).optional(),
+  /** Cast events for future CD overlays: [{spellId, offsetMs}]. */
+  castEvents: z
+    .array(
+      z.object({
+        spellId: z.number().int(),
+        offsetMs: z.number().int().nonnegative(),
+      }),
+    )
+    .max(5000)
+    .optional(),
   /** Full COMBATANT_INFO payload (gear/talents/auras). Opaque JSON. */
   combatantInfoRaw: z.unknown().optional(),
 });
@@ -88,6 +115,8 @@ const RunEnrichmentSubmissionSchema = z.object({
   totalHealingSupport: z.number().nonnegative().default(0),
   totalPetHealing: z.number().nonnegative().default(0),
   totalOverhealing: z.number().nonnegative().default(0),
+  totalAbsorbProvided: z.number().nonnegative().default(0),
+  totalDamageTaken: z.number().nonnegative().default(0),
   totalInterrupts: z.number().int().nonnegative().default(0),
   totalDispels: z.number().int().nonnegative().default(0),
   partyDeaths: z.number().int().nonnegative().default(0),
@@ -163,6 +192,8 @@ function serializeEnrichment(enrichment: {
   totalHealingSupport: bigint;
   totalPetHealing: bigint;
   totalOverhealing: bigint;
+  totalAbsorbProvided: bigint;
+  totalDamageTaken: bigint;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;
@@ -184,12 +215,25 @@ function serializeEnrichment(enrichment: {
     healingDoneSupport: bigint;
     petHealingDone: bigint;
     overhealing: bigint;
+    absorbProvided: bigint;
+    damageTaken: bigint;
+    damageIncoming: bigint;
+    selfHealing: bigint;
+    parries: number;
+    dodges: number;
+    misses: number;
     interrupts: number;
     dispels: number;
     deaths: number;
     damageBuckets: unknown;
     peakBucketIndex: number | null;
     peakDamage: bigint | null;
+    healingBuckets: unknown;
+    absorbProvidedBuckets: unknown;
+    damageTakenBuckets: unknown;
+    damageIncomingBuckets: unknown;
+    selfHealingBuckets: unknown;
+    castEvents: unknown;
     combatantInfoRaw: unknown;
   }>;
   encounters: Array<{
@@ -216,6 +260,8 @@ function serializeEnrichment(enrichment: {
     totalHealingSupport: enrichment.totalHealingSupport.toString(),
     totalPetHealing: enrichment.totalPetHealing.toString(),
     totalOverhealing: enrichment.totalOverhealing.toString(),
+    totalAbsorbProvided: enrichment.totalAbsorbProvided.toString(),
+    totalDamageTaken: enrichment.totalDamageTaken.toString(),
     totalInterrupts: enrichment.totalInterrupts,
     totalDispels: enrichment.totalDispels,
     partyDeaths: enrichment.partyDeaths,
@@ -239,12 +285,27 @@ function serializeEnrichment(enrichment: {
       healingDoneSupport: p.healingDoneSupport.toString(),
       petHealingDone: p.petHealingDone.toString(),
       overhealing: p.overhealing.toString(),
+      absorbProvided: p.absorbProvided.toString(),
+      damageTaken: p.damageTaken.toString(),
+      damageIncoming: p.damageIncoming.toString(),
+      selfHealing: p.selfHealing.toString(),
+      parries: p.parries,
+      dodges: p.dodges,
+      misses: p.misses,
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
       damageBuckets: (p.damageBuckets as number[] | null) ?? null,
       peakBucketIndex: p.peakBucketIndex,
       peakDamage: p.peakDamage !== null ? p.peakDamage.toString() : null,
+      healingBuckets: (p.healingBuckets as number[] | null) ?? null,
+      absorbProvidedBuckets: (p.absorbProvidedBuckets as number[] | null) ?? null,
+      damageTakenBuckets: (p.damageTakenBuckets as number[] | null) ?? null,
+      damageIncomingBuckets: (p.damageIncomingBuckets as number[] | null) ?? null,
+      selfHealingBuckets: (p.selfHealingBuckets as number[] | null) ?? null,
+      castEvents:
+        (p.castEvents as Array<{ spellId: number; offsetMs: number }> | null) ??
+        null,
       combatantInfoRaw: p.combatantInfoRaw,
     })),
     encounters: enrichment.encounters.map((e) => ({
@@ -660,6 +721,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
                 totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
                 totalOverhealing: BigInt(Math.floor(e.totalOverhealing ?? 0)),
+                totalAbsorbProvided: BigInt(Math.floor(e.totalAbsorbProvided ?? 0)),
+                totalDamageTaken: BigInt(Math.floor(e.totalDamageTaken ?? 0)),
                 totalInterrupts: e.totalInterrupts,
                 totalDispels: e.totalDispels,
                 partyDeaths: e.partyDeaths,
@@ -680,6 +743,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                     healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
                     petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
                     overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
+                    absorbProvided: BigInt(Math.floor(p.absorbProvided ?? 0)),
+                    damageTaken: BigInt(Math.floor(p.damageTaken ?? 0)),
+                    damageIncoming: BigInt(Math.floor(p.damageIncoming ?? 0)),
+                    selfHealing: BigInt(Math.floor(p.selfHealing ?? 0)),
+                    parries: p.parries ?? 0,
+                    dodges: p.dodges ?? 0,
+                    misses: p.misses ?? 0,
                     interrupts: p.interrupts,
                     dispels: p.dispels,
                     deaths: p.deaths,
@@ -690,6 +760,30 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                     peakBucketIndex: p.peakBucketIndex ?? null,
                     peakDamage:
                       p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
+                    healingBuckets:
+                      p.healingBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.healingBuckets as Prisma.InputJsonValue),
+                    absorbProvidedBuckets:
+                      p.absorbProvidedBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.absorbProvidedBuckets as Prisma.InputJsonValue),
+                    damageTakenBuckets:
+                      p.damageTakenBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.damageTakenBuckets as Prisma.InputJsonValue),
+                    damageIncomingBuckets:
+                      p.damageIncomingBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.damageIncomingBuckets as Prisma.InputJsonValue),
+                    selfHealingBuckets:
+                      p.selfHealingBuckets === undefined
+                        ? Prisma.JsonNull
+                        : (p.selfHealingBuckets as Prisma.InputJsonValue),
+                    castEvents:
+                      p.castEvents === undefined
+                        ? Prisma.JsonNull
+                        : (p.castEvents as unknown as Prisma.InputJsonValue),
                     combatantInfoRaw:
                       p.combatantInfoRaw === undefined
                         ? Prisma.JsonNull
@@ -1135,6 +1229,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
           totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
           totalOverhealing: BigInt(Math.floor(e.totalOverhealing ?? 0)),
+          totalAbsorbProvided: BigInt(Math.floor(e.totalAbsorbProvided ?? 0)),
+          totalDamageTaken: BigInt(Math.floor(e.totalDamageTaken ?? 0)),
           totalInterrupts: e.totalInterrupts,
           totalDispels: e.totalDispels,
           partyDeaths: e.partyDeaths,
@@ -1155,6 +1251,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
               petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
               overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
+              absorbProvided: BigInt(Math.floor(p.absorbProvided ?? 0)),
+              damageTaken: BigInt(Math.floor(p.damageTaken ?? 0)),
+              damageIncoming: BigInt(Math.floor(p.damageIncoming ?? 0)),
+              selfHealing: BigInt(Math.floor(p.selfHealing ?? 0)),
+              parries: p.parries ?? 0,
+              dodges: p.dodges ?? 0,
+              misses: p.misses ?? 0,
               interrupts: p.interrupts,
               dispels: p.dispels,
               deaths: p.deaths,
@@ -1165,6 +1268,30 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               peakBucketIndex: p.peakBucketIndex ?? null,
               peakDamage:
                 p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
+              healingBuckets:
+                p.healingBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.healingBuckets as Prisma.InputJsonValue),
+              absorbProvidedBuckets:
+                p.absorbProvidedBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.absorbProvidedBuckets as Prisma.InputJsonValue),
+              damageTakenBuckets:
+                p.damageTakenBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.damageTakenBuckets as Prisma.InputJsonValue),
+              damageIncomingBuckets:
+                p.damageIncomingBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.damageIncomingBuckets as Prisma.InputJsonValue),
+              selfHealingBuckets:
+                p.selfHealingBuckets === undefined
+                  ? Prisma.JsonNull
+                  : (p.selfHealingBuckets as Prisma.InputJsonValue),
+              castEvents:
+                p.castEvents === undefined
+                  ? Prisma.JsonNull
+                  : (p.castEvents as unknown as Prisma.InputJsonValue),
               combatantInfoRaw:
                 p.combatantInfoRaw === undefined
                   ? Prisma.JsonNull
@@ -1334,6 +1461,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
         totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
         totalOverhealing: BigInt(Math.floor(e.totalOverhealing ?? 0)),
+        totalAbsorbProvided: BigInt(Math.floor(e.totalAbsorbProvided ?? 0)),
+        totalDamageTaken: BigInt(Math.floor(e.totalDamageTaken ?? 0)),
         totalInterrupts: e.totalInterrupts,
         totalDispels: e.totalDispels,
         partyDeaths: e.partyDeaths,
@@ -1354,6 +1483,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
             petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
             overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
+            absorbProvided: BigInt(Math.floor(p.absorbProvided ?? 0)),
+            damageTaken: BigInt(Math.floor(p.damageTaken ?? 0)),
+            damageIncoming: BigInt(Math.floor(p.damageIncoming ?? 0)),
+            selfHealing: BigInt(Math.floor(p.selfHealing ?? 0)),
+            parries: p.parries ?? 0,
+            dodges: p.dodges ?? 0,
+            misses: p.misses ?? 0,
             interrupts: p.interrupts,
             dispels: p.dispels,
             deaths: p.deaths,
@@ -1364,6 +1500,30 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             peakBucketIndex: p.peakBucketIndex ?? null,
             peakDamage:
               p.peakDamage === undefined ? null : BigInt(Math.floor(p.peakDamage)),
+            healingBuckets:
+              p.healingBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.healingBuckets as Prisma.InputJsonValue),
+            absorbProvidedBuckets:
+              p.absorbProvidedBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.absorbProvidedBuckets as Prisma.InputJsonValue),
+            damageTakenBuckets:
+              p.damageTakenBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.damageTakenBuckets as Prisma.InputJsonValue),
+            damageIncomingBuckets:
+              p.damageIncomingBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.damageIncomingBuckets as Prisma.InputJsonValue),
+            selfHealingBuckets:
+              p.selfHealingBuckets === undefined
+                ? Prisma.JsonNull
+                : (p.selfHealingBuckets as Prisma.InputJsonValue),
+            castEvents:
+              p.castEvents === undefined
+                ? Prisma.JsonNull
+                : (p.castEvents as unknown as Prisma.InputJsonValue),
             combatantInfoRaw:
               p.combatantInfoRaw === undefined
                 ? Prisma.JsonNull

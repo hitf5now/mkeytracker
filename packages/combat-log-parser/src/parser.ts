@@ -14,6 +14,10 @@ import type {
   UnitDiedEvent,
   SummonEvent,
   SpellAbsorbedEvent,
+  SpellCastSuccessEvent,
+  SwingMissedEvent,
+  SpellMissedEvent,
+  MissType,
 } from './types.js';
 
 /**
@@ -63,6 +67,12 @@ export function parseLine(line: string): ParsedEvent | null {
       return parseSummon(timestamp, tokens);
     case 'SPELL_ABSORBED':
       return parseSpellAbsorbed(timestamp, tokens);
+    case 'SPELL_CAST_SUCCESS':
+      return parseSpellCastSuccess(timestamp, tokens);
+    case 'SWING_MISSED':
+      return parseSwingMissed(timestamp, tokens);
+    case 'SPELL_MISSED':
+      return parseSpellMissed(timestamp, tokens);
     default:
       return null;
   }
@@ -322,6 +332,8 @@ function parseDamage(
     spellName,
     amount: toNumber(tokens[base]),
     overkill: toNumber(tokens[base + 1]),
+    resisted: toNumber(tokens[base + 3]),
+    blocked: toNumber(tokens[base + 4]),
     absorbed: toNumber(tokens[base + 5]),
     critical: toBool(tokens[base + 6]),
     supporterGuid: isSupport ? last : undefined,
@@ -464,5 +476,106 @@ function parseSpellAbsorbed(
     shieldSpellId,
     shieldSpellName,
     amount,
+  };
+}
+
+/**
+ * SPELL_CAST_SUCCESS,<source 4>,<dest 4>,spellId,spellName,spellSchool,...
+ * Source is the caster. dest can be "0000000000000000" for self-cast or
+ * the target's GUID. We only need source + spellId for cooldown overlays.
+ */
+function parseSpellCastSuccess(
+  timestamp: Date,
+  tokens: string[],
+): SpellCastSuccessEvent | null {
+  if (tokens.length < 11) return null;
+  const { source, dest, nextIndex } = readPrefix(tokens);
+  // Skip events not cast by players (mobs, pets, etc.). Pets still matter for
+  // some achievements but cast-event overlays are a player-focused feature.
+  if (!source.guid.startsWith('Player-')) return null;
+  return {
+    timestamp,
+    eventType: 'SPELL_CAST_SUCCESS',
+    source,
+    dest,
+    spellId: toNumber(tokens[nextIndex]),
+    spellName: unquote(tokens[nextIndex + 1] ?? ''),
+  };
+}
+
+const MISS_TYPES = new Set<MissType>([
+  'ABSORB',
+  'BLOCK',
+  'DEFLECT',
+  'DODGE',
+  'EVADE',
+  'IMMUNE',
+  'MISS',
+  'PARRY',
+  'REFLECT',
+  'RESIST',
+]);
+
+function toMissType(raw: string | undefined): MissType | null {
+  if (!raw) return null;
+  const u = raw.toUpperCase() as MissType;
+  return MISS_TYPES.has(u) ? u : null;
+}
+
+/**
+ * SWING_MISSED,<source 4>,<dest 4>,missType,isOffHand[,amountMissed,baseAmount,critical]
+ *
+ * PARRY/DODGE/MISS/IMMUNE: no amount data in the log.
+ * BLOCK/ABSORB: amountMissed + baseAmount are present.
+ */
+function parseSwingMissed(
+  timestamp: Date,
+  tokens: string[],
+): SwingMissedEvent | null {
+  if (tokens.length < 10) return null;
+  const { source, dest, nextIndex } = readPrefix(tokens);
+  const missType = toMissType(unquote(tokens[nextIndex] ?? ''));
+  if (!missType) return null;
+  // amountMissed sits at nextIndex + 2 (after isOffHand), if present.
+  const amountMissed = toNumber(tokens[nextIndex + 2]);
+  const baseAmount = toNumber(tokens[nextIndex + 3]);
+  return {
+    timestamp,
+    eventType: 'SWING_MISSED',
+    source,
+    dest,
+    missType,
+    amountMissed,
+    baseAmount,
+  };
+}
+
+/**
+ * SPELL_MISSED,<source 4>,<dest 4>,spellId,spellName,spellSchool,missType,isOffHand[,amountMissed,baseAmount,critical]
+ */
+function parseSpellMissed(
+  timestamp: Date,
+  tokens: string[],
+): SpellMissedEvent | null {
+  if (tokens.length < 13) return null;
+  const { source, dest, nextIndex } = readPrefix(tokens);
+  const spellId = toNumber(tokens[nextIndex]);
+  const spellName = unquote(tokens[nextIndex + 1] ?? '');
+  // Skip the spellSchool field at nextIndex + 2.
+  const missType = toMissType(unquote(tokens[nextIndex + 3] ?? ''));
+  if (!missType) return null;
+  // amountMissed at nextIndex + 5 (after isOffHand), if present.
+  const amountMissed = toNumber(tokens[nextIndex + 5]);
+  const baseAmount = toNumber(tokens[nextIndex + 6]);
+  return {
+    timestamp,
+    eventType: 'SPELL_MISSED',
+    source,
+    dest,
+    spellId,
+    spellName,
+    missType,
+    amountMissed,
+    baseAmount,
   };
 }

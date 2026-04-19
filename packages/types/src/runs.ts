@@ -82,13 +82,25 @@ export interface EnrichmentPlayerStats {
    * Already included in damageDone; exposed for UI subtotals.
    */
   petDamageDone: number;
-  /** Effective healing (Details-style): raw - overheal - heal-absorbed, plus shield-absorb credits. */
+  /** Effective healing (Details-style): raw - overheal - heal-absorbed. Excludes shield absorbs. */
   healingDone: number;
   healingDoneSupport: number;
   /** Portion of healingDone from this player's pets/guardians. */
   petHealingDone: number;
   /** Raw overheal amount — healing wasted on fully-topped targets. */
   overhealing: number;
+  /** Shield absorbs cast by this player (SPELL_ABSORBED where caster=this). */
+  absorbProvided: number;
+  /** Actual damage received. */
+  damageTaken: number;
+  /** Damage directed at this player (post-armor, pre-shield/block/resist). */
+  damageIncoming: number;
+  /** Self-healing (source = dest). */
+  selfHealing: number;
+  /** Avoidance counts — no amount data in log. */
+  parries: number;
+  dodges: number;
+  misses: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -101,6 +113,18 @@ export interface EnrichmentPlayerStats {
   peakBucketIndex?: number;
   /** Damage in the peak bucket. Peak DPS = peakDamage / (bucketSizeMs / 1000). */
   peakDamage?: number;
+  /** Raw healing output per bucket (for the Healing tab chart). */
+  healingBuckets?: number[];
+  /** Shield-absorb output per bucket. */
+  absorbProvidedBuckets?: number[];
+  /** Damage received per bucket (Tank chart line 2). */
+  damageTakenBuckets?: number[];
+  /** Damage directed per bucket (Tank chart line 1). */
+  damageIncomingBuckets?: number[];
+  /** Self-heals per bucket (Tank chart line 3). */
+  selfHealingBuckets?: number[];
+  /** Cast events — for future cooldown overlay rendering. */
+  castEvents?: Array<{ spellId: number; offsetMs: number }>;
   /**
    * Full COMBATANT_INFO payload (gear, talents, stats, auras) captured as an
    * opaque JSON value. Stored so Phase D/E work can decode extra fields
@@ -137,12 +161,16 @@ export interface RunEnrichmentSubmission {
   totalDamage: number;
   totalDamageSupport: number;
   totalPetDamage: number;
-  /** Effective healing across the segment (Details-style, incl. shield absorbs). */
+  /** Effective healing across the segment (Details-style, EXCLUDING shield absorbs). */
   totalHealing: number;
   totalHealingSupport: number;
   totalPetHealing: number;
   /** Raw overheal aggregated across all players. */
   totalOverhealing: number;
+  /** Total shield-absorb output across all players. */
+  totalAbsorbProvided: number;
+  /** Total damage received across all players. */
+  totalDamageTaken: number;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;

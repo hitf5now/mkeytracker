@@ -461,13 +461,25 @@ export interface RunDetailEnrichmentPlayer {
   damageDoneSupport: string;
   /** Portion of damageDone attributable to this player's pets/guardians/totems. */
   petDamageDone: string;
-  /** Effective healing (Details-style): BigInt serialized as string. Includes shield absorbs. */
+  /** Effective healing (Details-style): BigInt string. EXCLUDES shield absorbs. */
   healingDone: string;
   healingDoneSupport: string;
   /** Portion of healingDone from this player's pets/guardians. */
   petHealingDone: string;
   /** Raw overheal total serialized as string (BigInt). */
   overhealing: string;
+  /** Shield absorbs cast by this player (BigInt string). */
+  absorbProvided: string;
+  /** Actual damage received (BigInt string). */
+  damageTaken: string;
+  /** Damage directed at this player (post-armor, pre-shield/block/resist). */
+  damageIncoming: string;
+  /** Self-healing total (source = dest). */
+  selfHealing: string;
+  /** Avoidance counts — log has no amount data for these. */
+  parries: number;
+  dodges: number;
+  misses: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -476,6 +488,18 @@ export interface RunDetailEnrichmentPlayer {
   peakBucketIndex: number | null;
   /** BigInt serialized as string — damage in peak bucket. */
   peakDamage: string | null;
+  /** Raw healing output per bucket (for Healing tab chart). */
+  healingBuckets: number[] | null;
+  /** Shield-absorb output per bucket. */
+  absorbProvidedBuckets: number[] | null;
+  /** Damage received per bucket (Tank chart line 2). */
+  damageTakenBuckets: number[] | null;
+  /** Damage directed per bucket (Tank chart line 1). */
+  damageIncomingBuckets: number[] | null;
+  /** Self-heals per bucket (Tank chart line 3). */
+  selfHealingBuckets: number[] | null;
+  /** Cast events for future CD overlays. */
+  castEvents: Array<{ spellId: number; offsetMs: number }> | null;
   combatantInfoRaw: unknown;
 }
 
@@ -499,11 +523,16 @@ export interface RunDetailEnrichment {
   totalDamage: string;
   totalDamageSupport: string;
   totalPetDamage: string;
+  /** Effective healing, EXCLUDING shield absorbs. */
   totalHealing: string;
   totalHealingSupport: string;
   totalPetHealing: string;
   /** Raw overheal aggregated across all players. */
   totalOverhealing: string;
+  /** Shield-absorb output across all players. */
+  totalAbsorbProvided: string;
+  /** Damage received across all players. */
+  totalDamageTaken: string;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;

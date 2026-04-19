@@ -135,6 +135,19 @@ export class RunAggregator {
         );
         // Attribute pet/guardian/totem damage to the owning player.
         this.addPetDamage(event.source.guid, event.amount, event.timestamp);
+        // Record damage taken + incoming on the dest (tank-chart inputs).
+        this.addDamageTaken(
+          event.dest.guid,
+          event.dest.name,
+          event.amount,
+          event.timestamp,
+        );
+        this.addDamageIncoming(
+          event.dest.guid,
+          event.dest.name,
+          event.amount + event.absorbed + event.blocked + event.resisted,
+          event.timestamp,
+        );
         return;
 
       case 'SWING_DAMAGE_LANDED':
@@ -151,10 +164,9 @@ export class RunAggregator {
 
       case 'SPELL_HEAL':
       case 'SPELL_PERIODIC_HEAL': {
-        // Effective healing (Details/Recount convention) = amount - overheal
-        // - heal-absorbed. Overheal is tracked separately so the UI can show
-        // "1.2M / 300k overheal" and achievements can roast people who spam
-        // heal topped-off targets.
+        // Effective healing (Details convention) = amount - overheal - heal-absorbed.
+        // Overheal tracked separately. `healingBuckets` captures RAW heal output
+        // (including overheal) for the Healing tab chart.
         const effective = Math.max(
           0,
           event.amount - event.overhealing - event.absorbed,
@@ -162,6 +174,16 @@ export class RunAggregator {
         this.addHealing(event.source.guid, event.source.name, effective, false);
         this.addOverhealing(event.source.guid, event.overhealing);
         this.addPetHealing(event.source.guid, effective);
+        this.addHealingBucket(event.source.guid, event.amount, event.timestamp);
+        // Self-healing: source = dest. Used for the Tanking tab (line 3).
+        if (event.source.guid === event.dest.guid) {
+          this.addSelfHealing(
+            event.source.guid,
+            event.source.name,
+            effective,
+            event.timestamp,
+          );
+        }
         return;
       }
 
@@ -176,10 +198,37 @@ export class RunAggregator {
         return;
 
       case 'SPELL_ABSORBED':
-        // The shield's caster gets healing credit for the absorbed amount.
-        // This is what Details/Recount do — a shield that ate 500k damage
-        // is effectively 500k healing done by the shield provider.
-        this.addHealing(event.casterGuid, event.casterName, event.amount, false);
+        // Shield absorbs are split out of healingDone into absorbProvided so
+        // the UI can separate "heals cast" from "damage mitigated via shield."
+        this.addAbsorbProvided(
+          event.casterGuid,
+          event.casterName,
+          event.amount,
+          event.timestamp,
+        );
+        // Also contributes to the dest's damageIncoming for the tank chart.
+        this.addDamageIncoming(
+          event.dest.guid,
+          event.dest.name,
+          event.amount,
+          event.timestamp,
+        );
+        return;
+
+      case 'SWING_MISSED':
+      case 'SPELL_MISSED':
+        this.handleMissed(event);
+        return;
+
+      case 'SPELL_CAST_SUCCESS':
+        if (this.startEvent) {
+          const offsetMs =
+            event.timestamp.getTime() - this.startEvent.timestamp.getTime();
+          if (offsetMs >= 0) {
+            const p = this.getOrCreatePlayer(event.source.guid, event.source.name);
+            p.castEvents.push({ spellId: event.spellId, offsetMs });
+          }
+        }
         return;
 
       case 'SPELL_INTERRUPT':
@@ -194,6 +243,49 @@ export class RunAggregator {
         if (event.dest.guid.startsWith('Player-')) {
           this.getOrCreatePlayer(event.dest.guid, event.dest.name).deaths++;
         }
+        return;
+    }
+  }
+
+  /**
+   * Route SWING_MISSED / SPELL_MISSED against a player dest.
+   * - BLOCK/ABSORB missType with amountMissed: count as damage that was
+   *   directed (damageIncoming) AND fully mitigated.
+   * - PARRY / DODGE / MISS: count-only; no amount in the log.
+   * Other missTypes (IMMUNE, DEFLECT, RESIST, REFLECT, EVADE) are ignored —
+   * rare and mostly not tank-mitigation events.
+   */
+  private handleMissed(
+    event: import('./types.js').SwingMissedEvent | import('./types.js').SpellMissedEvent,
+  ): void {
+    if (!event.dest.guid.startsWith('Player-')) return;
+    const p = this.getOrCreatePlayer(event.dest.guid, event.dest.name);
+    switch (event.missType) {
+      case 'PARRY':
+        p.parries++;
+        return;
+      case 'DODGE':
+        p.dodges++;
+        return;
+      case 'MISS':
+        p.misses++;
+        return;
+      case 'BLOCK':
+      case 'ABSORB': {
+        const amt = event.amountMissed;
+        if (amt > 0) {
+          // Fully mitigated attempts still count toward damageIncoming —
+          // the enemy tried to hit and we saw it; the tank just ate none of it.
+          this.addDamageIncoming(
+            event.dest.guid,
+            event.dest.name,
+            amt,
+            event.timestamp,
+          );
+        }
+        return;
+      }
+      default:
         return;
     }
   }
@@ -219,12 +311,25 @@ export class RunAggregator {
         healingDoneSupport: 0,
         petHealingDone: 0,
         overhealing: 0,
+        absorbProvided: 0,
+        damageTaken: 0,
+        damageIncoming: 0,
+        selfHealing: 0,
+        parries: 0,
+        dodges: 0,
+        misses: 0,
         interrupts: 0,
         dispels: 0,
         deaths: 0,
         damageBuckets: [],
         peakBucketIndex: 0,
         peakDamage: 0,
+        healingBuckets: [],
+        absorbProvidedBuckets: [],
+        damageTakenBuckets: [],
+        damageIncomingBuckets: [],
+        selfHealingBuckets: [],
+        castEvents: [],
       };
       this.players.set(guid, p);
     } else if (!p.name && name) {
@@ -311,6 +416,76 @@ export class RunAggregator {
     p.overhealing += amount;
   }
 
+  private writeToBucket(arr: number[], index: number, amount: number): void {
+    while (arr.length <= index) arr.push(0);
+    arr[index]! += amount;
+  }
+
+  private addHealingBucket(guid: string, amount: number, ts: Date): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const idx = this.bucketIndexFor(ts);
+    if (idx < 0) return;
+    const p = this.getOrCreatePlayer(guid, '');
+    this.writeToBucket(p.healingBuckets, idx, amount);
+  }
+
+  private addAbsorbProvided(
+    guid: string,
+    name: string,
+    amount: number,
+    ts: Date,
+  ): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const p = this.getOrCreatePlayer(guid, name);
+    p.absorbProvided += amount;
+    const idx = this.bucketIndexFor(ts);
+    if (idx >= 0) this.writeToBucket(p.absorbProvidedBuckets, idx, amount);
+  }
+
+  private addDamageTaken(
+    guid: string,
+    name: string,
+    amount: number,
+    ts: Date,
+  ): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const p = this.getOrCreatePlayer(guid, name);
+    p.damageTaken += amount;
+    const idx = this.bucketIndexFor(ts);
+    if (idx >= 0) this.writeToBucket(p.damageTakenBuckets, idx, amount);
+  }
+
+  private addDamageIncoming(
+    guid: string,
+    name: string,
+    amount: number,
+    ts: Date,
+  ): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const p = this.getOrCreatePlayer(guid, name);
+    p.damageIncoming += amount;
+    const idx = this.bucketIndexFor(ts);
+    if (idx >= 0) this.writeToBucket(p.damageIncomingBuckets, idx, amount);
+  }
+
+  private addSelfHealing(
+    guid: string,
+    name: string,
+    amount: number,
+    ts: Date,
+  ): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const p = this.getOrCreatePlayer(guid, name);
+    p.selfHealing += amount;
+    const idx = this.bucketIndexFor(ts);
+    if (idx >= 0) this.writeToBucket(p.selfHealingBuckets, idx, amount);
+  }
+
   /**
    * If a damage event's source is a known pet/guardian/totem, roll the damage
    * into the owner's `damageDone` + timeline bucket, and track the subtotal
@@ -361,12 +536,19 @@ export class RunAggregator {
       1,
       Math.ceil(this.endEvent.durationMs / DAMAGE_BUCKET_SIZE_MS),
     );
+    const normalize = (arr: number[]) => {
+      while (arr.length < totalBuckets) arr.push(0);
+      if (arr.length > totalBuckets) arr.length = totalBuckets;
+    };
+
     for (const p of this.players.values()) {
-      while (p.damageBuckets.length < totalBuckets) p.damageBuckets.push(0);
-      // Trim any stragglers past run end (shouldn't happen, but defensive).
-      if (p.damageBuckets.length > totalBuckets) {
-        p.damageBuckets.length = totalBuckets;
-      }
+      normalize(p.damageBuckets);
+      normalize(p.healingBuckets);
+      normalize(p.absorbProvidedBuckets);
+      normalize(p.damageTakenBuckets);
+      normalize(p.damageIncomingBuckets);
+      normalize(p.selfHealingBuckets);
+
       let peakIdx = 0;
       let peakVal = p.damageBuckets[0] ?? 0;
       for (let i = 1; i < p.damageBuckets.length; i++) {
@@ -392,6 +574,8 @@ export class RunAggregator {
         acc.healingSupport += p.healingDoneSupport;
         acc.petHealing += p.petHealingDone;
         acc.overhealing += p.overhealing;
+        acc.absorbProvided += p.absorbProvided;
+        acc.damageTaken += p.damageTaken;
         acc.deaths += p.deaths;
         acc.interrupts += p.interrupts;
         acc.dispels += p.dispels;
@@ -405,6 +589,8 @@ export class RunAggregator {
         healingSupport: 0,
         petHealing: 0,
         overhealing: 0,
+        absorbProvided: 0,
+        damageTaken: 0,
         deaths: 0,
         interrupts: 0,
         dispels: 0,
