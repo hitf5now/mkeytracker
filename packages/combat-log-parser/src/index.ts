@@ -14,6 +14,7 @@ export type {
   InterruptEvent,
   DispelEvent,
   UnitDiedEvent,
+  SummonEvent,
   SourceDest,
   PlayerStats,
   EncounterSummary,

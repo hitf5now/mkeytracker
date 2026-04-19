@@ -392,6 +392,14 @@ function PlayersTable({
                   </td>
                   <td className={leader(isTopDamage, "px-3 py-2 text-right font-mono")}>
                     {formatNumber(damage)}
+                    {Number(p.petDamageDone) > 0 && (
+                      <div
+                        className="text-xs font-normal text-muted-foreground"
+                        title="Included in total damage — this is the amount coming from pets/guardians/totems"
+                      >
+                        +{formatNumber(Number(p.petDamageDone))} pet
+                      </div>
+                    )}
                   </td>
                   <td
                     className={`px-3 py-2 text-right font-mono ${

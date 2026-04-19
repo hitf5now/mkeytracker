@@ -47,8 +47,10 @@ const EnrichmentPlayerStatsSchema = z.object({
   specId: z.number().int().nullable(),
   damageDone: z.number().nonnegative().default(0),
   damageDoneSupport: z.number().nonnegative().default(0),
+  petDamageDone: z.number().nonnegative().default(0),
   healingDone: z.number().nonnegative().default(0),
   healingDoneSupport: z.number().nonnegative().default(0),
+  petHealingDone: z.number().nonnegative().default(0),
   interrupts: z.number().int().nonnegative().default(0),
   dispels: z.number().int().nonnegative().default(0),
   deaths: z.number().int().nonnegative().default(0),
@@ -78,8 +80,10 @@ const RunEnrichmentSubmissionSchema = z.object({
   parserVersion: z.string().min(1).max(40),
   totalDamage: z.number().nonnegative().default(0),
   totalDamageSupport: z.number().nonnegative().default(0),
+  totalPetDamage: z.number().nonnegative().default(0),
   totalHealing: z.number().nonnegative().default(0),
   totalHealingSupport: z.number().nonnegative().default(0),
+  totalPetHealing: z.number().nonnegative().default(0),
   totalInterrupts: z.number().int().nonnegative().default(0),
   totalDispels: z.number().int().nonnegative().default(0),
   partyDeaths: z.number().int().nonnegative().default(0),
@@ -150,8 +154,10 @@ function serializeEnrichment(enrichment: {
   parserVersion: string;
   totalDamage: bigint;
   totalDamageSupport: bigint;
+  totalPetDamage: bigint;
   totalHealing: bigint;
   totalHealingSupport: bigint;
+  totalPetHealing: bigint;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;
@@ -168,8 +174,10 @@ function serializeEnrichment(enrichment: {
     characterId: number | null;
     damageDone: bigint;
     damageDoneSupport: bigint;
+    petDamageDone: bigint;
     healingDone: bigint;
     healingDoneSupport: bigint;
+    petHealingDone: bigint;
     interrupts: number;
     dispels: number;
     deaths: number;
@@ -197,8 +205,10 @@ function serializeEnrichment(enrichment: {
     parserVersion: enrichment.parserVersion,
     totalDamage: enrichment.totalDamage.toString(),
     totalDamageSupport: enrichment.totalDamageSupport.toString(),
+    totalPetDamage: enrichment.totalPetDamage.toString(),
     totalHealing: enrichment.totalHealing.toString(),
     totalHealingSupport: enrichment.totalHealingSupport.toString(),
+    totalPetHealing: enrichment.totalPetHealing.toString(),
     totalInterrupts: enrichment.totalInterrupts,
     totalDispels: enrichment.totalDispels,
     partyDeaths: enrichment.partyDeaths,
@@ -217,8 +227,10 @@ function serializeEnrichment(enrichment: {
       characterId: p.characterId,
       damageDone: p.damageDone.toString(),
       damageDoneSupport: p.damageDoneSupport.toString(),
+      petDamageDone: p.petDamageDone.toString(),
       healingDone: p.healingDone.toString(),
       healingDoneSupport: p.healingDoneSupport.toString(),
+      petHealingDone: p.petHealingDone.toString(),
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
@@ -635,8 +647,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 parserVersion: e.parserVersion,
                 totalDamage: BigInt(Math.floor(e.totalDamage)),
                 totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+                totalPetDamage: BigInt(Math.floor(e.totalPetDamage ?? 0)),
                 totalHealing: BigInt(Math.floor(e.totalHealing)),
                 totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+                totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
                 totalInterrupts: e.totalInterrupts,
                 totalDispels: e.totalDispels,
                 partyDeaths: e.partyDeaths,
@@ -652,8 +666,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                     characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
                     damageDone: BigInt(Math.floor(p.damageDone)),
                     damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+                    petDamageDone: BigInt(Math.floor(p.petDamageDone ?? 0)),
                     healingDone: BigInt(Math.floor(p.healingDone)),
                     healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+                    petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
                     interrupts: p.interrupts,
                     dispels: p.dispels,
                     deaths: p.deaths,
@@ -1006,8 +1022,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           parserVersion: e.parserVersion,
           totalDamage: BigInt(Math.floor(e.totalDamage)),
           totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+          totalPetDamage: BigInt(Math.floor(e.totalPetDamage ?? 0)),
           totalHealing: BigInt(Math.floor(e.totalHealing)),
           totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+          totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
           totalInterrupts: e.totalInterrupts,
           totalDispels: e.totalDispels,
           partyDeaths: e.partyDeaths,
@@ -1023,8 +1041,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
               damageDone: BigInt(Math.floor(p.damageDone)),
               damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+              petDamageDone: BigInt(Math.floor(p.petDamageDone ?? 0)),
               healingDone: BigInt(Math.floor(p.healingDone)),
               healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+              petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
               interrupts: p.interrupts,
               dispels: p.dispels,
               deaths: p.deaths,
@@ -1199,8 +1219,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         parserVersion: e.parserVersion,
         totalDamage: BigInt(Math.floor(e.totalDamage)),
         totalDamageSupport: BigInt(Math.floor(e.totalDamageSupport)),
+        totalPetDamage: BigInt(Math.floor(e.totalPetDamage ?? 0)),
         totalHealing: BigInt(Math.floor(e.totalHealing)),
         totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
+        totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
         totalInterrupts: e.totalInterrupts,
         totalDispels: e.totalDispels,
         partyDeaths: e.partyDeaths,
@@ -1216,8 +1238,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             characterId: matchLogPlayerToCharacter(p.playerName, characterByKey),
             damageDone: BigInt(Math.floor(p.damageDone)),
             damageDoneSupport: BigInt(Math.floor(p.damageDoneSupport)),
+            petDamageDone: BigInt(Math.floor(p.petDamageDone ?? 0)),
             healingDone: BigInt(Math.floor(p.healingDone)),
             healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
+            petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
             interrupts: p.interrupts,
             dispels: p.dispels,
             deaths: p.deaths,

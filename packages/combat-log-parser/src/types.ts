@@ -111,6 +111,12 @@ export interface UnitDiedEvent extends CombatEventSourceDest {
   eventType: 'UNIT_DIED';
 }
 
+export interface SummonEvent extends CombatEventSourceDest {
+  eventType: 'SPELL_SUMMON';
+  spellId: number;
+  spellName: string;
+}
+
 export type ParsedEvent =
   | ChallengeModeStart
   | ChallengeModeEnd
@@ -121,7 +127,8 @@ export type ParsedEvent =
   | HealEvent
   | InterruptEvent
   | DispelEvent
-  | UnitDiedEvent;
+  | UnitDiedEvent
+  | SummonEvent;
 
 // ---------------------------------------------------------------------------
 // Aggregated output
@@ -133,8 +140,16 @@ export interface PlayerStats {
   specId?: number;
   damageDone: number;
   damageDoneSupport: number;
+  /**
+   * Portion of `damageDone` that came from this player's pets, guardians, and
+   * totems (routed via SPELL_SUMMON → source GUID lookup). Already included in
+   * `damageDone`; exposed separately so UIs can show a pet subtotal.
+   */
+  petDamageDone: number;
   healingDone: number;
   healingDoneSupport: number;
+  /** Portion of `healingDone` that came from this player's pets/guardians. */
+  petHealingDone: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -179,8 +194,10 @@ export interface RunSummary {
   totals: {
     damage: number;
     damageSupport: number;
+    petDamage: number;
     healing: number;
     healingSupport: number;
+    petHealing: number;
     deaths: number;
     interrupts: number;
     dispels: number;

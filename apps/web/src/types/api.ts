@@ -428,8 +428,12 @@ export interface RunDetailEnrichmentPlayer {
   /** BigInt serialized as string — parse with Number() for display */
   damageDone: string;
   damageDoneSupport: string;
+  /** Portion of damageDone attributable to this player's pets/guardians/totems. */
+  petDamageDone: string;
   healingDone: string;
   healingDoneSupport: string;
+  /** Portion of healingDone from this player's pets/guardians. */
+  petHealingDone: string;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -460,8 +464,10 @@ export interface RunDetailEnrichment {
   parserVersion: string;
   totalDamage: string;
   totalDamageSupport: string;
+  totalPetDamage: string;
   totalHealing: string;
   totalHealingSupport: string;
+  totalPetHealing: string;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;

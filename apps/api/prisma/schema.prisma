@@ -668,8 +668,12 @@ model RunEnrichment {
   /// Aggregate totals across the M+ segment
   totalDamage         BigInt @default(0) @map("total_damage")
   totalDamageSupport  BigInt @default(0) @map("total_damage_support")
+  /// Portion of totalDamage from party pets/guardians/totems (already in totalDamage)
+  totalPetDamage      BigInt @default(0) @map("total_pet_damage")
   totalHealing        BigInt @default(0) @map("total_healing")
   totalHealingSupport BigInt @default(0) @map("total_healing_support")
+  /// Portion of totalHealing from party pets/guardians (already in totalHealing)
+  totalPetHealing     BigInt @default(0) @map("total_pet_healing")
   totalInterrupts     Int    @default(0) @map("total_interrupts")
   totalDispels        Int    @default(0) @map("total_dispels")
   partyDeaths         Int    @default(0) @map("party_deaths")
@@ -715,8 +719,12 @@ model RunEnrichmentPlayer {
 
   damageDone         BigInt @default(0) @map("damage_done")
   damageDoneSupport  BigInt @default(0) @map("damage_done_support")
+  /// Subtotal of damageDone from this player's pets/guardians/totems
+  petDamageDone      BigInt @default(0) @map("pet_damage_done")
   healingDone        BigInt @default(0) @map("healing_done")
   healingDoneSupport BigInt @default(0) @map("healing_done_support")
+  /// Subtotal of healingDone from this player's pets/guardians
+  petHealingDone     BigInt @default(0) @map("pet_healing_done")
   interrupts         Int    @default(0)
   dispels            Int    @default(0)
   deaths             Int    @default(0)

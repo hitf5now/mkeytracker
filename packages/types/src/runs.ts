@@ -77,8 +77,15 @@ export interface EnrichmentPlayerStats {
   specId: number | null;
   damageDone: number;
   damageDoneSupport: number;
+  /**
+   * Portion of damageDone attributable to this player's pets/guardians/totems.
+   * Already included in damageDone; exposed for UI subtotals.
+   */
+  petDamageDone: number;
   healingDone: number;
   healingDoneSupport: number;
+  /** Portion of healingDone from this player's pets/guardians. */
+  petHealingDone: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -126,8 +133,10 @@ export interface RunEnrichmentSubmission {
   /** Aggregate totals across the M+ segment */
   totalDamage: number;
   totalDamageSupport: number;
+  totalPetDamage: number;
   totalHealing: number;
   totalHealingSupport: number;
+  totalPetHealing: number;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;

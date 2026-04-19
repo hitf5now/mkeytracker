@@ -26,6 +26,12 @@ export class RunAggregator {
   private endEvent: import('./types.js').ChallengeModeEnd | null = null;
 
   private players = new Map<string, MutablePlayerStats>();
+  /**
+   * Pet / guardian / totem GUID → owning player GUID, populated from
+   * SPELL_SUMMON events. Populated regardless of segment state so a pet
+   * summoned pre-combat still attributes correctly once the run starts.
+   */
+  private petOwners = new Map<string, string>();
   private encounters: EncounterSummary[] = [];
   private activeEncounter: {
     startedAt: Date;
@@ -56,6 +62,15 @@ export class RunAggregator {
           this.ended = true;
           this.bumpCount(event.eventType);
         }
+        return;
+
+      case 'SPELL_SUMMON':
+        // Pre-gate: a player may summon their pet seconds before
+        // CHALLENGE_MODE_START. Record ownership regardless of segment state.
+        if (event.source.guid.startsWith('Player-') && event.dest.guid) {
+          this.petOwners.set(event.dest.guid, event.source.guid);
+        }
+        if (this.started && !this.ended) this.bumpCount(event.eventType);
         return;
     }
 
@@ -104,6 +119,8 @@ export class RunAggregator {
           false,
           event.timestamp,
         );
+        // Attribute pet/guardian/totem damage to the owning player.
+        this.addPetDamage(event.source.guid, event.amount, event.timestamp);
         return;
 
       case 'SPELL_DAMAGE_SUPPORT':
@@ -120,6 +137,7 @@ export class RunAggregator {
         // unreliable across patches; revisit once the field order is
         // confirmed with more samples.
         this.addHealing(event.source.guid, event.source.name, event.amount, false);
+        this.addPetHealing(event.source.guid, event.amount);
         return;
 
       case 'SPELL_HEAL_SUPPORT':
@@ -160,8 +178,10 @@ export class RunAggregator {
         name,
         damageDone: 0,
         damageDoneSupport: 0,
+        petDamageDone: 0,
         healingDone: 0,
         healingDoneSupport: 0,
+        petHealingDone: 0,
         interrupts: 0,
         dispels: 0,
         deaths: 0,
@@ -228,6 +248,38 @@ export class RunAggregator {
     else p.healingDone += amount;
   }
 
+  /**
+   * If a damage event's source is a known pet/guardian/totem, roll the damage
+   * into the owner's `damageDone` + timeline bucket, and track the subtotal
+   * separately in `petDamageDone` for UI display.
+   */
+  private addPetDamage(
+    sourceGuid: string,
+    amount: number,
+    timestamp: Date,
+  ): void {
+    if (!sourceGuid || sourceGuid.startsWith('Player-')) return;
+    const ownerGuid = this.petOwners.get(sourceGuid);
+    if (!ownerGuid) return;
+    const owner = this.getOrCreatePlayer(ownerGuid, '');
+    owner.damageDone += amount;
+    owner.petDamageDone += amount;
+    const bucketIndex = this.bucketIndexFor(timestamp);
+    if (bucketIndex >= 0) {
+      while (owner.damageBuckets.length <= bucketIndex) owner.damageBuckets.push(0);
+      owner.damageBuckets[bucketIndex]! += amount;
+    }
+  }
+
+  private addPetHealing(sourceGuid: string, amount: number): void {
+    if (!sourceGuid || sourceGuid.startsWith('Player-')) return;
+    const ownerGuid = this.petOwners.get(sourceGuid);
+    if (!ownerGuid) return;
+    const owner = this.getOrCreatePlayer(ownerGuid, '');
+    owner.healingDone += amount;
+    owner.petHealingDone += amount;
+  }
+
   // -------------------------------------------------------------------------
   // Finalization
   // -------------------------------------------------------------------------
@@ -272,8 +324,10 @@ export class RunAggregator {
       (acc, p) => {
         acc.damage += p.damageDone;
         acc.damageSupport += p.damageDoneSupport;
+        acc.petDamage += p.petDamageDone;
         acc.healing += p.healingDone;
         acc.healingSupport += p.healingDoneSupport;
+        acc.petHealing += p.petHealingDone;
         acc.deaths += p.deaths;
         acc.interrupts += p.interrupts;
         acc.dispels += p.dispels;
@@ -282,8 +336,10 @@ export class RunAggregator {
       {
         damage: 0,
         damageSupport: 0,
+        petDamage: 0,
         healing: 0,
         healingSupport: 0,
+        petHealing: 0,
         deaths: 0,
         interrupts: 0,
         dispels: 0,

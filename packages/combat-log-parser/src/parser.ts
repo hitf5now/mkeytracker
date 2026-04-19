@@ -12,6 +12,7 @@ import type {
   InterruptEvent,
   DispelEvent,
   UnitDiedEvent,
+  SummonEvent,
 } from './types.js';
 
 /**
@@ -57,6 +58,8 @@ export function parseLine(line: string): ParsedEvent | null {
       return parseDispel(timestamp, tokens);
     case 'UNIT_DIED':
       return parseUnitDied(timestamp, tokens);
+    case 'SPELL_SUMMON':
+      return parseSummon(timestamp, tokens);
     default:
       return null;
   }
@@ -400,5 +403,20 @@ function parseUnitDied(timestamp: Date, tokens: string[]): UnitDiedEvent | null 
     eventType: 'UNIT_DIED',
     source,
     dest,
+  };
+}
+
+function parseSummon(timestamp: Date, tokens: string[]): SummonEvent | null {
+  // SPELL_SUMMON,<source 4>,<dest 4>,spellId,spellName,spellSchool
+  // The dest is the summoned unit (pet/guardian/totem), the source is the caster.
+  if (tokens.length < 11) return null;
+  const { source, dest, nextIndex } = readPrefix(tokens);
+  return {
+    timestamp,
+    eventType: 'SPELL_SUMMON',
+    source,
+    dest,
+    spellId: toNumber(tokens[nextIndex]),
+    spellName: unquote(tokens[nextIndex + 1] ?? ''),
   };
 }

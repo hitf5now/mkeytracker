@@ -74,6 +74,7 @@ function printHumanSummary(s: RunSummary): void {
     '  Name'.padEnd(28) +
     'Spec'.padEnd(6) +
     'Damage'.padStart(14) +
+    '  of which Pet'.padStart(16) +
     'Supp Dmg'.padStart(14) +
     'Healing'.padStart(14) +
     'Intr'.padStart(6) +
@@ -89,6 +90,7 @@ function printHumanSummary(s: RunSummary): void {
         shortName.padEnd(26) +
         String(p.specId ?? '—').padEnd(6) +
         p.damageDone.toLocaleString().padStart(14) +
+        (p.petDamageDone > 0 ? p.petDamageDone.toLocaleString() : '—').padStart(16) +
         p.damageDoneSupport.toLocaleString().padStart(14) +
         p.healingDone.toLocaleString().padStart(14) +
         String(p.interrupts).padStart(6) +
@@ -99,8 +101,10 @@ function printHumanSummary(s: RunSummary): void {
 
   console.log('\nRun totals:');
   console.log(`  damage:        ${s.totals.damage.toLocaleString()}`);
+  console.log(`    of which pet:${s.totals.petDamage.toLocaleString().padStart(15)}`);
   console.log(`  support dmg:   ${s.totals.damageSupport.toLocaleString()}`);
   console.log(`  healing:       ${s.totals.healing.toLocaleString()}`);
+  console.log(`    of which pet:${s.totals.petHealing.toLocaleString().padStart(15)}`);
   console.log(`  support heal:  ${s.totals.healingSupport.toLocaleString()}`);
   console.log(`  interrupts:    ${s.totals.interrupts}`);
   console.log(`  dispels:       ${s.totals.dispels}`);
