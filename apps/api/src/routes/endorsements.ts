@@ -17,10 +17,11 @@
  *     seasonal + starter pools.
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyBaseLogger } from "fastify";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import {
   getTokenBalance,
@@ -150,6 +151,18 @@ export async function endorsementsRoutes(app: FastifyInstance): Promise<void> {
           "Endorsement given",
         );
 
+        // Fire-and-forget notification to the bot. Failures here don't
+        // affect the client response — the endorsement is already saved.
+        void publishEndorsementGiven({
+          endorsementId: created.id,
+          giverUserId: giver.id,
+          receiverUserId: receiver.id,
+          runId: run.id,
+          category: body.category,
+          note: body.note ?? null,
+          log: req.log,
+        });
+
         return reply.code(201).send({
           endorsement: {
             id: created.id,
@@ -231,5 +244,116 @@ export async function endorsementsRoutes(app: FastifyInstance): Promise<void> {
 class InsufficientTokensError extends Error {
   constructor() {
     super("insufficient_tokens");
+  }
+}
+
+/**
+ * Publish an `endorsement_given` event to the bot-notifications channel.
+ *
+ * Payload includes everything the bot needs to render the embed and
+ * ping the recipient — no further API round-trip required. Channel
+ * list is scoped to whichever channels already received this run's
+ * run-completed embed (RunDiscordPost rows), so the endorsement lands
+ * in the same place as the original announcement.
+ */
+async function publishEndorsementGiven(args: {
+  endorsementId: number;
+  giverUserId: number;
+  receiverUserId: number;
+  runId: number;
+  category: string;
+  note: string | null;
+  log: FastifyBaseLogger;
+}): Promise<void> {
+  try {
+    const [giver, receiver, run, posts] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: args.giverUserId },
+        select: {
+          id: true,
+          discordId: true,
+          characters: {
+            where: {
+              userId: { not: null },
+              runMembers: { some: { runId: args.runId } },
+            },
+            select: { name: true, class: true },
+            take: 1,
+          },
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: args.receiverUserId },
+        select: {
+          id: true,
+          discordId: true,
+          characters: {
+            where: {
+              userId: { not: null },
+              runMembers: { some: { runId: args.runId } },
+            },
+            select: { name: true, class: true },
+            take: 1,
+          },
+        },
+      }),
+      prisma.run.findUnique({
+        where: { id: args.runId },
+        select: {
+          keystoneLevel: true,
+          dungeon: { select: { name: true } },
+          dungeonName: true,
+        },
+      }),
+      prisma.runDiscordPost.findMany({
+        where: { runId: args.runId },
+        select: { channelId: true },
+      }),
+    ]);
+
+    if (!giver || !receiver || !run) {
+      args.log.warn(
+        { endorsementId: args.endorsementId },
+        "endorsement_given: missing giver/receiver/run — skipping announce",
+      );
+      return;
+    }
+
+    const channelIds = posts.map((p) => p.channelId);
+    if (channelIds.length === 0) {
+      args.log.info(
+        { endorsementId: args.endorsementId, runId: args.runId },
+        "endorsement_given: no Discord posts for this run — skipping announce",
+      );
+      return;
+    }
+
+    const giverCharacter = giver.characters[0];
+    const receiverCharacter = receiver.characters[0];
+
+    await redis.publish(
+      "mplus:bot-notifications",
+      JSON.stringify({
+        type: "endorsement_given",
+        endorsementId: args.endorsementId,
+        runId: args.runId,
+        category: args.category,
+        note: args.note,
+        giverDiscordId: giver.discordId,
+        receiverDiscordId: receiver.discordId,
+        giverCharacterName: giverCharacter?.name ?? null,
+        giverCharacterClass: giverCharacter?.class ?? null,
+        receiverCharacterName: receiverCharacter?.name ?? null,
+        receiverCharacterClass: receiverCharacter?.class ?? null,
+        dungeonName: run.dungeonName ?? run.dungeon.name,
+        keystoneLevel: run.keystoneLevel,
+        channelIds,
+      }),
+    );
+  } catch (err) {
+    args.log.warn(
+      { err, endorsementId: args.endorsementId },
+      "Failed to publish endorsement notification",
+    );
   }
 }

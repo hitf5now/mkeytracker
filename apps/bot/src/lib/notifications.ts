@@ -17,6 +17,29 @@ import {
 import { env } from "../config/env.js";
 import { apiClient } from "./api-client.js";
 
+/**
+ * Display labels for endorsement categories, mirroring
+ * apps/web/src/lib/endorsement-categories.ts. Keep in sync if either side
+ * changes — the enum values are owned by the Prisma schema.
+ */
+const ENDORSEMENT_CATEGORY_LABEL: Record<string, string> = {
+  great_tank: "Great Tank",
+  great_healer: "Great Healer",
+  great_dps: "Great DPS",
+  interrupt_master: "Interrupt Master",
+  dispel_wizard: "Dispel Wizard",
+  cc_master: "CC Master",
+  cooldown_hero: "Cooldown Hero",
+  affix_slayer: "Affix Slayer",
+  route_master: "Route Master",
+  patient_teacher: "Patient Teacher",
+  calm_under_pressure: "Calm Under Pressure",
+  positive_vibes: "Positive Vibes",
+  shot_caller: "Shot Caller",
+  clutch_saviour: "Clutch Saviour",
+  comeback_kid: "Comeback Kid",
+};
+
 /** Short rules summary for Discord embeds, keyed by event type slug. */
 const TYPE_SUMMARIES: Record<string, string> = {
   fastest_clear_race: "Fastest timed clear wins. Depleted runs don't count.",
@@ -85,6 +108,17 @@ interface BotNotification {
     totalRuns: number;
     totalParticipants: number;
   };
+  // endorsement_given payload
+  endorsementId?: number;
+  category?: string;
+  note?: string | null;
+  giverDiscordId?: string;
+  receiverDiscordId?: string;
+  giverCharacterName?: string | null;
+  giverCharacterClass?: string | null;
+  receiverCharacterName?: string | null;
+  receiverCharacterClass?: string | null;
+  channelIds?: string[];
 }
 
 export function startNotificationSubscriber(client: Client): void {
@@ -115,6 +149,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleEventCompleted(client, notification);
       } else if (notification.type === "run_completed" && notification.runId) {
         await handleRunCompleted(client, notification);
+      } else if (notification.type === "endorsement_given" && notification.endorsementId) {
+        await handleEndorsementGiven(client, notification);
       }
     } catch (err) {
       console.error("Error handling Redis notification:", err);
@@ -474,6 +510,87 @@ function formatRunDuration(ms: number): string {
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
   return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+async function handleEndorsementGiven(
+  client: Client,
+  notification: BotNotification,
+): Promise<void> {
+  const {
+    endorsementId,
+    runId,
+    category,
+    note,
+    receiverDiscordId,
+    giverCharacterName,
+    receiverCharacterName,
+    dungeonName,
+    keystoneLevel,
+    channelIds,
+  } = notification;
+
+  if (
+    !endorsementId ||
+    !runId ||
+    !category ||
+    !receiverDiscordId ||
+    !channelIds ||
+    channelIds.length === 0
+  ) {
+    console.log(
+      `endorsement_given #${endorsementId}: missing fields or no channels — skipping`,
+    );
+    return;
+  }
+
+  const label = ENDORSEMENT_CATEGORY_LABEL[category] ?? category;
+  const runUrl = `${WEB_BASE}/runs/${runId}`;
+  const runContext =
+    dungeonName && keystoneLevel
+      ? `[${dungeonName} +${keystoneLevel}](${runUrl})`
+      : `[View run](${runUrl})`;
+
+  const receiverLabel = receiverCharacterName ?? `<@${receiverDiscordId}>`;
+  const giverLabel = giverCharacterName ?? "A teammate";
+
+  const embed = new EmbedBuilder()
+    .setTitle("✨ Endorsement received")
+    .setColor(0xffd100) // platform gold
+    .setDescription(
+      `**${receiverLabel}** earned a **${label}** endorsement from **${giverLabel}** on ${runContext}.`,
+    );
+
+  if (note) {
+    embed.addFields({ name: "Note", value: `*“${note}”*`, inline: false });
+  }
+
+  embed.setFooter({ text: "M+ Challenge Platform · Endorsements" }).setTimestamp();
+
+  // Ping the recipient so they get the Discord notification badge. The
+  // mention is in the content (not the embed) because embeds don't trigger
+  // pings on their own.
+  const mention = `<@${receiverDiscordId}>`;
+
+  for (const channelId of channelIds) {
+    try {
+      const channel = (await client.channels.fetch(channelId)) as TextChannel | null;
+      if (!channel) continue;
+      await channel.send({
+        content: mention,
+        embeds: [embed],
+        allowedMentions: { users: [receiverDiscordId] },
+      });
+    } catch (err) {
+      console.error(
+        `Failed to post endorsement #${endorsementId} to channel ${channelId}:`,
+        err,
+      );
+    }
+  }
+
+  console.log(
+    `Posted endorsement #${endorsementId} (${category}) to ${channelIds.length} channel(s)`,
+  );
 }
 
 async function handleRunCompleted(client: Client, notification: BotNotification): Promise<void> {
