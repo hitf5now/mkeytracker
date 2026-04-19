@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { EndorsementSummary, TokenBalance } from "@/types/api";
-import { formatNumber, formatDateTime } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { categoryLabel } from "@/lib/endorsement-categories";
 
 interface Props {
@@ -81,7 +82,7 @@ export function EndorsementsTab({ summary, tokenBalance }: Props) {
                 {categoryLabel(summary.favorite.category)}
               </span>
               <span className="text-xs text-muted-foreground">
-                {formatDateTime(summary.favorite.createdAt)}
+                <LocalTime iso={summary.favorite.createdAt} />
               </span>
             </div>
             {summary.favorite.note && (
@@ -128,7 +129,7 @@ export function EndorsementsTab({ summary, tokenBalance }: Props) {
                     {categoryLabel(e.category)}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatDateTime(e.createdAt)}
+                    <LocalTime iso={e.createdAt} />
                   </span>
                 </div>
                 {e.note && (
@@ -177,7 +178,7 @@ export function EndorsementsTab({ summary, tokenBalance }: Props) {
                     {categoryLabel(e.category)}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatDateTime(e.createdAt)}
+                    <LocalTime iso={e.createdAt} />
                   </span>
                 </div>
                 {e.note && (

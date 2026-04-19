@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
 import type { RunDetail, RunDetailEnrichmentPlayer, RunDetailMember, RunJuiceBreakdown } from "@/types/api";
-import { formatDuration, formatNumber, formatDateTime, formatUpgrades } from "@/lib/format";
+import { formatDuration, formatNumber, formatUpgrades } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { getClassColor, getClassName } from "@/lib/class-colors";
 import { getSpecById } from "@mplus/wow-constants";
 import {
@@ -67,7 +68,7 @@ export default async function RunDetailPage({ params }: Props) {
       {/* Header */}
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
-          {run.season.name} · {formatDateTime(run.recordedAt)}
+          {run.season.name} · <LocalTime iso={run.recordedAt} />
         </p>
         <h1 className="text-3xl font-bold">
           {dungeonName} <span className="text-muted-foreground">+{run.keystoneLevel}</span>

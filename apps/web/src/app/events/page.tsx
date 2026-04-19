@@ -7,7 +7,8 @@ import { fetchApi } from "@/lib/api";
 import type { EventSummary } from "@/types/api";
 import { EventStatusBadge } from "@/components/event-status-badge";
 import { EventFilters } from "@/components/event-filters";
-import { formatEventType, formatDateTime } from "@/lib/format";
+import { formatEventType } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,7 @@ export default async function EventsPage({ searchParams }: Props) {
                 {event.dungeon && ` — ${event.dungeon.name}`}
               </p>
               <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{formatDateTime(event.startsAt)}</span>
+                <span><LocalTime iso={event.startsAt} /></span>
                 <span>
                   {event._count.signups} signup{event._count.signups !== 1 ? "s" : ""}
                   {event._count.groups > 0 && ` / ${event._count.groups} groups`}

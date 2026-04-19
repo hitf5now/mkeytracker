@@ -2,11 +2,11 @@ import Link from "next/link";
 import type { UserRunsResult } from "@/types/api";
 import { getClassColor } from "@/lib/class-colors";
 import {
-  formatDateTime,
   formatDuration,
   formatNumber,
   formatUpgrades,
 } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { RunsFilter } from "./runs-filter";
 
 interface Props {
@@ -74,7 +74,7 @@ export function RunsTab({
                     className="border-b border-border/50 hover:bg-background/40"
                   >
                     <td className="px-4 py-2 text-xs text-muted-foreground">
-                      {formatDateTime(r.recordedAt)}
+                      <LocalTime iso={r.recordedAt} />
                     </td>
                     <td className="px-4 py-2">
                       <Link

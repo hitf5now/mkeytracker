@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
 import type { CharacterProfile } from "@/types/api";
 import { getClassColor, getClassName } from "@/lib/class-colors";
-import { formatDuration, formatNumber, formatUpgrades, formatDate } from "@/lib/format";
+import { formatDuration, formatNumber, formatUpgrades } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { RoleIcon } from "@/components/role-icon";
 import { PlayerSearch } from "@/components/player-search";
 import { RefreshPortraitButton } from "@/components/refresh-portrait-button";
@@ -230,7 +231,7 @@ export default async function PlayerProfilePage({ params }: Props) {
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       <Link href={`/runs/${run.id}`} className="block w-full">
-                        {formatDate(run.recordedAt)}
+                        <LocalTime iso={run.recordedAt} format="date" />
                       </Link>
                     </td>
                   </tr>

@@ -14,7 +14,8 @@ import { EventAdminPanel } from "@/components/event-admin-panel";
 import { EventLeaderboard } from "@/components/event-leaderboard";
 import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
-import { formatEventType, formatDateTime } from "@/lib/format";
+import { formatEventType } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -113,11 +114,11 @@ export default async function EventDetailPage({ params }: Props) {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Starts</p>
-          <p className="mt-1 font-medium">{formatDateTime(event.startsAt)}</p>
+          <p className="mt-1 font-medium"><LocalTime iso={event.startsAt} /></p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Ends</p>
-          <p className="mt-1 font-medium">{formatDateTime(event.endsAt)}</p>
+          <p className="mt-1 font-medium"><LocalTime iso={event.endsAt} /></p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Key Range</p>

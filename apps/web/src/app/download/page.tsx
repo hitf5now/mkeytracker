@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { fetchApi } from "@/lib/api";
 import type { ReleaseInfo } from "@/types/api";
-import { formatFileSize, formatDate } from "@/lib/format";
+import { formatFileSize } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function DownloadPage() {
           {release && (
             <p className="mt-3 text-sm text-muted-foreground">
               {release.version} &mdash; {formatFileSize(release.size)} &mdash;
-              Released {formatDate(release.publishedAt)}
+              Released <LocalTime iso={release.publishedAt} format="date" />
             </p>
           )}
         </div>

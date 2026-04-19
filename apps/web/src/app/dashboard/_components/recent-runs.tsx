@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { DashboardRecentRun } from "@/types/api";
 import { getClassColor } from "@/lib/class-colors";
-import { formatNumber, formatUpgrades, formatDate } from "@/lib/format";
+import { formatNumber, formatUpgrades } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export function RecentRuns({ runs }: { runs: DashboardRecentRun[] }) {
   if (runs.length === 0) {
@@ -67,7 +68,7 @@ export function RecentRuns({ runs }: { runs: DashboardRecentRun[] }) {
               </td>
               <td className="px-4 py-3 text-right text-muted-foreground">
                 <Link href={`/runs/${run.id}`} className="block w-full">
-                  {formatDate(run.recordedAt)}
+                  <LocalTime iso={run.recordedAt} format="date" />
                 </Link>
               </td>
             </tr>
