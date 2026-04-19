@@ -11,7 +11,9 @@ import {
   type TimelinePlayer,
 } from "./_components/damage-timeline-chart";
 import { AchievementList } from "./_components/achievement-badges";
+import { EndorsementsBox } from "./_components/endorsements-box";
 import { evaluateRun, achievementsForMember } from "@/lib/achievements";
+import { auth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,11 @@ export default async function RunDetailPage({ params }: Props) {
   const dungeonName = run.dungeonName ?? run.dungeon.name;
   const resultClass = run.onTime ? "text-green-400" : "text-red-400";
   const achievements = evaluateRun(run);
+
+  const session = await auth();
+  const currentUserId = (session?.userId as number | undefined) ?? null;
+  const currentUserDiscordId =
+    (session?.discordId as string | undefined) ?? null;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -168,6 +175,13 @@ export default async function RunDetailPage({ params }: Props) {
           })}
         </div>
       </section>
+
+      {/* Endorsements — below the party cards, above enrichment */}
+      <EndorsementsBox
+        run={run}
+        currentUserId={currentUserId}
+        currentUserDiscordId={currentUserDiscordId}
+      />
 
       {/* Enrichment section — falls back if not available */}
       {run.enrichment && run.enrichment.status === "complete" ? (
@@ -309,6 +323,11 @@ function EnrichmentOverview({ enrichment }: { enrichment: NonNullable<RunDetail[
       hide: Number(enrichment.totalDamageSupport) === 0,
     },
     { label: "Healing", value: formatNumber(Number(enrichment.totalHealing)) },
+    {
+      label: "Overheal",
+      value: formatNumber(Number(enrichment.totalOverhealing)),
+      hide: Number(enrichment.totalOverhealing) === 0,
+    },
     {
       label: "Support Healing",
       value: formatNumber(Number(enrichment.totalHealingSupport)),
@@ -506,8 +525,19 @@ function PlayersTable({
                   Peak DPS
                 </th>
               )}
-              <th className="px-3 py-2 text-right font-medium">Healing</th>
+              <th
+                className="px-3 py-2 text-right font-medium"
+                title="Effective healing — includes shield absorbs, excludes overheal"
+              >
+                Healing
+              </th>
               <th className="px-3 py-2 text-right font-medium">Average HPS</th>
+              <th
+                className="px-3 py-2 text-right font-medium"
+                title="Healing that went to already-topped targets (wasted GCDs)"
+              >
+                Overheal
+              </th>
               <th className="px-3 py-2 text-right font-medium">Intr</th>
               <th className="px-3 py-2 text-right font-medium">Disp</th>
               <th className="px-3 py-2 text-right font-medium">Deaths</th>
@@ -580,6 +610,25 @@ function PlayersTable({
                     }`}
                   >
                     {formatNumber(Math.round(healing / durationSec))}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                    {Number(p.overhealing) > 0 ? (
+                      <>
+                        {formatNumber(Number(p.overhealing))}
+                        {healing > 0 && (
+                          <div className="text-xs font-normal">
+                            {Math.round(
+                              (Number(p.overhealing) /
+                                (healing + Number(p.overhealing))) *
+                                100,
+                            )}
+                            %
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className={leader(isTopInterrupts, "px-3 py-2 text-right")}>
                     {p.interrupts}

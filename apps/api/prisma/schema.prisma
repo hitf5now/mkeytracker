@@ -35,10 +35,12 @@ model Season {
   endsAt   DateTime? @map("ends_at")
   isActive Boolean   @default(false) @map("is_active")
 
-  dungeons Dungeon[]
-  runs     Run[]
-  events   Event[]
-  teams    Team[]
+  dungeons           Dungeon[]
+  runs               Run[]
+  events             Event[]
+  teams              Team[]
+  endorsements       Endorsement[]
+  seasonalTokenUsers User[]        @relation("seasonalTokens")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -87,13 +89,39 @@ model User {
   /// See RunResultsMode docs.
   runResultsMode RunResultsMode @default(all_my_servers) @map("run_results_mode")
 
-  characters        Character[]
-  runMembers        RunMember[]
-  eventSignups      EventSignup[]
-  eventsCreated     Event[]               @relation("eventsCreated")
-  teamsCaptained    Team[]                @relation("teamsCaptained")
-  serverAdminships  DiscordServerAdmin[]
-  serverMemberships DiscordServerMember[]
+  /// Rolling counter of all Personal Juice ever earned. Drives endorsement
+  /// token minting: floor(lifetimeJuiceEarned / 15000) = tokens ever owed.
+  lifetimeJuiceEarned     Int     @default(0) @map("lifetime_juice_earned")
+  /// How many Juice-derived tokens we've already minted for this user.
+  /// Idempotency guard: newTokens = floor(lifetimeJuiceEarned/15000) - tokensGrantedFromJuice
+  tokensGrantedFromJuice  Int     @default(0) @map("tokens_granted_from_juice")
+  /// Tokens from one-time starter-pack grants (Discord login, companion link).
+  /// Persists across seasons. Spent last (seasonal spent first, use-it-or-lose-it).
+  starterTokensRemaining  Int     @default(0) @map("starter_tokens_remaining")
+  /// Tokens earned from Juice this season. Zeroed at season rollover.
+  seasonalTokensRemaining Int     @default(0) @map("seasonal_tokens_remaining")
+  /// Which season seasonalTokensRemaining belongs to. If != current active
+  /// season when touched, reset to 0 and rebind before grant/spend.
+  seasonalTokensSeasonId  Int?    @map("seasonal_tokens_season_id")
+  seasonalTokensSeason    Season? @relation("seasonalTokens", fields: [seasonalTokensSeasonId], references: [id])
+  /// Flag: starter grant for completing Discord login has been issued.
+  starterDiscordGranted   Boolean @default(false) @map("starter_discord_granted")
+  /// Flag: starter grant for linking the companion app has been issued.
+  starterCompanionGranted Boolean @default(false) @map("starter_companion_granted")
+
+  /// User-pinned favorite endorsement (optional). Shown at top of profile.
+  favoriteEndorsementId Int?         @unique @map("favorite_endorsement_id")
+  favoriteEndorsement   Endorsement? @relation("favoriteEndorsement", fields: [favoriteEndorsementId], references: [id], onDelete: SetNull)
+
+  characters           Character[]
+  runMembers           RunMember[]
+  eventSignups         EventSignup[]
+  eventsCreated        Event[]               @relation("eventsCreated")
+  teamsCaptained       Team[]                @relation("teamsCaptained")
+  serverAdminships     DiscordServerAdmin[]
+  serverMemberships    DiscordServerMember[]
+  endorsementsGiven    Endorsement[]         @relation("endorsementsGiven")
+  endorsementsReceived Endorsement[]         @relation("endorsementsReceived")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -230,6 +258,7 @@ model Run {
   members      RunMember[]
   runEvents    RunEvent[]
   discordPosts RunDiscordPost[]
+  endorsements Endorsement[]
   /// Combat-log enrichment from the companion app's WoWCombatLog.txt parser.
   /// Optional: populated when the companion is running, ACL is enabled, and a
   /// matching log segment was found. Runs are still valid without it.
@@ -587,6 +616,64 @@ model EventFeedback {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Endorsements — player-to-player recognition
+//
+// Scarcity model: earn 1 token per 15,000 Personal Juice, plus one-time
+// starter grants (Discord login, companion link). Seasonal tokens reset
+// at season rollover; starter tokens persist. One endorsement per
+// giver→receiver per run, tied to a specific run, optional note,
+// required category.
+// ─────────────────────────────────────────────────────────────
+
+enum EndorsementCategory {
+  great_tank
+  great_healer
+  great_dps
+  interrupt_master
+  dispel_wizard
+  cc_master
+  cooldown_hero
+  affix_slayer
+  route_master
+  patient_teacher
+  calm_under_pressure
+  positive_vibes
+  shot_caller
+  clutch_saviour
+  comeback_kid
+}
+
+model Endorsement {
+  id         Int                 @id @default(autoincrement())
+  giverId    Int                 @map("giver_id")
+  giver      User                @relation("endorsementsGiven", fields: [giverId], references: [id], onDelete: Cascade)
+  receiverId Int                 @map("receiver_id")
+  receiver   User                @relation("endorsementsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  runId      Int                 @map("run_id")
+  run        Run                 @relation(fields: [runId], references: [id], onDelete: Cascade)
+  category   EndorsementCategory
+  /// Optional note from the giver (encouraged, not required).
+  note       String?
+  /// Season this endorsement was given in. Preserved for historical views.
+  seasonId   Int                 @map("season_id")
+  season     Season              @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// Inverse side for User.favoriteEndorsement (user who has pinned this).
+  favoritedByUser User? @relation("favoriteEndorsement")
+
+  /// One endorsement per giver→receiver per run.
+  @@unique([giverId, receiverId, runId])
+  @@index([receiverId])
+  @@index([giverId])
+  @@index([runId])
+  @@index([receiverId, category])
+  @@index([receiverId, seasonId])
+  @@map("endorsements")
+}
+
+// ─────────────────────────────────────────────────────────────
 // Telemetry — anonymous usage + error events from the companion
 // ─────────────────────────────────────────────────────────────
 
@@ -670,10 +757,16 @@ model RunEnrichment {
   totalDamageSupport  BigInt @default(0) @map("total_damage_support")
   /// Portion of totalDamage from party pets/guardians/totems (already in totalDamage)
   totalPetDamage      BigInt @default(0) @map("total_pet_damage")
+  /// Effective healing (raw heal - overheal - heal-absorbed) + shield absorbs.
+  /// Matches Details/Recount's "Healing" column semantics.
   totalHealing        BigInt @default(0) @map("total_healing")
   totalHealingSupport BigInt @default(0) @map("total_healing_support")
   /// Portion of totalHealing from party pets/guardians (already in totalHealing)
   totalPetHealing     BigInt @default(0) @map("total_pet_healing")
+  /// Raw overheal total — healing that went to already-topped targets. Tracked
+  /// separately so UI can show "1.2M / 300k overheal" and achievements can
+  /// compute overheal ratios without a schema migration.
+  totalOverhealing    BigInt @default(0) @map("total_overhealing")
   totalInterrupts     Int    @default(0) @map("total_interrupts")
   totalDispels        Int    @default(0) @map("total_dispels")
   partyDeaths         Int    @default(0) @map("party_deaths")
@@ -721,10 +814,15 @@ model RunEnrichmentPlayer {
   damageDoneSupport  BigInt @default(0) @map("damage_done_support")
   /// Subtotal of damageDone from this player's pets/guardians/totems
   petDamageDone      BigInt @default(0) @map("pet_damage_done")
+  /// Effective healing (Details-style): raw heal - overhealing - heal-absorbed,
+  /// plus SPELL_ABSORBED credits for shields this player cast.
   healingDone        BigInt @default(0) @map("healing_done")
   healingDoneSupport BigInt @default(0) @map("healing_done_support")
   /// Subtotal of healingDone from this player's pets/guardians
   petHealingDone     BigInt @default(0) @map("pet_healing_done")
+  /// Raw overheal — healing that went to fully-topped targets. Displayed
+  /// separately so healers can see how much they wasted on GCDs.
+  overhealing        BigInt @default(0) @map("overhealing")
   interrupts         Int    @default(0)
   dispels            Int    @default(0)
   deaths             Int    @default(0)

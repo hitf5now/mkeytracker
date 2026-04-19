@@ -2,25 +2,22 @@
  * One-off retroactive enrichment script.
  *
  * Usage:
- *   npx tsx apps/companion/scripts/reenrich-run.ts <runId> <challengeModeId>
+ *   npx tsx apps/companion/scripts/reenrich-run.ts <runId> <challengeModeId> [--overwrite]
  *
  * Example:
  *   npx tsx apps/companion/scripts/reenrich-run.ts 48 557
+ *   npx tsx apps/companion/scripts/reenrich-run.ts 63 560 --overwrite
  *
  * What it does:
  *   1. Reads the companion's config.json for JWT, apiBaseUrl, wowInstallPath
  *   2. Scans <wowInstallPath>/_retail_/Logs for WoWCombatLog*.txt files,
  *      sorted newest first
- *   3. For each file, parses the first CHALLENGE_MODE segment. If its
- *      challengeModeId matches the argument, it's our run.
+ *   3. For each file, parses ALL CHALLENGE_MODE segments and picks the one
+ *      whose challengeModeId matches the argument.
  *   4. Converts the RunSummary to a RunEnrichmentSubmission and POSTs to
  *      the API's POST /runs/:id/enrichment endpoint.
  *
- * Limitation: RunAggregator only returns the first complete segment in a
- * file, so if the matching run was the *second* key in a given log file,
- * this won't find it. For our case (run 48 was the only key of the day
- * after that log started) this is fine. Extending the parser to yield
- * every segment is a separate task.
+ * Pass --overwrite to replace existing enrichment (used after parser fixes).
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -78,6 +75,7 @@ function summaryToSubmissionBody(summary: RunSummary) {
     totalHealing: summary.totals.healing,
     totalHealingSupport: summary.totals.healingSupport,
     totalPetHealing: summary.totals.petHealing,
+    totalOverhealing: summary.totals.overhealing,
     totalInterrupts: summary.totals.interrupts,
     totalDispels: summary.totals.dispels,
     partyDeaths: summary.totals.deaths,
@@ -95,6 +93,7 @@ function summaryToSubmissionBody(summary: RunSummary) {
       healingDone: p.healingDone,
       healingDoneSupport: p.healingDoneSupport,
       petHealingDone: p.petHealingDone,
+      overhealing: p.overhealing,
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
@@ -118,8 +117,11 @@ function summaryToSubmissionBody(summary: RunSummary) {
 async function main() {
   const runIdArg = process.argv[2];
   const cmIdArg = process.argv[3];
+  const overwrite = process.argv.includes("--overwrite");
   if (!runIdArg || !cmIdArg) {
-    console.error("Usage: tsx reenrich-run.ts <runId> <challengeModeId>");
+    console.error(
+      "Usage: tsx reenrich-run.ts <runId> <challengeModeId> [--overwrite]",
+    );
     process.exit(2);
   }
   const runId = Number.parseInt(runIdArg, 10);
@@ -183,7 +185,7 @@ async function main() {
     `[reenrich] posting enrichment: ${body.players.length} players, ${body.encounters.length} encounters, damage=${body.totalDamage}, healing=${body.totalHealing}`,
   );
 
-  const url = `${cfg.apiBaseUrl}/api/v1/runs/${runId}/enrichment`;
+  const url = `${cfg.apiBaseUrl}/api/v1/runs/${runId}/enrichment${overwrite ? "?overwrite=true" : ""}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {

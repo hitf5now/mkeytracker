@@ -24,6 +24,7 @@ import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
 import { matchRunToEvents } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
+import { grantJuiceTokens } from "../services/endorsement-tokens.js";
 import { fetchCharacterMedia } from "../lib/blizzard.js";
 
 const RegionSchema = z.enum(["us", "eu", "kr", "tw", "cn"]);
@@ -52,6 +53,7 @@ const EnrichmentPlayerStatsSchema = z.object({
   healingDone: z.number().nonnegative().default(0),
   healingDoneSupport: z.number().nonnegative().default(0),
   petHealingDone: z.number().nonnegative().default(0),
+  overhealing: z.number().nonnegative().default(0),
   interrupts: z.number().int().nonnegative().default(0),
   dispels: z.number().int().nonnegative().default(0),
   deaths: z.number().int().nonnegative().default(0),
@@ -85,6 +87,7 @@ const RunEnrichmentSubmissionSchema = z.object({
   totalHealing: z.number().nonnegative().default(0),
   totalHealingSupport: z.number().nonnegative().default(0),
   totalPetHealing: z.number().nonnegative().default(0),
+  totalOverhealing: z.number().nonnegative().default(0),
   totalInterrupts: z.number().int().nonnegative().default(0),
   totalDispels: z.number().int().nonnegative().default(0),
   partyDeaths: z.number().int().nonnegative().default(0),
@@ -159,6 +162,7 @@ function serializeEnrichment(enrichment: {
   totalHealing: bigint;
   totalHealingSupport: bigint;
   totalPetHealing: bigint;
+  totalOverhealing: bigint;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;
@@ -179,6 +183,7 @@ function serializeEnrichment(enrichment: {
     healingDone: bigint;
     healingDoneSupport: bigint;
     petHealingDone: bigint;
+    overhealing: bigint;
     interrupts: number;
     dispels: number;
     deaths: number;
@@ -210,6 +215,7 @@ function serializeEnrichment(enrichment: {
     totalHealing: enrichment.totalHealing.toString(),
     totalHealingSupport: enrichment.totalHealingSupport.toString(),
     totalPetHealing: enrichment.totalPetHealing.toString(),
+    totalOverhealing: enrichment.totalOverhealing.toString(),
     totalInterrupts: enrichment.totalInterrupts,
     totalDispels: enrichment.totalDispels,
     partyDeaths: enrichment.partyDeaths,
@@ -232,6 +238,7 @@ function serializeEnrichment(enrichment: {
       healingDone: p.healingDone.toString(),
       healingDoneSupport: p.healingDoneSupport.toString(),
       petHealingDone: p.petHealingDone.toString(),
+      overhealing: p.overhealing.toString(),
       interrupts: p.interrupts,
       dispels: p.dispels,
       deaths: p.deaths,
@@ -652,6 +659,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                 totalHealing: BigInt(Math.floor(e.totalHealing)),
                 totalHealingSupport: BigInt(Math.floor(e.totalHealingSupport)),
                 totalPetHealing: BigInt(Math.floor(e.totalPetHealing ?? 0)),
+                totalOverhealing: BigInt(Math.floor(e.totalOverhealing ?? 0)),
                 totalInterrupts: e.totalInterrupts,
                 totalDispels: e.totalDispels,
                 partyDeaths: e.partyDeaths,
@@ -671,6 +679,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
                     healingDone: BigInt(Math.floor(p.healingDone)),
                     healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
                     petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
+                    overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
                     interrupts: p.interrupts,
                     dispels: p.dispels,
                     deaths: p.deaths,
@@ -711,6 +720,16 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               },
               "Run enrichment persisted",
             );
+          }
+
+          // Credit Personal Juice toward endorsement-token earning for
+          // each claimed member. Unclaimed characters accrue nothing —
+          // their Juice is only associated with a User once /register
+          // links the character.
+          for (const member of created.members) {
+            if (member.userId !== null) {
+              await grantJuiceTokens(member.userId, breakdown.total, tx);
+            }
           }
 
           return created;
@@ -874,6 +893,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             encounters: { orderBy: { sequenceIndex: "asc" } },
           },
         },
+        endorsements: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            giver: { select: { id: true, discordId: true } },
+            receiver: { select: { id: true, discordId: true } },
+          },
+        },
       },
     });
 
@@ -954,6 +980,16 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             : null,
         })),
         enrichment: run.enrichment ? serializeEnrichment(run.enrichment) : null,
+        endorsements: run.endorsements.map((e) => ({
+          id: e.id,
+          giverId: e.giverId,
+          receiverId: e.receiverId,
+          category: e.category,
+          note: e.note,
+          createdAt: e.createdAt.toISOString(),
+          giverDiscordId: e.giver.discordId,
+          receiverDiscordId: e.receiver.discordId,
+        })),
       },
     });
 
@@ -997,11 +1033,17 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
   //
   // Attach combat-log enrichment to a run that was submitted without it
   // (e.g. because the companion couldn't find the log file at submission
-  // time). Idempotent: 409 if enrichment already exists for the run.
+  // time). By default idempotent: 409 if enrichment already exists. Pass
+  // `?overwrite=true` to delete + replace the existing enrichment (used for
+  // re-enriching runs after parser fixes).
   //
   // Auth: same as POST /runs — JWT holder must own at least one member, or
   // internal bearer bypasses the check.
-  app.post<{ Params: { id: string }; Body: unknown }>(
+  app.post<{
+    Params: { id: string };
+    Body: unknown;
+    Querystring: { overwrite?: string };
+  }>(
     "/runs/:id/enrichment",
     async (req, reply) => {
       const auth = await resolveAuth(req, reply);
@@ -1011,6 +1053,8 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       if (!Number.isInteger(id) || id <= 0) {
         return reply.code(400).send({ error: "invalid_run_id" });
       }
+
+      const overwrite = req.query?.overwrite === "true";
 
       const parsed = RunEnrichmentSubmissionSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1038,12 +1082,22 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       if (!run) {
         return reply.code(404).send({ error: "run_not_found" });
       }
-      if (run.enrichment) {
+      if (run.enrichment && !overwrite) {
         return reply.code(409).send({
           error: "enrichment_exists",
-          message: `Run ${id} already has enrichment id=${run.enrichment.id}.`,
+          message: `Run ${id} already has enrichment id=${run.enrichment.id}. Pass ?overwrite=true to replace it.`,
           enrichmentId: run.enrichment.id,
         });
+      }
+      if (run.enrichment && overwrite) {
+        // Cascade delete removes child players + encounters.
+        await prisma.runEnrichment.delete({
+          where: { id: run.enrichment.id },
+        });
+        req.log.info(
+          { runId: id, enrichmentId: run.enrichment.id },
+          "Replacing existing enrichment (overwrite=true)",
+        );
       }
 
       if (auth.mode === "jwt") {
@@ -1099,6 +1153,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               healingDone: BigInt(Math.floor(p.healingDone)),
               healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
               petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
+              overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
               interrupts: p.interrupts,
               dispels: p.dispels,
               deaths: p.deaths,
@@ -1296,6 +1351,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
             healingDone: BigInt(Math.floor(p.healingDone)),
             healingDoneSupport: BigInt(Math.floor(p.healingDoneSupport)),
             petHealingDone: BigInt(Math.floor(p.petHealingDone ?? 0)),
+            overhealing: BigInt(Math.floor(p.overhealing ?? 0)),
             interrupts: p.interrupts,
             dispels: p.dispels,
             deaths: p.deaths,

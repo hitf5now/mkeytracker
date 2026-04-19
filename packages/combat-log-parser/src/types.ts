@@ -117,6 +117,21 @@ export interface SummonEvent extends CombatEventSourceDest {
   spellName: string;
 }
 
+/**
+ * Fires when a damage event is fully or partially absorbed by a shield.
+ * The shield's caster gets healing credit for the absorbed amount.
+ *
+ * source = attacker, dest = victim (shield holder), caster = shield provider.
+ */
+export interface SpellAbsorbedEvent extends CombatEventSourceDest {
+  eventType: 'SPELL_ABSORBED';
+  casterGuid: string;
+  casterName: string;
+  shieldSpellId: number;
+  shieldSpellName: string;
+  amount: number;
+}
+
 export type ParsedEvent =
   | ChallengeModeStart
   | ChallengeModeEnd
@@ -128,7 +143,8 @@ export type ParsedEvent =
   | InterruptEvent
   | DispelEvent
   | UnitDiedEvent
-  | SummonEvent;
+  | SummonEvent
+  | SpellAbsorbedEvent;
 
 // ---------------------------------------------------------------------------
 // Aggregated output
@@ -146,10 +162,21 @@ export interface PlayerStats {
    * `damageDone`; exposed separately so UIs can show a pet subtotal.
    */
   petDamageDone: number;
+  /**
+   * Effective healing (Details/Recount convention): raw heal amount minus
+   * overhealing and minus any heal-absorbed portion. Also includes
+   * SPELL_ABSORBED credits for shields this player cast.
+   */
   healingDone: number;
   healingDoneSupport: number;
   /** Portion of `healingDone` that came from this player's pets/guardians. */
   petHealingDone: number;
+  /**
+   * Amount of healing that went to targets already at full HP — tracked
+   * separately so the UI can show "Heal / Overheal" and achievements can
+   * roast people who spam heal fully-topped targets.
+   */
+  overhealing: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -198,6 +225,7 @@ export interface RunSummary {
     healing: number;
     healingSupport: number;
     petHealing: number;
+    overhealing: number;
     deaths: number;
     interrupts: number;
     dispels: number;

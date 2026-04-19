@@ -392,6 +392,63 @@ export const playerRules: Rule[] = [
   },
   {
     def: {
+      id: "overflow_pour",
+      name: "Overflow Pour",
+      flavor: "More than half of your healing was overheal. Wasted casts.",
+      description:
+        "You had the biggest heals, the fanciest cooldowns, and a trinket proc to rival a raid boss. And half of it went into people who were already at full HP. Every wasted crit was a GCD you could have spent on damage, mana, or just not clicking at all. The juice flowed freely — right past them.",
+      icon: "🚿",
+      severity: "negative",
+      scope: "healer",
+    },
+    eligible: (ctx) => {
+      if (ctx.role !== "healer") return false;
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      const effective = ctx.healingDone;
+      return overheal > 0 && effective + overheal > 0;
+    },
+    matches: (ctx) => {
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      const effective = ctx.healingDone;
+      return overheal / (overheal + effective) > 0.5;
+    },
+    describe: (ctx) => {
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      const effective = ctx.healingDone;
+      const ratio = Math.round((overheal / (overheal + effective)) * 100);
+      return `${ratio}% of your raw healing was overheal (${overheal.toLocaleString()} wasted on topped-off targets).`;
+    },
+  },
+  {
+    def: {
+      id: "juiced_yourself_dry",
+      name: "Juiced Yourself Dry",
+      flavor: "Self-healing overheal. Panic defensives at full HP.",
+      description:
+        "Every tank has the oh-crap button. You pressed it at 99% HP. Repeatedly. Your Death Strikes, Ignore Pains, Shield Blocks, whatever you main — a huge chunk of them went into a health bar that didn't need them. The juice filled the cup, then kept pouring onto the table.",
+      icon: "🫗",
+      severity: "negative",
+      scope: "tank",
+    },
+    eligible: (ctx) => {
+      if (ctx.role !== "tank") return false;
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      return ctx.healingDone > 0 && overheal > 0;
+    },
+    matches: (ctx) => {
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      const effective = ctx.healingDone;
+      return overheal / (overheal + effective) > 0.6;
+    },
+    describe: (ctx) => {
+      const overheal = Number(ctx.player.overhealing ?? 0);
+      const effective = ctx.healingDone;
+      const ratio = Math.round((overheal / (overheal + effective)) * 100);
+      return `${ratio}% of your self-healing was overheal (${overheal.toLocaleString()} wasted pressing defensives at near-full HP).`;
+    },
+  },
+  {
+    def: {
       id: "dispel_denial",
       name: "Dispel Denial",
       flavor: "Zero dispels while the rest of the group cleansed. Juice hoarder.",

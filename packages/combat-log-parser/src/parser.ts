@@ -13,6 +13,7 @@ import type {
   DispelEvent,
   UnitDiedEvent,
   SummonEvent,
+  SpellAbsorbedEvent,
 } from './types.js';
 
 /**
@@ -60,6 +61,8 @@ export function parseLine(line: string): ParsedEvent | null {
       return parseUnitDied(timestamp, tokens);
     case 'SPELL_SUMMON':
       return parseSummon(timestamp, tokens);
+    case 'SPELL_ABSORBED':
+      return parseSpellAbsorbed(timestamp, tokens);
     default:
       return null;
   }
@@ -418,5 +421,48 @@ function parseSummon(timestamp: Date, tokens: string[]): SummonEvent | null {
     dest,
     spellId: toNumber(tokens[nextIndex]),
     spellName: unquote(tokens[nextIndex + 1] ?? ''),
+  };
+}
+
+/**
+ * SPELL_ABSORBED fires when an incoming damage hit is fully or partially
+ * absorbed by a shield (Disc Priest Power Word: Shield, Warrior Ignore Pain,
+ * DK Blood Shield, etc.). The shield's caster gets healing credit for the
+ * absorbed amount — matching Details/Recount convention.
+ *
+ * Two subformats depending on whether the absorbed damage came from a swing
+ * or a spell. We read the shield metadata by scanning from the END of the
+ * token list: the trailing layout is always identical.
+ *   ..., casterGUID, casterName, casterFlags, casterRaidFlags,
+ *        shieldSpellId, shieldSpellName, shieldSchool,
+ *        amount, baseAmount, critical
+ * So casterGUID is at tokens.length - 10, amount at tokens.length - 3.
+ */
+function parseSpellAbsorbed(
+  timestamp: Date,
+  tokens: string[],
+): SpellAbsorbedEvent | null {
+  if (tokens.length < 18) return null;
+  const { source, dest } = readPrefix(tokens);
+  const n = tokens.length;
+  const casterGuid = tokens[n - 10] ?? '';
+  const casterName = unquote(tokens[n - 9] ?? '');
+  const shieldSpellId = toNumber(tokens[n - 6]);
+  const shieldSpellName = unquote(tokens[n - 5] ?? '');
+  const amount = toNumber(tokens[n - 3]);
+
+  // Guard: caster GUID should always be a Player-* GUID for player shields.
+  if (!casterGuid.startsWith('Player-')) return null;
+
+  return {
+    timestamp,
+    eventType: 'SPELL_ABSORBED',
+    source,
+    dest,
+    casterGuid,
+    casterName,
+    shieldSpellId,
+    shieldSpellName,
+    amount,
   };
 }

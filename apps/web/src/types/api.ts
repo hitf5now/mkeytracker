@@ -19,6 +19,12 @@ export interface LeaderboardEntry {
   value: number;
   displayValue: string;
   context?: string;
+  /** Extra aggregates on the season-juice board; undefined elsewhere. */
+  personalJuice?: number;
+  teamJuice?: number;
+  eventJuice?: number;
+  runCount?: number;
+  endorsementsReceived?: number;
 }
 
 export interface LeaderboardResult {
@@ -87,6 +93,26 @@ export interface CharacterProfile {
     slug: string;
     name: string;
   };
+  endorsements: EndorsementSummary | null;
+  claimedByDiscordId: string | null;
+}
+
+export interface EndorsementListItem {
+  id: number;
+  runId: number;
+  category: EndorsementCategory;
+  note: string | null;
+  createdAt: string;
+  giverDiscordId: string;
+  giverUserId: number;
+}
+
+export interface EndorsementSummary {
+  totalReceived: number;
+  seasonReceived: number;
+  categoryBreakdown: Array<{ category: EndorsementCategory; count: number }>;
+  recent: EndorsementListItem[];
+  favorite: EndorsementListItem | null;
 }
 
 // ─── Events ─────────────────────────────────────────────────────────
@@ -398,6 +424,8 @@ export interface DashboardResult {
   recentRuns: DashboardRecentRun[];
   chartData: DashboardChartData;
   season: { slug: string; name: string };
+  endorsements: EndorsementSummary;
+  tokenBalance: TokenBalance;
 }
 
 // ─── Run detail (Sprint 15) ────────────────────────────────────────────────
@@ -433,10 +461,13 @@ export interface RunDetailEnrichmentPlayer {
   damageDoneSupport: string;
   /** Portion of damageDone attributable to this player's pets/guardians/totems. */
   petDamageDone: string;
+  /** Effective healing (Details-style): BigInt serialized as string. Includes shield absorbs. */
   healingDone: string;
   healingDoneSupport: string;
   /** Portion of healingDone from this player's pets/guardians. */
   petHealingDone: string;
+  /** Raw overheal total serialized as string (BigInt). */
+  overhealing: string;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -471,6 +502,8 @@ export interface RunDetailEnrichment {
   totalHealing: string;
   totalHealingSupport: string;
   totalPetHealing: string;
+  /** Raw overheal aggregated across all players. */
+  totalOverhealing: string;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;
@@ -495,6 +528,40 @@ export interface RunJuiceBreakdown {
     personalOverallRecord: number;
     eventParticipation: number;
   };
+  total: number;
+}
+
+export type EndorsementCategory =
+  | "great_tank"
+  | "great_healer"
+  | "great_dps"
+  | "interrupt_master"
+  | "dispel_wizard"
+  | "cc_master"
+  | "cooldown_hero"
+  | "affix_slayer"
+  | "route_master"
+  | "patient_teacher"
+  | "calm_under_pressure"
+  | "positive_vibes"
+  | "shot_caller"
+  | "clutch_saviour"
+  | "comeback_kid";
+
+export interface RunDetailEndorsement {
+  id: number;
+  giverId: number;
+  receiverId: number;
+  category: EndorsementCategory;
+  note: string | null;
+  createdAt: string;
+  giverDiscordId: string;
+  receiverDiscordId: string;
+}
+
+export interface TokenBalance {
+  seasonalTokensRemaining: number;
+  starterTokensRemaining: number;
   total: number;
 }
 
@@ -533,4 +600,5 @@ export interface RunDetail {
   season: { id: number; name: string; slug: string };
   members: RunDetailMember[];
   enrichment: RunDetailEnrichment | null;
+  endorsements: RunDetailEndorsement[];
 }

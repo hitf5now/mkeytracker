@@ -57,10 +57,20 @@ export class RunAggregator {
         return;
 
       case 'CHALLENGE_MODE_END':
-        if (this.started && !this.ended && event.durationMs > 0) {
-          this.endEvent = event;
-          this.ended = true;
-          this.bumpCount(event.eventType);
+        if (this.started && !this.ended) {
+          if (event.durationMs > 0 && event.keystoneLevel > 0 && event.success) {
+            // Real end of a completed run.
+            this.endEvent = event;
+            this.ended = true;
+            this.bumpCount(event.eventType);
+          } else {
+            // Abandon sentinel: WoW emits CHALLENGE_MODE_END with
+            // durationMs=0 / keyLvl=0 / success=false when a key is reset or
+            // abandoned. Reset accumulated state so the NEXT CHALLENGE_MODE_START
+            // can begin a clean segment. Without this, the aggregator stays
+            // locked on the abandoned key and merges the next key's events in.
+            this.resetSegmentState();
+          }
         }
         return;
 
@@ -111,7 +121,11 @@ export class RunAggregator {
       case 'SPELL_PERIODIC_DAMAGE':
       case 'RANGE_DAMAGE':
       case 'SWING_DAMAGE':
-      case 'SWING_DAMAGE_LANDED':
+        // NOTE: SWING_DAMAGE_LANDED is intentionally NOT handled. WoW emits
+        // both SWING_DAMAGE and SWING_DAMAGE_LANDED for the same melee hit
+        // (the latter is for addons that need a guaranteed-landed frame).
+        // Counting both would double-count every autoattack. Details/Recount
+        // count only SWING_DAMAGE.
         this.addDamage(
           event.source.guid,
           event.source.name,
@@ -123,6 +137,11 @@ export class RunAggregator {
         this.addPetDamage(event.source.guid, event.amount, event.timestamp);
         return;
 
+      case 'SWING_DAMAGE_LANDED':
+        // Explicitly a no-op — counted above via SWING_DAMAGE. Bump the event
+        // count so the summary still reflects log coverage.
+        return;
+
       case 'SPELL_DAMAGE_SUPPORT':
         // Support credits go to the supporter (the Augmentation Evoker / etc.)
         if (event.supporterGuid) {
@@ -131,19 +150,36 @@ export class RunAggregator {
         return;
 
       case 'SPELL_HEAL':
-      case 'SPELL_PERIODIC_HEAL':
-        // Using raw amount (including overheal) for prototype — matches how
-        // most DPS meters display healing. Overheal field extraction is
-        // unreliable across patches; revisit once the field order is
-        // confirmed with more samples.
-        this.addHealing(event.source.guid, event.source.name, event.amount, false);
-        this.addPetHealing(event.source.guid, event.amount);
+      case 'SPELL_PERIODIC_HEAL': {
+        // Effective healing (Details/Recount convention) = amount - overheal
+        // - heal-absorbed. Overheal is tracked separately so the UI can show
+        // "1.2M / 300k overheal" and achievements can roast people who spam
+        // heal topped-off targets.
+        const effective = Math.max(
+          0,
+          event.amount - event.overhealing - event.absorbed,
+        );
+        this.addHealing(event.source.guid, event.source.name, effective, false);
+        this.addOverhealing(event.source.guid, event.overhealing);
+        this.addPetHealing(event.source.guid, effective);
         return;
+      }
 
       case 'SPELL_HEAL_SUPPORT':
         if (event.supporterGuid) {
-          this.addHealing(event.supporterGuid, '', event.amount, true);
+          const effective = Math.max(
+            0,
+            event.amount - event.overhealing - event.absorbed,
+          );
+          this.addHealing(event.supporterGuid, '', effective, true);
         }
+        return;
+
+      case 'SPELL_ABSORBED':
+        // The shield's caster gets healing credit for the absorbed amount.
+        // This is what Details/Recount do — a shield that ate 500k damage
+        // is effectively 500k healing done by the shield provider.
+        this.addHealing(event.casterGuid, event.casterName, event.amount, false);
         return;
 
       case 'SPELL_INTERRUPT':
@@ -182,6 +218,7 @@ export class RunAggregator {
         healingDone: 0,
         healingDoneSupport: 0,
         petHealingDone: 0,
+        overhealing: 0,
         interrupts: 0,
         dispels: 0,
         deaths: 0,
@@ -194,6 +231,24 @@ export class RunAggregator {
       p.name = name;
     }
     return p;
+  }
+
+  /**
+   * Wipe everything accumulated for the current segment so a new START can
+   * begin fresh. Called when we detect an abandon sentinel
+   * (CHALLENGE_MODE_END with durationMs=0). We keep `petOwners` — a pet
+   * summoned in a previous pull may still be out and attacking, and its
+   * GUID→owner mapping remains valid.
+   */
+  private resetSegmentState(): void {
+    this.started = false;
+    this.ended = false;
+    this.startEvent = null;
+    this.endEvent = null;
+    this.players.clear();
+    this.encounters = [];
+    this.activeEncounter = null;
+    this.eventCounts = {};
   }
 
   /**
@@ -243,9 +298,17 @@ export class RunAggregator {
     isSupport: boolean,
   ): void {
     if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
     const p = this.getOrCreatePlayer(guid, name);
     if (isSupport) p.healingDoneSupport += amount;
     else p.healingDone += amount;
+  }
+
+  private addOverhealing(guid: string, amount: number): void {
+    if (!guid || !guid.startsWith('Player-')) return;
+    if (amount <= 0) return;
+    const p = this.getOrCreatePlayer(guid, '');
+    p.overhealing += amount;
   }
 
   /**
@@ -328,6 +391,7 @@ export class RunAggregator {
         acc.healing += p.healingDone;
         acc.healingSupport += p.healingDoneSupport;
         acc.petHealing += p.petHealingDone;
+        acc.overhealing += p.overhealing;
         acc.deaths += p.deaths;
         acc.interrupts += p.interrupts;
         acc.dispels += p.dispels;
@@ -340,6 +404,7 @@ export class RunAggregator {
         healing: 0,
         healingSupport: 0,
         petHealing: 0,
+        overhealing: 0,
         deaths: 0,
         interrupts: 0,
         dispels: 0,

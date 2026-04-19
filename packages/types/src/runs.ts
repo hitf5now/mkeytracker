@@ -82,10 +82,13 @@ export interface EnrichmentPlayerStats {
    * Already included in damageDone; exposed for UI subtotals.
    */
   petDamageDone: number;
+  /** Effective healing (Details-style): raw - overheal - heal-absorbed, plus shield-absorb credits. */
   healingDone: number;
   healingDoneSupport: number;
   /** Portion of healingDone from this player's pets/guardians. */
   petHealingDone: number;
+  /** Raw overheal amount — healing wasted on fully-topped targets. */
+  overhealing: number;
   interrupts: number;
   dispels: number;
   deaths: number;
@@ -134,9 +137,12 @@ export interface RunEnrichmentSubmission {
   totalDamage: number;
   totalDamageSupport: number;
   totalPetDamage: number;
+  /** Effective healing across the segment (Details-style, incl. shield absorbs). */
   totalHealing: number;
   totalHealingSupport: number;
   totalPetHealing: number;
+  /** Raw overheal aggregated across all players. */
+  totalOverhealing: number;
   totalInterrupts: number;
   totalDispels: number;
   partyDeaths: number;

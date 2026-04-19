@@ -15,6 +15,7 @@ export type {
   DispelEvent,
   UnitDiedEvent,
   SummonEvent,
+  SpellAbsorbedEvent,
   SourceDest,
   PlayerStats,
   EncounterSummary,
