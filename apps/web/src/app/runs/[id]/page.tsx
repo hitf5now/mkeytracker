@@ -92,7 +92,7 @@ export default async function RunDetailPage({ params }: Props) {
           <h2 className="text-lg font-semibold">Party</h2>
           {achievements.party.length > 0 && (
             <AchievementList
-              achievements={achievements.party}
+              awarded={achievements.party}
               stepMs={90}
             />
           )}
@@ -114,7 +114,7 @@ export default async function RunDetailPage({ params }: Props) {
               >
                 {memberAchievements.length > 0 && (
                   <AchievementList
-                    achievements={memberAchievements}
+                    awarded={memberAchievements}
                     baseDelayMs={120}
                     className="mb-2"
                   />

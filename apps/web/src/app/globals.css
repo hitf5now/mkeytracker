@@ -140,18 +140,28 @@
   white-space: nowrap;
   background-size: 200% 100%;
   opacity: 0;
-  animation:
-    ach-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: ach-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transition:
     transform 160ms ease,
     filter 160ms ease;
-  cursor: default;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .ach-badge:hover {
   transform: scale(1.08);
   filter: brightness(1.15);
   z-index: 1;
+}
+
+.ach-badge:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: 2px;
+}
+
+.ach-badge-icon {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .ach-badge.ach-negative {
@@ -198,4 +208,202 @@
     rgba(100, 116, 139, 0.8) 50%,
     rgba(51, 65, 85, 0.8) 100%
   );
+}
+
+/* ─── Achievement detail modal ──────────────────────────────────────────── */
+
+@keyframes ach-modal-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ach-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ach-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 14, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: ach-backdrop-in 180ms ease both;
+}
+
+.ach-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  border-radius: 1rem;
+  padding: 2rem 1.5rem 1.5rem;
+  background: linear-gradient(
+    160deg,
+    hsl(220 22% 11%) 0%,
+    hsl(220 22% 7%) 100%
+  );
+  border: 1px solid hsl(220 15% 22%);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  animation: ach-modal-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  text-align: center;
+}
+
+.ach-modal-negative {
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 32px rgba(239, 68, 68, 0.2),
+    0 0 0 1px rgba(248, 113, 113, 0.2) inset;
+}
+
+.ach-modal-positive {
+  border-color: rgba(250, 204, 21, 0.55);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 36px rgba(255, 209, 0, 0.28),
+    0 0 0 1px rgba(255, 224, 130, 0.2) inset;
+}
+
+.ach-modal-neutral {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.ach-modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: hsl(220 10% 65%);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 140ms,
+    color 140ms;
+}
+
+.ach-modal-close:hover {
+  background: hsl(220 15% 18%);
+  color: #fff;
+}
+
+.ach-modal-icon {
+  font-size: 3.5rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  animation: ach-in 520ms cubic-bezier(0.2, 1.2, 0.3, 1) both;
+  animation-delay: 80ms;
+}
+
+.ach-modal-severity {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  margin-bottom: 0.5rem;
+}
+
+.ach-modal-negative .ach-modal-severity {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.ach-modal-positive .ach-modal-severity {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+}
+
+.ach-modal-neutral .ach-modal-severity {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.ach-modal-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin: 0.25rem 0 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.ach-modal-negative .ach-modal-title {
+  color: #fecaca;
+}
+
+.ach-modal-positive .ach-modal-title {
+  color: #fef3c7;
+  text-shadow: 0 0 18px rgba(255, 209, 0, 0.25);
+}
+
+.ach-modal-flavor {
+  font-style: italic;
+  color: hsl(220 10% 70%);
+  font-size: 0.8125rem;
+  margin: 0 0 1rem;
+}
+
+.ach-modal-description {
+  color: #e2e8f0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  margin: 0 0 1.25rem;
+  text-align: left;
+}
+
+.ach-modal-reason {
+  border-top: 1px solid hsl(220 15% 20%);
+  padding-top: 0.875rem;
+  text-align: left;
+}
+
+.ach-modal-reason-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(220 10% 55%);
+  margin-bottom: 0.25rem;
+}
+
+.ach-modal-negative .ach-modal-reason-label {
+  color: #f87171;
+}
+
+.ach-modal-positive .ach-modal-reason-label {
+  color: #facc15;
+}
+
+.ach-modal-reason-body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  color: #e2e8f0;
+  line-height: 1.5;
 }

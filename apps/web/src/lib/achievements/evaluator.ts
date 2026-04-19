@@ -5,7 +5,7 @@ import type {
 } from "@/types/api";
 import { partyRules, playerRules } from "./definitions";
 import type {
-  AchievementDef,
+  AwardedAchievement,
   EvaluationResult,
   PartyStats,
   PlayerRole,
@@ -103,8 +103,8 @@ const computePartyStats = (
 };
 
 export function evaluateRun(run: RunDetail): EvaluationResult {
-  const byPlayerId = new Map<number, AchievementDef[]>();
-  const partyAchievements: AchievementDef[] = [];
+  const byPlayerId = new Map<number, AwardedAchievement[]>();
+  const partyAchievements: AwardedAchievement[] = [];
 
   const enrichment = run.enrichment;
   if (!enrichment || enrichment.status !== "complete") {
@@ -126,37 +126,43 @@ export function evaluateRun(run: RunDetail): EvaluationResult {
 
   // Party-level rules — applied once, then broadcast to every player card
   for (const rule of partyRules) {
-    if (rule.matches({ run, players, party })) {
-      partyAchievements.push(rule.def);
+    const partyCtx = { run, players, party };
+    if (rule.matches(partyCtx)) {
+      partyAchievements.push({ def: rule.def, reason: rule.describe(partyCtx) });
     }
   }
 
   // Per-player rules
   for (const player of players) {
+    const damageDone = Number(player.damageDone);
+    const healingDone = Number(player.healingDone);
     const ctx: RuleContext = {
       run,
       player,
       member: memberByPlayerId.get(player.id) ?? null,
       role: rolesByPlayerId.get(player.id) ?? "unknown",
-      damageDone: Number(player.damageDone),
-      healingDone: Number(player.healingDone),
+      damageDone,
+      healingDone,
+      averageDps: damageDone / party.runDurationSec,
       party,
     };
-    const earned: AchievementDef[] = [];
+    const earned: AwardedAchievement[] = [];
     for (const rule of playerRules) {
       if (rule.eligible(ctx) && rule.matches(ctx)) {
-        earned.push(rule.def);
+        earned.push({ def: rule.def, reason: rule.describe(ctx) });
       }
     }
-    // Sort: negatives first (the fun roasts), then positives, then neutrals
-    earned.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity));
+    // Negatives first (the fun roasts), then positives, then neutrals
+    earned.sort(
+      (a, b) => severityOrder(a.def.severity) - severityOrder(b.def.severity),
+    );
     byPlayerId.set(player.id, earned);
   }
 
   return { byPlayerId, party: partyAchievements };
 }
 
-const severityOrder = (s: AchievementDef["severity"]): number => {
+const severityOrder = (s: AwardedAchievement["def"]["severity"]): number => {
   if (s === "negative") return 0;
   if (s === "positive") return 1;
   return 2;
@@ -171,7 +177,7 @@ export function achievementsForMember(
   run: RunDetail,
   member: RunDetailMember,
   result: EvaluationResult,
-): AchievementDef[] {
+): AwardedAchievement[] {
   if (!run.enrichment || run.enrichment.status !== "complete") return [];
   const player = run.enrichment.players.find((p) => {
     if (p.characterId != null && member.character?.id === p.characterId) {
