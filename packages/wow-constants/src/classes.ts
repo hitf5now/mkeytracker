@@ -51,6 +51,7 @@ export const CLASSES: Record<string, ClassDefinition> = {
     specs: [
       { id: 577, name: "Havoc", role: "dps" },
       { id: 581, name: "Vengeance", role: "tank" },
+      { id: 1480, name: "Devourer", role: "dps" },
     ],
   },
   druid: {
