@@ -36,7 +36,7 @@ async function LeaderboardContent({
         </p>
       </div>
       <div className="rounded-lg border border-border bg-card">
-        <LeaderboardTable entries={data.entries} />
+        <LeaderboardTable entries={data.entries} category={category} />
       </div>
     </div>
   );

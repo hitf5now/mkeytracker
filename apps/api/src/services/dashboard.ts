@@ -12,6 +12,14 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import {
+  getEndorsementSummaryForUser,
+  type EndorsementSummary,
+} from "./endorsement-stats.js";
+import {
+  getTokenBalance,
+  type TokenBalance,
+} from "./endorsement-tokens.js";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -90,6 +98,8 @@ export interface DashboardResult {
   recentRuns: DashboardRecentRun[];
   chartData: DashboardChartData;
   season: { slug: string; name: string };
+  endorsements: EndorsementSummary;
+  tokenBalance: TokenBalance;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -127,6 +137,10 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   });
 
   if (characters.length === 0) {
+    const [endorsements, tokenBalance] = await Promise.all([
+      getEndorsementSummaryForUser(userId),
+      getTokenBalance(userId),
+    ]);
     return {
       overview: {
         totalRuns: 0, timedRuns: 0, depletedRuns: 0, totalDeaths: 0,
@@ -138,6 +152,8 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       recentRuns: [],
       chartData: { runsPerWeek: [], keyProgression: [] },
       season: { slug: season.slug, name: season.name },
+      endorsements,
+      tokenBalance,
     };
   }
 
@@ -313,6 +329,11 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       };
     });
 
+  const [endorsements, tokenBalance] = await Promise.all([
+    getEndorsementSummaryForUser(userId),
+    getTokenBalance(userId),
+  ]);
+
   return {
     overview,
     characters: dashCharacters,
@@ -321,5 +342,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
     recentRuns,
     chartData: { runsPerWeek, keyProgression },
     season: { slug: season.slug, name: season.name },
+    endorsements,
+    tokenBalance,
   };
 }

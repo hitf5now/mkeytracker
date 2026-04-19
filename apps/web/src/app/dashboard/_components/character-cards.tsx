@@ -7,13 +7,20 @@ export function CharacterCards({ characters }: { characters: DashboardCharacter[
   if (characters.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No characters linked. Use the companion app or /register in Discord to link characters.
+        No characters linked yet.{" "}
+        <Link
+          href="/help/characters"
+          className="text-gold underline-offset-2 hover:underline"
+        >
+          Learn how to register a character →
+        </Link>
       </p>
     );
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {characters.map((char) => (
         <Link
           key={char.id}
@@ -59,6 +66,16 @@ export function CharacterCards({ characters }: { characters: DashboardCharacter[
           </div>
         </Link>
       ))}
-    </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Missing a character?{" "}
+        <Link
+          href="/help/characters"
+          className="text-gold underline-offset-2 hover:underline"
+        >
+          How to register it →
+        </Link>
+      </p>
+    </>
   );
 }

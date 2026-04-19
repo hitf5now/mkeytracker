@@ -25,6 +25,10 @@ import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { signUserToken, JWT_EXPIRY_SECONDS } from "../plugins/jwt-auth.js";
+import {
+  grantStarterCompanion,
+  grantStarterDiscord,
+} from "../services/endorsement-tokens.js";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 const LINK_CODE_TTL_SECONDS = 300; // 5 minutes
@@ -128,6 +132,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       update: {},
     });
 
+    // Idempotent: awards 1 endorsement token the first time each user logs in.
+    await grantStarterDiscord(user.id);
+
     req.log.info({ userId: user.id, discordId: discordUser.id }, "Discord OAuth login");
 
     return reply.code(200).send({
@@ -171,6 +178,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     const token = signUserToken(app, user.id);
     const expiresAt = new Date(Date.now() + JWT_EXPIRY_SECONDS * 1000).toISOString();
+
+    // Idempotent: awards 1 endorsement token the first time a companion pairs.
+    await grantStarterCompanion(user.id);
 
     req.log.info({ userId: user.id }, "Issued companion JWT");
 

@@ -8,6 +8,7 @@ import { formatDuration, formatNumber, formatUpgrades, formatDate } from "@/lib/
 import { RoleIcon } from "@/components/role-icon";
 import { PlayerSearch } from "@/components/player-search";
 import { RefreshPortraitButton } from "@/components/refresh-portrait-button";
+import { EndorsementDisplay } from "@/components/endorsement-display";
 
 interface Props {
   params: Promise<{ region: string; realm: string; name: string }>;
@@ -104,6 +105,13 @@ export default async function PlayerProfilePage({ params }: Props) {
           </div>
         ))}
       </div>
+
+      {/* Endorsements — only shown for claimed characters */}
+      {data.endorsements && (
+        <section className="mt-10">
+          <EndorsementDisplay summary={data.endorsements} />
+        </section>
+      )}
 
       {/* Best runs per dungeon */}
       {stats.bestRunPerDungeon.length > 0 && (

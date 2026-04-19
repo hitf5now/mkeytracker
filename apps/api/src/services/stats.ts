@@ -12,6 +12,10 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import {
+  getEndorsementSummaryForUser,
+  type EndorsementSummary,
+} from "./endorsement-stats.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -74,6 +78,10 @@ export interface CharacterProfile {
     slug: string;
     name: string;
   };
+  /** Null if the character is unclaimed (no linked User). */
+  endorsements: EndorsementSummary | null;
+  /** Discord ID of the claiming user, for linking to their profile surfaces. */
+  claimedByDiscordId: string | null;
 }
 
 export interface LeaderboardEntry {
@@ -91,6 +99,12 @@ export interface LeaderboardEntry {
   displayValue: string;
   /** Optional per-entry context like dungeon name for fastest-clear boards */
   context?: string;
+  /** Extra aggregates for the season-juice board (other boards leave null). */
+  personalJuice?: number;
+  teamJuice?: number;
+  eventJuice?: number;
+  runCount?: number;
+  endorsementsReceived?: number;
 }
 
 export interface LeaderboardResult {
@@ -132,6 +146,7 @@ export async function getCharacterProfile(
 ): Promise<CharacterProfile | null> {
   const character = await prisma.character.findUnique({
     where: { region_realm_name: { region, realm, name } },
+    include: { user: { select: { discordId: true } } },
   });
   if (!character) return null;
 
@@ -201,6 +216,11 @@ export async function getCharacterProfile(
     recordedAt: rm.run.recordedAt.toISOString(),
   }));
 
+  const endorsements =
+    character.userId !== null
+      ? await getEndorsementSummaryForUser(character.userId)
+      : null;
+
   return {
     character: {
       id: character.id,
@@ -229,6 +249,8 @@ export async function getCharacterProfile(
       recentRuns,
     },
     season: { slug: season.slug, name: season.name },
+    endorsements,
+    claimedByDiscordId: character.user?.discordId ?? null,
   };
 }
 
@@ -313,19 +335,55 @@ async function leaderboardSeasonJuice(
   seasonId: number,
   limit: number,
 ): Promise<LeaderboardEntry[]> {
+  // Per-character aggregates for the active season. Run count is distinct
+  // because a run can join the member table once per character; SUM is
+  // fine here since we have (runId, characterId) unique.
   const rows = await prisma.$queryRaw<
-    Array<{ characterId: number; total: bigint }>
+    Array<{
+      characterId: number;
+      personalJuice: bigint;
+      teamJuice: bigint;
+      eventJuice: bigint;
+      runCount: bigint;
+    }>
   >`
-    SELECT rm.character_id AS "characterId", SUM(r.personal_juice) AS total
+    SELECT
+      rm.character_id                       AS "characterId",
+      COALESCE(SUM(r.personal_juice), 0)    AS "personalJuice",
+      COALESCE(SUM(r.team_juice), 0)        AS "teamJuice",
+      COALESCE(SUM(r.event_juice), 0)       AS "eventJuice",
+      COUNT(DISTINCT r.id)                  AS "runCount"
     FROM run_members rm
     JOIN runs r ON r.id = rm.run_id
     WHERE r.season_id = ${seasonId}
     GROUP BY rm.character_id
-    ORDER BY total DESC
+    ORDER BY "personalJuice" DESC
     LIMIT ${limit}
   `;
 
+  if (rows.length === 0) return [];
+
   const charMap = await loadCharactersById(rows.map((r) => r.characterId));
+
+  // Lifetime endorsement counts per user, batched for the users behind
+  // these characters. Characters without a linked user get 0.
+  const userIds: number[] = [];
+  for (const row of rows) {
+    const c = charMap.get(row.characterId) as { userId: number | null };
+    if (c?.userId != null) userIds.push(c.userId);
+  }
+  const endorsementCounts = new Map<number, number>();
+  if (userIds.length > 0) {
+    const counts = await prisma.endorsement.groupBy({
+      by: ["receiverId"],
+      where: { receiverId: { in: userIds } },
+      _count: { receiverId: true },
+    });
+    for (const c of counts) {
+      endorsementCounts.set(c.receiverId, c._count.receiverId);
+    }
+  }
+
   return rows.map((row, i) => {
     const c = charMap.get(row.characterId) as {
       id: number;
@@ -336,7 +394,12 @@ async function leaderboardSeasonJuice(
       spec: string;
       userId: number | null;
     };
-    const total = Number(row.total);
+    const personalJuice = Number(row.personalJuice);
+    const teamJuice = Number(row.teamJuice);
+    const eventJuice = Number(row.eventJuice);
+    const runCount = Number(row.runCount);
+    const endorsements =
+      c.userId != null ? endorsementCounts.get(c.userId) ?? 0 : 0;
     return {
       rank: i + 1,
       character: {
@@ -348,8 +411,13 @@ async function leaderboardSeasonJuice(
         spec: c.spec,
         claimed: c.userId !== null,
       },
-      value: total,
-      displayValue: `${total.toLocaleString()} Juice`,
+      value: personalJuice,
+      displayValue: `${personalJuice.toLocaleString()} Juice`,
+      personalJuice,
+      teamJuice,
+      eventJuice,
+      runCount,
+      endorsementsReceived: endorsements,
     };
   });
 }

@@ -26,6 +26,7 @@ import { discordServersRoutes } from "./routes/discord-servers.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { teamsRoutes } from "./routes/teams.js";
 import { feedbackRoutes } from "./routes/feedback.js";
+import { endorsementsRoutes } from "./routes/endorsements.js";
 
 async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -60,6 +61,7 @@ async function buildServer(): Promise<FastifyInstance> {
   await app.register(dashboardRoutes, { prefix: "/api/v1" });
   await app.register(teamsRoutes, { prefix: "/api/v1" });
   await app.register(feedbackRoutes, { prefix: "/api/v1" });
+  await app.register(endorsementsRoutes, { prefix: "/api/v1" });
 
   app.addHook("onClose", async () => {
     await prisma.$disconnect();

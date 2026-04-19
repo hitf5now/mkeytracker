@@ -9,6 +9,7 @@ import { DungeonBreakdown } from "./_components/dungeon-breakdown";
 import { RecentRuns } from "./_components/recent-runs";
 import { RunHistoryChart } from "./_components/run-history-chart";
 import { KeyProgressionChart } from "./_components/key-progression-chart";
+import { EndorsementDisplay } from "@/components/endorsement-display";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,16 @@ export default async function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* Endorsements */}
+      <section className="mt-10">
+        <EndorsementDisplay
+          summary={data.endorsements}
+          tokenBalance={data.tokenBalance}
+          editableFavorite
+          userId={userId}
+        />
+      </section>
 
       {/* Recent Runs */}
       <section className="mt-10">
