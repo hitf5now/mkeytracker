@@ -7,6 +7,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 
 const API_BASE =
@@ -51,6 +52,15 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   const data = await res.json().catch(() => ({ error: "api_parse_failed" }));
+
+  // Bust Next.js fetch cache on the surfaces that display this endorsement
+  // or the viewer's token balance, so the new state is visible immediately
+  // after the modal closes.
+  if (res.ok && typeof payload.runId === "number") {
+    revalidatePath(`/runs/${payload.runId}`);
+    revalidatePath("/dashboard");
+  }
+
   return NextResponse.json(data, { status: res.status });
 }
 

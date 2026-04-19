@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 
 const API_BASE =
@@ -36,5 +37,10 @@ export async function PUT(request: Request): Promise<Response> {
     },
   );
   const data = await res.json().catch(() => ({ error: "api_parse_failed" }));
+
+  if (res.ok) {
+    revalidatePath("/dashboard");
+  }
+
   return NextResponse.json(data, { status: res.status });
 }
