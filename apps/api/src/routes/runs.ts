@@ -902,7 +902,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           c !== null && c.avatarUrl === null,
       );
 
-    return reply.send({
+    // reply.send() without return so execution falls through to the
+    // fire-and-forget portrait refresh below. Fastify ignores the
+    // handler return value once send() has been called.
+    void reply.send({
       run: {
         id: run.id,
         keystoneLevel: run.keystoneLevel,
@@ -959,10 +962,20 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
     // the first view of a run may show the initial fallback, subsequent
     // views will have the full portrait once the refresh completes.
     if (charactersNeedingPortraits.length > 0) {
+      req.log.info(
+        { count: charactersNeedingPortraits.length, runId: id },
+        "portrait-refresh: starting background fetch",
+      );
       void Promise.allSettled(
         charactersNeedingPortraits.map(async (c) => {
           const media = await fetchCharacterMedia(c.region, c.realm, c.name);
-          if (!media) return;
+          if (!media) {
+            req.log.warn(
+              { characterId: c.id, name: c.name, realm: c.realm, region: c.region },
+              "portrait-refresh: Blizzard returned no media",
+            );
+            return;
+          }
           await prisma.character.update({
             where: { id: c.id },
             data: {
@@ -971,6 +984,10 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               mainRawUrl: media.mainRaw,
             },
           });
+          req.log.info(
+            { characterId: c.id, name: c.name, avatarUrl: media.avatar },
+            "portrait-refresh: updated character",
+          );
         }),
       );
     }
