@@ -1,6 +1,6 @@
 {
   "name": "@mplus/combat-log-parser",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Streaming parser for WoWCombatLog.txt — extracts Mythic+ run summaries with per-player damage/healing/interrupts/deaths.",

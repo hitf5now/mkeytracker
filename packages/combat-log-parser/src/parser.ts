@@ -52,10 +52,14 @@ export function parseLine(line: string): ParsedEvent | null {
     case 'SWING_DAMAGE':
     case 'SWING_DAMAGE_LANDED':
     case 'SPELL_DAMAGE_SUPPORT':
+    case 'SPELL_PERIODIC_DAMAGE_SUPPORT':
+    case 'RANGE_DAMAGE_SUPPORT':
+    case 'SWING_DAMAGE_LANDED_SUPPORT':
       return parseDamage(timestamp, eventType, tokens);
     case 'SPELL_HEAL':
     case 'SPELL_PERIODIC_HEAL':
     case 'SPELL_HEAL_SUPPORT':
+    case 'SPELL_PERIODIC_HEAL_SUPPORT':
       return parseHeal(timestamp, eventType, tokens);
     case 'SPELL_INTERRUPT':
       return parseInterrupt(timestamp, tokens);
@@ -302,12 +306,31 @@ function parseDamage(
   if (tokens.length < 10) return null;
   const { source, dest, nextIndex } = readPrefix(tokens);
 
+  // SWING_DAMAGE and SWING_DAMAGE_LANDED are the only damage variants that
+  // OMIT the spell-info triple (spellId, spellName, spellSchool). Every
+  // other damage variant — including SWING_DAMAGE_LANDED_SUPPORT, which
+  // carries the Aug buff's spell info — includes it.
+  const hasSpellInfo =
+    eventType !== 'SWING_DAMAGE' && eventType !== 'SWING_DAMAGE_LANDED';
+
   let spellId: number | undefined;
   let spellName: string | undefined;
-  if (eventType !== 'SWING_DAMAGE' && eventType !== 'SWING_DAMAGE_LANDED') {
+  if (hasSpellInfo) {
     spellId = toNumber(tokens[nextIndex]);
     spellName = unquote(tokens[nextIndex + 1] ?? '');
   }
+
+  // Advanced combat logging adds an 19-token block immediately after the
+  // spell-info triple (or after the prefix for SWING variants). The first
+  // two tokens of that block are:
+  //   infoGUID  — the source's own GUID (same as source.guid)
+  //   ownerGUID — the owning Player GUID for pets/guardians/vehicles,
+  //               or "0000000000000000" for enemies / rootless sources.
+  // We read ownerGUID opportunistically: if advanced logging is OFF or the
+  // field isn't a Player GUID, the fallback simply won't fire.
+  const advancedBlockStart = nextIndex + (hasSpellInfo ? 3 : 0);
+  const ownerGuidRaw = tokens[advancedBlockStart + 1] ?? '';
+  const ownerGuid = ownerGuidRaw.startsWith('Player-') ? ownerGuidRaw : undefined;
 
   // Work from the end of the token array. The damage suffix is 10 fields
   // (amount, overkill, school, resisted, blocked, absorbed, critical,
@@ -315,7 +338,7 @@ function parseDamage(
   // (ST/AOE/NONE/HOT/DOT). _SUPPORT events append a supporter GUID as the
   // last token instead of the tag.
   const last = tokens[tokens.length - 1] ?? '';
-  const isSupport = eventType === 'SPELL_DAMAGE_SUPPORT';
+  const isSupport = eventType.endsWith('_SUPPORT');
   const hasTrailer =
     isSupport || COMBAT_TAGS.has(last) || isGuid(last);
   const suffixLen = hasTrailer ? 11 : 10;
@@ -337,6 +360,7 @@ function parseDamage(
     absorbed: toNumber(tokens[base + 5]),
     critical: toBool(tokens[base + 6]),
     supporterGuid: isSupport ? last : undefined,
+    ownerGuid,
   };
 }
 
@@ -356,7 +380,7 @@ function parseHeal(
   // pre-modifier heal amount and we don't need it. Critical position we
   // read but effectively ignore, keeping the field for API shape.
   const last = tokens[tokens.length - 1] ?? '';
-  const isSupport = eventType === 'SPELL_HEAL_SUPPORT';
+  const isSupport = eventType.endsWith('_SUPPORT');
   const trailingCount = isSupport ? 6 : 5;
 
   if (tokens.length < trailingCount) return null;

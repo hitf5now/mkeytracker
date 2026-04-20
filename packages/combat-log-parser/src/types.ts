@@ -68,7 +68,10 @@ export interface DamageEvent extends CombatEventSourceDest {
     | 'SWING_DAMAGE'
     | 'SWING_DAMAGE_LANDED'
     | 'RANGE_DAMAGE'
-    | 'SPELL_DAMAGE_SUPPORT';
+    | 'SPELL_DAMAGE_SUPPORT'
+    | 'SPELL_PERIODIC_DAMAGE_SUPPORT'
+    | 'RANGE_DAMAGE_SUPPORT'
+    | 'SWING_DAMAGE_LANDED_SUPPORT';
   spellId?: number;
   spellName?: string;
   amount: number;
@@ -79,12 +82,23 @@ export interface DamageEvent extends CombatEventSourceDest {
   blocked: number;
   absorbed: number;
   critical: boolean;
-  /** Present on _SUPPORT events: the GUID actually being supported. */
+  /** Present on _SUPPORT events: the GUID being credited for the buff contribution. */
   supporterGuid?: string;
+  /**
+   * Advanced-logging `ownerGUID` field. For Pet-/Creature-/Vehicle- sources
+   * this is the owning Player GUID when advanced combat logging is on.
+   * Used as a fallback pet-attribution signal when a SPELL_SUMMON record is
+   * missing (e.g. the pet was summoned before /combatlog started).
+   */
+  ownerGuid?: string;
 }
 
 export interface HealEvent extends CombatEventSourceDest {
-  eventType: 'SPELL_HEAL' | 'SPELL_PERIODIC_HEAL' | 'SPELL_HEAL_SUPPORT';
+  eventType:
+    | 'SPELL_HEAL'
+    | 'SPELL_PERIODIC_HEAL'
+    | 'SPELL_HEAL_SUPPORT'
+    | 'SPELL_PERIODIC_HEAL_SUPPORT';
   spellId: number;
   spellName: string;
   amount: number;

@@ -240,3 +240,132 @@ describe("SWING_DAMAGE_LANDED is not double-counted", () => {
     expect(alpha!.damageDone).toBe(10000);
   });
 });
+
+describe("ownerGUID fallback for orphan pets", () => {
+  // Hunter pet "Luke" that existed before /combatlog started — no SPELL_SUMMON
+  // record in the file. Advanced combat logging puts the owner (Alpha) in
+  // the ownerGUID field of every damage event from the pet.
+  const ORPHAN_PET = `Pet-0-4230-0-12893-17252-09052E2795,"Luke",0x1148,0x80000000`;
+
+  it("credits orphan pet damage to owner via advanced-logging ownerGUID", () => {
+    // SPELL_DAMAGE layout (with advanced logging):
+    //   prefix(8) + spellId,spellName,school + adv(19) + damage suffix(10) + tag
+    // Advanced block = infoGUID, ownerGUID, then 17 placeholder values.
+    const advFromOwner = (ownerGuid: string) =>
+      `Pet-0-4230-0-12893-17252-09052E2795,${ownerGuid},1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90`;
+    const suffix = `5000,0,1,0,0,0,false,false,false,false`;
+
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      // First damage event: carries ownerGUID=Alpha. This alone should be
+      // enough to attribute both this hit AND subsequent hits from the same
+      // pet GUID (the mapping is backfilled on this event).
+      T(
+        "11:00:05",
+        `SPELL_DAMAGE,${ORPHAN_PET},${BOSS},1000,"Bite",0x1,${advFromOwner("Player-1-AAAAAA00")},${suffix},ST`,
+      ),
+      // A SWING_DAMAGE from the same pet with a zero'd ownerGUID — once the
+      // map is populated, we should still credit via the cache.
+      // SWING has no spell-info triple; advanced block starts immediately.
+      T(
+        "11:00:06",
+        `SWING_DAMAGE,${ORPHAN_PET},${BOSS},Pet-0-4230-0-12893-17252-09052E2795,0000000000000000,1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90,${suffix},NONE`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    expect(summary).not.toBeNull();
+    const alpha = summary!.players.find(
+      (p) => p.guid === "Player-1-AAAAAA00",
+    );
+    expect(alpha).toBeDefined();
+    // Both hits (5000 + 5000) should roll up to Alpha's damage — Luke never
+    // got a SPELL_SUMMON but ownerGUID backfilled the mapping.
+    expect(alpha!.damageDone).toBe(10000);
+    expect(alpha!.petDamageDone).toBe(10000);
+  });
+
+  it("does NOT attribute when ownerGUID is zero and no SPELL_SUMMON exists", () => {
+    const advNoOwner = `Creature-0-3023-2874-0-99999-0000000001,0000000000000000,1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90`;
+    const suffix = `3000,0,1,0,0,0,false,false,false,false`;
+
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      // Creature damage with no owner — this is an enemy hitting a target,
+      // not a player guardian. Should NOT credit any player.
+      T(
+        "11:00:05",
+        `SPELL_DAMAGE,Creature-0-3023-2874-0-99999-0000000001,"Some Mob",0xa48,0x80000000,${BOSS},1000,"Nibble",0x1,${advNoOwner},${suffix},ST`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    // No player should have accumulated damage from this event.
+    expect(summary).not.toBeNull();
+    for (const p of summary!.players) {
+      expect(p.damageDone).toBe(0);
+    }
+  });
+});
+
+describe("expanded _SUPPORT event coverage (Augmentation Evoker)", () => {
+  // Alpha is the Aug Evoker; Bravo is the DPS they're buffing.
+  // Damage/heal suffix layout matches real advanced-logging lines:
+  //   ...,<adv block 19 fields>,<damage or heal suffix>,<supporter GUID>
+  // Supporter GUID is always the LAST token on _SUPPORT events.
+  const AUG = `Player-1-AAAAAA00`; // Alpha
+  const ADV_ENEMY = `Creature-0-3023-2874-0-100000-0000000001,0000000000000000,1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90`;
+  const DMG_SUFFIX = `500,0,1,0,0,0,false,false,false,false`;
+  const HEAL_ADV = `Player-1-BBBBBB00,0000000000000000,1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90`;
+  // Heal suffix: amount, baseAmount, overhealing, absorbed, critical
+  const HEAL_SUFFIX = `300,300,0,0,false`;
+
+  it("credits SPELL_PERIODIC_DAMAGE_SUPPORT to the Aug (damageDoneSupport)", () => {
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:05",
+        `SPELL_PERIODIC_DAMAGE_SUPPORT,${PLAYER_B},${BOSS},395152,"Ebon Might",0xc,${ADV_ENEMY},${DMG_SUFFIX},${AUG}`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    const aug = summary!.players.find((p) => p.guid === AUG);
+    expect(aug).toBeDefined();
+    expect(aug!.damageDoneSupport).toBe(500);
+    // Primary damageDone should NOT get the support amount.
+    expect(aug!.damageDone).toBe(0);
+  });
+
+  it("credits SWING_DAMAGE_LANDED_SUPPORT (melee autoattack under Aug buff)", () => {
+    // SWING_DAMAGE_LANDED_SUPPORT carries the buff's spell-info triple, unlike
+    // the plain SWING_DAMAGE_LANDED twin.
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:05",
+        `SWING_DAMAGE_LANDED_SUPPORT,${PLAYER_B},${BOSS},395152,"Ebon Might",0xc,${ADV_ENEMY},${DMG_SUFFIX},${AUG}`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    const aug = summary!.players.find((p) => p.guid === AUG);
+    expect(aug).toBeDefined();
+    expect(aug!.damageDoneSupport).toBe(500);
+  });
+
+  it("credits SPELL_PERIODIC_HEAL_SUPPORT (HoT tick under Aug buff)", () => {
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:05",
+        `SPELL_PERIODIC_HEAL_SUPPORT,${PLAYER_B},${PLAYER_B},413786,"Fate Mirror",0x40,${HEAL_ADV},${HEAL_SUFFIX},${AUG}`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    const aug = summary!.players.find((p) => p.guid === AUG);
+    expect(aug).toBeDefined();
+    expect(aug!.healingDoneSupport).toBe(300);
+  });
+});

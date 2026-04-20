@@ -133,8 +133,15 @@ export class RunAggregator {
           false,
           event.timestamp,
         );
-        // Attribute pet/guardian/totem damage to the owning player.
-        this.addPetDamage(event.source.guid, event.amount, event.timestamp);
+        // Attribute pet/guardian/totem damage to the owning player. Pass the
+        // advanced-logging ownerGUID so we can backfill petOwners for pets
+        // that were summoned before /combatlog started (no SPELL_SUMMON).
+        this.addPetDamage(
+          event.source.guid,
+          event.amount,
+          event.timestamp,
+          event.ownerGuid,
+        );
         // Record damage taken + incoming on the dest (tank-chart inputs).
         this.addDamageTaken(
           event.dest.guid,
@@ -156,7 +163,17 @@ export class RunAggregator {
         return;
 
       case 'SPELL_DAMAGE_SUPPORT':
-        // Support credits go to the supporter (the Augmentation Evoker / etc.)
+      case 'SPELL_PERIODIC_DAMAGE_SUPPORT':
+      case 'RANGE_DAMAGE_SUPPORT':
+      case 'SWING_DAMAGE_LANDED_SUPPORT':
+        // Support credits go to the supporter (the Augmentation Evoker / etc.).
+        // All four variants share the same trailer layout (supporter GUID as
+        // the last token), so the parser surfaces a uniform supporterGuid.
+        // NOTE: SWING_DAMAGE_LANDED_SUPPORT is the _SUPPORT counterpart of
+        // melee autoattacks — WoW only emits the LANDED variant for swings
+        // under support buffs, so we don't also skip it here (unlike the
+        // primary SWING_DAMAGE_LANDED, there's no SWING_DAMAGE_SUPPORT twin
+        // to worry about double-counting against).
         if (event.supporterGuid) {
           this.addDamage(event.supporterGuid, '', event.amount, true, event.timestamp);
         }
@@ -188,6 +205,7 @@ export class RunAggregator {
       }
 
       case 'SPELL_HEAL_SUPPORT':
+      case 'SPELL_PERIODIC_HEAL_SUPPORT':
         if (event.supporterGuid) {
           const effective = Math.max(
             0,
@@ -490,14 +508,33 @@ export class RunAggregator {
    * If a damage event's source is a known pet/guardian/totem, roll the damage
    * into the owner's `damageDone` + timeline bucket, and track the subtotal
    * separately in `petDamageDone` for UI display.
+   *
+   * Two attribution signals, in order of preference:
+   *   1. `petOwners` — populated from SPELL_SUMMON when a player casts a
+   *      summon spell while logging is active.
+   *   2. `eventOwnerGuid` — the advanced-logging `ownerGUID` field on the
+   *      damage event itself. This is what rescues pets that existed before
+   *      /combatlog started (classic case: Hunter pets, persistent Warlock
+   *      pets, pre-pulled Shaman totems). When this signal fires for a
+   *      source we've never seen, we backfill `petOwners` so subsequent
+   *      events — including those that came *before* the first ownerGUID
+   *      observation if they live in bucket arrays — route to the right
+   *      owner. (Prior events cannot be retroactively credited in a single
+   *      pass; in practice WoW emits ownerGUID on a pet's first damage
+   *      event, so the window of missed events is typically zero.)
    */
   private addPetDamage(
     sourceGuid: string,
     amount: number,
     timestamp: Date,
+    eventOwnerGuid?: string,
   ): void {
     if (!sourceGuid || sourceGuid.startsWith('Player-')) return;
-    const ownerGuid = this.petOwners.get(sourceGuid);
+    let ownerGuid = this.petOwners.get(sourceGuid);
+    if (!ownerGuid && eventOwnerGuid && eventOwnerGuid.startsWith('Player-')) {
+      this.petOwners.set(sourceGuid, eventOwnerGuid);
+      ownerGuid = eventOwnerGuid;
+    }
     if (!ownerGuid) return;
     const owner = this.getOrCreatePlayer(ownerGuid, '');
     owner.damageDone += amount;

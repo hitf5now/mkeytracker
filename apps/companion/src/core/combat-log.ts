@@ -35,7 +35,7 @@ import type { ParsedRun } from "./sv-parser.js";
  * future refactor could import it from the JSON but that adds a build-time
  * dependency on `resolveJsonModule` / runtime JSON import.
  */
-const PARSER_VERSION = "0.2.0";
+const PARSER_VERSION = "0.3.0";
 
 /**
  * Maximum time skew (ms) we allow between the run's serverTime and the log
