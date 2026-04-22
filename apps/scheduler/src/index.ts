@@ -16,6 +16,7 @@ const API_SECRET = process.env.API_INTERNAL_SECRET ?? "";
 
 const READY_CHECK_INTERVAL_MS = 30 * 1000; // every 30s
 const GROUP_TIMEOUT_INTERVAL_MS = 60 * 1000; // every 60s
+const LIFECYCLE_INTERVAL_MS = 60 * 1000; // every 60s
 
 if (!API_SECRET) {
   console.warn("[scheduler] API_INTERNAL_SECRET not set — sweeps will fail auth");
@@ -68,21 +69,41 @@ async function runGroupTimeoutSweep(): Promise<void> {
   }
 }
 
+async function runLifecycleSweep(): Promise<void> {
+  try {
+    const r = (await postInternal("/api/v1/events/sweep-lifecycle")) as {
+      started: number[];
+      completed: number[];
+    };
+    if (r.started.length > 0) {
+      console.log(`[scheduler] started event(s): ${r.started.join(", ")}`);
+    }
+    if (r.completed.length > 0) {
+      console.log(`[scheduler] completed event(s): ${r.completed.join(", ")}`);
+    }
+  } catch (err) {
+    console.error("[scheduler] lifecycle sweep failed:", err);
+  }
+}
+
 console.log(
-  `[scheduler] starting — RC sweep every ${READY_CHECK_INTERVAL_MS / 1000}s, group-timeout sweep every ${GROUP_TIMEOUT_INTERVAL_MS / 1000}s, target ${API_BASE}`,
+  `[scheduler] starting — RC sweep every ${READY_CHECK_INTERVAL_MS / 1000}s, group-timeout every ${GROUP_TIMEOUT_INTERVAL_MS / 1000}s, lifecycle every ${LIFECYCLE_INTERVAL_MS / 1000}s, target ${API_BASE}`,
 );
 
 // Kick off once immediately so startup doesn't wait a full interval.
 void runReadyCheckSweep();
 void runGroupTimeoutSweep();
+void runLifecycleSweep();
 
 const rcTimer = setInterval(() => void runReadyCheckSweep(), READY_CHECK_INTERVAL_MS);
 const groupTimer = setInterval(() => void runGroupTimeoutSweep(), GROUP_TIMEOUT_INTERVAL_MS);
+const lifecycleTimer = setInterval(() => void runLifecycleSweep(), LIFECYCLE_INTERVAL_MS);
 
 function shutdown(signal: string): void {
   console.log(`[scheduler] ${signal} received, shutting down`);
   clearInterval(rcTimer);
   clearInterval(groupTimer);
+  clearInterval(lifecycleTimer);
   process.exit(0);
 }
 process.on("SIGINT", () => shutdown("SIGINT"));

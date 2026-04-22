@@ -39,6 +39,7 @@ import {
   ReadyCheckError,
 } from "../services/ready-check.js";
 import { computeEventResults } from "../services/event-results.js";
+import { sweepEventLifecycle } from "../services/event-lifecycle.js";
 import { getAllEventTypes, getEventTypeConfig } from "../config/event-types.js";
 
 const CreateEventSchema = z.object({
@@ -433,6 +434,15 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send({ timedOutGroupIds: disbanded });
     });
 
+    // ── Sweep: auto-transition events by startsAt / endsAt ────────
+    scope.post("/events/sweep-lifecycle", async (req, reply) => {
+      const result = await sweepEventLifecycle();
+      if (result.started.length > 0 || result.completed.length > 0) {
+        req.log.info(result, "Swept event lifecycle transitions");
+      }
+      return reply.code(200).send(result);
+    });
+
     // ── Group disband vote ───────────────────────────────────────
     // Body: { signupId } OR { discordId } — must be a member of the group.
     // Any 2 members voting disbands the group. Vote tally is in-memory
@@ -635,6 +645,14 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       req.log.info({ eventId, from: event.status, to: body.targetStatus }, "Event status transition");
+
+      // Always publish event_updated so the bot refreshes the embed —
+      // this is what makes the Ready Check button appear/disappear when
+      // the event transitions to/from in_progress.
+      await redis.publish(
+        "mplus:bot-notifications",
+        JSON.stringify({ type: "event_updated", eventId }),
+      );
 
       // On completion: clear priority flags on any remaining signups, compute
       // results, and notify the bot.
