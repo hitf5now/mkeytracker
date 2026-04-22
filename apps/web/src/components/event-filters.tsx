@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
   { value: "open", label: "Signups Open" },
-  { value: "signups_closed", label: "Group Assignments" },
   { value: "in_progress", label: "Active Event" },
   { value: "completed", label: "Completed" },
 ];

@@ -269,7 +269,6 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
 
     const statusLabels: Record<string, string> = {
       open: "Signups Open",
-      signups_closed: "Group Assignments",
       in_progress: "Active Event",
       completed: "Completed",
       cancelled: "Cancelled",

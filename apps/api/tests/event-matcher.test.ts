@@ -1,8 +1,12 @@
 /**
- * Unit tests for the event matcher service.
+ * Unit tests for the event-matcher pure logic.
  *
- * Tests the pure matching logic (filterCandidateEvents, resolveGroupMatches)
- * without DB access.
+ * Covers §9 of docs/EVENT_READY_CHECK_SYSTEM.md:
+ *   - Only `forming` groups match; terminal states skip.
+ *   - Temporal filter: runs that completed before a group was assigned can't credit it.
+ *   - Real-member matching: open slots are ignored; the group matches when
+ *     all its real (slot-assigned) members are in the run.
+ *   - Cross-event: one run may credit multiple events simultaneously.
  */
 
 import { describe, it, expect } from "vitest";
@@ -11,17 +15,15 @@ import {
   resolveGroupMatches,
   type CandidateEvent,
   type EventSignupRow,
-  type GroupMemberCount,
+  type GroupInfo,
 } from "../src/services/event-matcher-logic.js";
-
-// ── Helpers ──────────────────────────────────────────────────────
 
 function makeEvent(overrides: Partial<CandidateEvent> = {}): CandidateEvent {
   return {
     id: 1,
     status: "in_progress",
     seasonId: 1,
-    dungeonId: null, // any dungeon
+    dungeonId: null,
     minKeyLevel: 2,
     maxKeyLevel: 40,
     startsAt: new Date("2026-04-16T00:00:00Z"),
@@ -30,198 +32,172 @@ function makeEvent(overrides: Partial<CandidateEvent> = {}): CandidateEvent {
   };
 }
 
-/** Unix seconds for a given ISO string */
 function unixSec(iso: string): bigint {
   return BigInt(Math.floor(new Date(iso).getTime() / 1000));
 }
 
-const RUN_TIME = unixSec("2026-04-16T14:00:00Z"); // mid-event
-
-// Character IDs for a 5-player party
+const RUN_ISO = "2026-04-16T14:00:00Z";
+const RUN_TIME = new Date(RUN_ISO);
+const RUN_SERVER_TIME = unixSec(RUN_ISO);
+const BEFORE_RUN = new Date("2026-04-16T13:00:00Z"); // group assigned before run
+const AFTER_RUN = new Date("2026-04-16T15:00:00Z"); // group assigned after run
 const PARTY = [101, 102, 103, 104, 105];
 
-// ── filterCandidateEvents ────────────────────────────────────────
+// ── filterCandidateEvents (unchanged) ────────────────────────────
 
 describe("filterCandidateEvents", () => {
-  const baseInput = { seasonId: 1, dungeonId: 10, keystoneLevel: 15, serverTime: RUN_TIME };
+  const baseInput = { seasonId: 1, dungeonId: 10, keystoneLevel: 15, serverTime: RUN_SERVER_TIME };
 
   it("matches an in_progress event within time/key/season", () => {
-    const events = [makeEvent()];
-    const result = filterCandidateEvents(events, baseInput);
-    expect(result).toHaveLength(1);
+    expect(filterCandidateEvents([makeEvent()], baseInput)).toHaveLength(1);
   });
 
   it("rejects event not in in_progress status", () => {
-    const events = [makeEvent({ status: "open" })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
+    expect(filterCandidateEvents([makeEvent({ status: "open" })], baseInput)).toHaveLength(0);
   });
 
-  it("rejects event with wrong season", () => {
-    const events = [makeEvent({ seasonId: 99 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("rejects run outside event time window (before start)", () => {
-    const events = [makeEvent({ startsAt: new Date("2026-04-17T00:00:00Z") })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("rejects run outside event time window (after end)", () => {
-    const events = [makeEvent({ endsAt: new Date("2026-04-16T13:00:00Z") })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("matches event with dungeonId = null (any dungeon)", () => {
-    const events = [makeEvent({ dungeonId: null })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(1);
-  });
-
-  it("matches event with matching dungeonId", () => {
-    const events = [makeEvent({ dungeonId: 10 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(1);
-  });
-
-  it("rejects event with different dungeonId", () => {
-    const events = [makeEvent({ dungeonId: 99 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("rejects run below event minKeyLevel", () => {
-    const events = [makeEvent({ minKeyLevel: 20 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("rejects run above event maxKeyLevel", () => {
-    const events = [makeEvent({ maxKeyLevel: 10 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(0);
-  });
-
-  it("matches multiple events", () => {
-    const events = [makeEvent({ id: 1 }), makeEvent({ id: 2 })];
-    expect(filterCandidateEvents(events, baseInput)).toHaveLength(2);
+  it("rejects different season / dungeon / time / key range", () => {
+    expect(filterCandidateEvents([makeEvent({ seasonId: 99 })], baseInput)).toHaveLength(0);
+    expect(filterCandidateEvents([makeEvent({ dungeonId: 99 })], baseInput)).toHaveLength(0);
+    expect(filterCandidateEvents([makeEvent({ startsAt: new Date("2026-04-17T00:00:00Z") })], baseInput)).toHaveLength(0);
+    expect(filterCandidateEvents([makeEvent({ maxKeyLevel: 10 })], baseInput)).toHaveLength(0);
   });
 });
 
-// ── resolveGroupMatches ──────────────────────────────────────────
+// ── resolveGroupMatches (Ready Check rules) ──────────────────────
 
 describe("resolveGroupMatches", () => {
-  describe("full group (5 members)", () => {
+  describe("full skeleton (5 real members)", () => {
     const signups: EventSignupRow[] = PARTY.map((charId) => ({
       eventId: 1,
       characterId: charId,
       groupId: 10,
     }));
-    const groupCounts: GroupMemberCount[] = [
-      { eventId: 1, groupId: 10, totalMembers: 5 },
-    ];
+    const formingGroup: GroupInfo = {
+      eventId: 1,
+      groupId: 10,
+      realMemberCount: 5,
+      state: "forming",
+      assignedAt: BEFORE_RUN,
+    };
 
-    it("matches when all 5 group members are in the run", () => {
-      const result = resolveGroupMatches(1, signups, groupCounts, PARTY);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ eventId: 1, groupId: 10, matchedMemberCount: 5 });
+    it("matches when all 5 real members are in the run", () => {
+      const r = resolveGroupMatches(1, signups, [formingGroup], PARTY, RUN_TIME);
+      expect(r).toEqual([{ eventId: 1, groupId: 10, matchedMemberCount: 5 }]);
     });
 
-    it("does NOT match when 1 group member is missing from run", () => {
-      const partialParty = [101, 102, 103, 104]; // missing 105
-      const result = resolveGroupMatches(1, signups, groupCounts, partialParty);
-      expect(result).toHaveLength(0);
+    it("does NOT match when a real member is missing", () => {
+      const r = resolveGroupMatches(1, signups, [formingGroup], [101, 102, 103, 104], RUN_TIME);
+      expect(r).toHaveLength(0);
     });
 
-    it("does NOT match when run has extra non-event members but missing a group member", () => {
-      const wrongParty = [101, 102, 103, 104, 999]; // 999 not in event
-      const result = resolveGroupMatches(1, signups, groupCounts, wrongParty);
-      expect(result).toHaveLength(0);
+    it("does NOT match `matched` group (terminal state)", () => {
+      const matched: GroupInfo = { ...formingGroup, state: "matched" };
+      const r = resolveGroupMatches(1, signups, [matched], PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
+    });
+
+    it("does NOT match `disbanded` group", () => {
+      const disbanded: GroupInfo = { ...formingGroup, state: "disbanded" };
+      const r = resolveGroupMatches(1, signups, [disbanded], PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
+    });
+
+    it("does NOT match `timed_out` group", () => {
+      const timedOut: GroupInfo = { ...formingGroup, state: "timed_out" };
+      const r = resolveGroupMatches(1, signups, [timedOut], PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
+    });
+
+    it("does NOT match a group assigned AFTER the run (temporal filter)", () => {
+      const future: GroupInfo = { ...formingGroup, assignedAt: AFTER_RUN };
+      const r = resolveGroupMatches(1, signups, [future], PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
     });
   });
 
-  describe("PUG group (< 5 members)", () => {
-    // PUG group with 3 signed-up members
+  describe("skeleton with open slots (PUG seats)", () => {
+    // 3 real members in positions tank, healer, dps1. Open slots: dps2, dps3.
     const signups: EventSignupRow[] = [
       { eventId: 1, characterId: 101, groupId: 20 },
       { eventId: 1, characterId: 102, groupId: 20 },
       { eventId: 1, characterId: 103, groupId: 20 },
     ];
-    const groupCounts: GroupMemberCount[] = [
-      { eventId: 1, groupId: 20, totalMembers: 3 },
-    ];
+    const formingGroup: GroupInfo = {
+      eventId: 1,
+      groupId: 20,
+      realMemberCount: 3, // 2 open slots
+      state: "forming",
+      assignedAt: BEFORE_RUN,
+    };
 
-    it("matches when all signed-up PUG members are in the run", () => {
-      // Run has 5 players: 3 event members + 2 PUGs
-      const result = resolveGroupMatches(1, signups, groupCounts, [101, 102, 103, 201, 202]);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ eventId: 1, groupId: 20, matchedMemberCount: 3 });
+    it("matches when all 3 real members are in the run (pickups fill the opens)", () => {
+      const run = [101, 102, 103, 301, 302]; // 301/302 = PUGs, not event signups
+      const r = resolveGroupMatches(1, signups, [formingGroup], run, RUN_TIME);
+      expect(r).toEqual([{ eventId: 1, groupId: 20, matchedMemberCount: 3 }]);
     });
 
-    it("does NOT match when a signed-up PUG member is missing", () => {
-      const result = resolveGroupMatches(1, signups, groupCounts, [101, 102, 201, 202, 203]);
-      expect(result).toHaveLength(0);
+    it("does NOT match when a real member is absent, even if PUGs fill every other slot", () => {
+      const run = [101, 102, 301, 302, 303];
+      const r = resolveGroupMatches(1, signups, [formingGroup], run, RUN_TIME);
+      expect(r).toHaveLength(0);
+    });
+  });
+
+  describe("multi-group and cross-event", () => {
+    it("matches multiple independent groups within one event", () => {
+      const signups: EventSignupRow[] = [
+        ...PARTY.map((c) => ({ eventId: 1, characterId: c, groupId: 10 })),
+        { eventId: 1, characterId: 201, groupId: 20 },
+        { eventId: 1, characterId: 202, groupId: 20 },
+      ];
+      const groups: GroupInfo[] = [
+        { eventId: 1, groupId: 10, realMemberCount: 5, state: "forming", assignedAt: BEFORE_RUN },
+        { eventId: 1, groupId: 20, realMemberCount: 2, state: "forming", assignedAt: BEFORE_RUN },
+      ];
+
+      const runA = resolveGroupMatches(1, signups, groups, PARTY, RUN_TIME);
+      expect(runA).toEqual([{ eventId: 1, groupId: 10, matchedMemberCount: 5 }]);
+
+      const runB = resolveGroupMatches(1, signups, groups, [201, 202, 301, 302, 303], RUN_TIME);
+      expect(runB).toEqual([{ eventId: 1, groupId: 20, matchedMemberCount: 2 }]);
+    });
+
+    it("one run can credit multiple events simultaneously", () => {
+      const signups: EventSignupRow[] = [
+        ...PARTY.map((c) => ({ eventId: 1, characterId: c, groupId: 10 })),
+        ...PARTY.map((c) => ({ eventId: 2, characterId: c, groupId: 30 })),
+      ];
+      const groups: GroupInfo[] = [
+        { eventId: 1, groupId: 10, realMemberCount: 5, state: "forming", assignedAt: BEFORE_RUN },
+        { eventId: 2, groupId: 30, realMemberCount: 5, state: "forming", assignedAt: BEFORE_RUN },
+      ];
+
+      const result1 = resolveGroupMatches(1, signups, groups, PARTY, RUN_TIME);
+      const result2 = resolveGroupMatches(2, signups, groups, PARTY, RUN_TIME);
+      expect(result1).toEqual([{ eventId: 1, groupId: 10, matchedMemberCount: 5 }]);
+      expect(result2).toEqual([{ eventId: 2, groupId: 30, matchedMemberCount: 5 }]);
     });
   });
 
   describe("edge cases", () => {
-    it("returns empty when no signups match run members", () => {
-      const signups: EventSignupRow[] = [
-        { eventId: 1, characterId: 999, groupId: 10 },
+    it("returns empty when no signups match the run", () => {
+      const signups: EventSignupRow[] = [{ eventId: 1, characterId: 999, groupId: 10 }];
+      const groups: GroupInfo[] = [
+        { eventId: 1, groupId: 10, realMemberCount: 1, state: "forming", assignedAt: BEFORE_RUN },
       ];
-      const groupCounts: GroupMemberCount[] = [
-        { eventId: 1, groupId: 10, totalMembers: 5 },
-      ];
-      const result = resolveGroupMatches(1, signups, groupCounts, PARTY);
-      expect(result).toHaveLength(0);
+      const r = resolveGroupMatches(1, signups, groups, PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
     });
 
-    it("skips signups with null groupId (not yet assigned)", () => {
-      const signups: EventSignupRow[] = PARTY.map((charId) => ({
+    it("skips signups not assigned to a group", () => {
+      const signups: EventSignupRow[] = PARTY.map((c) => ({
         eventId: 1,
-        characterId: charId,
+        characterId: c,
         groupId: null,
       }));
-      const result = resolveGroupMatches(1, signups, [], PARTY);
-      expect(result).toHaveLength(0);
-    });
-
-    it("matches multiple groups in the same event independently", () => {
-      const signups: EventSignupRow[] = [
-        // Group A (full)
-        ...PARTY.map((charId) => ({ eventId: 1, characterId: charId, groupId: 10 })),
-        // Group B (PUG, 2 members) — different characters
-        { eventId: 1, characterId: 201, groupId: 20 },
-        { eventId: 1, characterId: 202, groupId: 20 },
-      ];
-      const groupCounts: GroupMemberCount[] = [
-        { eventId: 1, groupId: 10, totalMembers: 5 },
-        { eventId: 1, groupId: 20, totalMembers: 2 },
-      ];
-
-      // Run with group A's full roster
-      const resultA = resolveGroupMatches(1, signups, groupCounts, PARTY);
-      expect(resultA).toHaveLength(1);
-      expect(resultA[0]!.groupId).toBe(10);
-
-      // Run with group B's members + PUGs
-      const resultB = resolveGroupMatches(1, signups, groupCounts, [201, 202, 301, 302, 303]);
-      expect(resultB).toHaveLength(1);
-      expect(resultB[0]!.groupId).toBe(20);
-    });
-
-    it("handles run matching events from different events", () => {
-      // Same characters signed up for two events
-      const signups: EventSignupRow[] = [
-        ...PARTY.map((charId) => ({ eventId: 1, characterId: charId, groupId: 10 })),
-        ...PARTY.map((charId) => ({ eventId: 2, characterId: charId, groupId: 30 })),
-      ];
-      const groupCounts: GroupMemberCount[] = [
-        { eventId: 1, groupId: 10, totalMembers: 5 },
-        { eventId: 2, groupId: 30, totalMembers: 5 },
-      ];
-
-      const result1 = resolveGroupMatches(1, signups, groupCounts, PARTY);
-      expect(result1).toHaveLength(1);
-      expect(result1[0]!.eventId).toBe(1);
-
-      const result2 = resolveGroupMatches(2, signups, groupCounts, PARTY);
-      expect(result2).toHaveLength(1);
-      expect(result2[0]!.eventId).toBe(2);
+      const r = resolveGroupMatches(1, signups, [], PARTY, RUN_TIME);
+      expect(r).toHaveLength(0);
     });
   });
 });

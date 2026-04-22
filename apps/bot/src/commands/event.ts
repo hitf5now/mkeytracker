@@ -1,12 +1,13 @@
 /**
- * /event assign-groups | /event start | /event cancel
+ * /event start | /event cancel
  *
  * Minimal event management commands. Events are created on the website;
- * signups happen via embed buttons. These commands handle organizer actions.
+ * signups and group formation happen via Ready Check buttons on the embed
+ * (see docs/EVENT_READY_CHECK_SYSTEM.md). These commands only handle the
+ * organizer lifecycle transitions.
  */
 
 import {
-  EmbedBuilder,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
@@ -18,14 +19,6 @@ export const eventCommand: Command = {
     .setName("event")
     .setDescription("Manage M+ events.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand((sub) =>
-      sub
-        .setName("assign-groups")
-        .setDescription("Auto-assign groups (must be in Group Assignments phase).")
-        .addIntegerOption((opt) =>
-          opt.setName("id").setDescription("Event ID").setRequired(true),
-        ),
-    )
     .addSubcommand((sub) =>
       sub
         .setName("start")
@@ -46,9 +39,7 @@ export const eventCommand: Command = {
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
 
-    if (sub === "assign-groups") {
-      await handleAssignGroups(interaction);
-    } else if (sub === "start") {
+    if (sub === "start") {
       await handleTransition(interaction, "in_progress", "Active Event");
     } else if (sub === "cancel") {
       await handleTransition(interaction, "cancelled", "Cancelled");
@@ -58,56 +49,6 @@ export const eventCommand: Command = {
 
 function hasManageGuild(interaction: import("discord.js").ChatInputCommandInteraction): boolean {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
-}
-
-async function handleAssignGroups(
-  interaction: import("discord.js").ChatInputCommandInteraction,
-): Promise<void> {
-  await interaction.deferReply();
-
-  if (!hasManageGuild(interaction)) {
-    await interaction.editReply("❌ You need the **Manage Server** permission to manage events.");
-    return;
-  }
-
-  const eventId = interaction.options.getInteger("id", true);
-
-  try {
-    const result = await apiClient.assignGroups(eventId);
-
-    const fullGroups = result.groups.filter((g) => !g.name.includes("PUG"));
-    const pugGroups = result.groups.filter((g) => g.name.includes("PUG"));
-
-    const embed = new EmbedBuilder()
-      .setTitle("🎯 Groups Assigned!")
-      .setColor(0xffcc00)
-      .setDescription(
-        `${fullGroups.length} group(s) formed from ${result.stats.totalSignups} signup(s).` +
-        (pugGroups.length > 0 ? ` ${pugGroups.reduce((n, g) => n + g.members.length, 0)} player(s) need PUG members.` : ""),
-      );
-
-    for (const group of result.groups) {
-      const isPug = group.name.includes("PUG");
-      const memberList = group.members
-        .map((m) => {
-          const icon = m.role === "tank" ? "🛡" : m.role === "healer" ? "💚" : "⚔";
-          return `${icon} **${m.characterName}** (${m.realm})`;
-        })
-        .join("\n");
-      embed.addFields({ name: isPug ? `📋 ${group.name}` : group.name, value: memberList, inline: true });
-    }
-
-    embed.setFooter({ text: `Use /event start ${eventId} to begin the event.` });
-
-    await interaction.editReply({ embeds: [embed] });
-  } catch (err) {
-    if (err instanceof ApiError) {
-      await interaction.editReply(`❌ ${err.message}`);
-      return;
-    }
-    console.error("/event assign-groups error:", err);
-    await interaction.editReply("❌ Failed to assign groups.");
-  }
 }
 
 async function handleTransition(

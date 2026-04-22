@@ -22,7 +22,7 @@ import { prisma } from "../lib/prisma.js";
 import { toRealmSlug } from "../lib/realm.js";
 import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
-import { matchRunToEvents } from "../services/event-matcher.js";
+import { matchRunToEvents, markGroupsMatched } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
 import { grantJuiceTokens } from "../services/endorsement-tokens.js";
 import { fetchCharacterMedia } from "../lib/blizzard.js";
@@ -839,39 +839,58 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         });
 
         if (eventMatches.length > 0) {
-          const eventBreakdown = scoreRun({
-            keystoneLevel: body.keystoneLevel,
-            upgrades: body.upgrades,
-            onTime: body.onTime,
-            deaths: body.deaths,
-            isPersonalDungeonRecord: false,
-            isPersonalOverallRecord: false,
-            isEventParticipation: true,
-          });
-
-          await prisma.runEvent.createMany({
-            data: eventMatches.map((m) => ({
-              runId: run.id,
-              eventId: m.eventId,
-              groupId: m.groupId,
-              eventJuice: eventBreakdown.total,
-            })),
-          });
-
-          // Backward compat: set Run.eventId/eventJuice to first match
-          await prisma.run.update({
-            where: { id: run.id },
-            data: {
-              eventId: eventMatches[0]!.eventId,
-              groupId: eventMatches[0]!.groupId,
-              eventJuice: eventBreakdown.total,
-            },
-          });
-
-          req.log.info(
-            { runId: run.id, events: eventMatches.map((m) => m.eventId) },
-            "Run matched to events",
+          // Atomically claim each matched group (forming → matched). The
+          // conditional update is the race guard per §9.3 — if two runs
+          // land at the same time, only the first transitions the group.
+          const claimedGroupIds = await prisma.$transaction(async (tx) =>
+            markGroupsMatched(
+              eventMatches.map((m) => m.groupId),
+              tx,
+            ),
           );
+          const claimedSet = new Set(claimedGroupIds);
+          const winningMatches = eventMatches.filter((m) => claimedSet.has(m.groupId));
+
+          if (winningMatches.length > 0) {
+            const eventBreakdown = scoreRun({
+              keystoneLevel: body.keystoneLevel,
+              upgrades: body.upgrades,
+              onTime: body.onTime,
+              deaths: body.deaths,
+              isPersonalDungeonRecord: false,
+              isPersonalOverallRecord: false,
+              isEventParticipation: true,
+            });
+
+            await prisma.runEvent.createMany({
+              data: winningMatches.map((m) => ({
+                runId: run.id,
+                eventId: m.eventId,
+                groupId: m.groupId,
+                eventJuice: eventBreakdown.total,
+              })),
+            });
+
+            // Backward compat: mirror the first match onto Run itself.
+            await prisma.run.update({
+              where: { id: run.id },
+              data: {
+                eventId: winningMatches[0]!.eventId,
+                groupId: winningMatches[0]!.groupId,
+                eventJuice: eventBreakdown.total,
+              },
+            });
+
+            req.log.info(
+              {
+                runId: run.id,
+                events: winningMatches.map((m) => m.eventId),
+                claimedGroups: claimedGroupIds,
+                lostRaces: eventMatches.length - winningMatches.length,
+              },
+              "Run matched to events",
+            );
+          }
         }
 
         req.log.info(

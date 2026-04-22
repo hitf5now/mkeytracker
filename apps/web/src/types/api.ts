@@ -133,11 +133,10 @@ export interface EndorsementSummary {
 // ─── Events ─────────────────────────────────────────────────────────
 
 export type EventStatus =
+  | "draft"
   | "open"
-  | "signups_closed"
   | "in_progress"
   | "completed"
-  | "draft"
   | "cancelled";
 
 export type EventType =

@@ -122,6 +122,7 @@ model User {
   serverMemberships    DiscordServerMember[]
   endorsementsGiven    Endorsement[]         @relation("endorsementsGiven")
   endorsementsReceived Endorsement[]         @relation("endorsementsReceived")
+  readyChecksStarted   ReadyCheck[]          @relation("readyChecksStarted")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -296,11 +297,46 @@ model RunDiscordPost {
 
 enum EventStatus {
   draft // created but not yet visible to players
-  open // accepting signups
-  signups_closed // signups locked, groups being formed
-  in_progress // event window is active, runs count
+  open // Spec: "Posted". Embed published, signups accepted, Ready Check not yet available.
+  in_progress // RC available; signups stay open throughout
   completed // event finished, results final
   cancelled // scrapped before completion
+}
+
+/// Ready Check lifecycle state for a formed group.
+/// - forming: created by an RC; can still vote-disband or auto-timeout
+/// - matched: a run was associated (terminal)
+/// - disbanded: 2 members voted to disband (terminal)
+/// - timed_out: reached 2h idle or event end with no run (terminal)
+enum EventGroupState {
+  forming
+  matched
+  disbanded
+  timed_out
+}
+
+/// Flex role declared on signup. "none" is a valid first-class answer —
+/// not the same as null.
+enum FlexRole {
+  tank
+  healer
+  dps
+  none
+}
+
+/// Which of the 5 skeleton seats a signup occupies within a group.
+/// Null = not assigned to any group. Each (groupId, slotPosition) is unique.
+enum SlotPosition {
+  tank
+  healer
+  dps1
+  dps2
+  dps3
+}
+
+enum ReadyCheckState {
+  active
+  expired
 }
 
 enum EventType {
@@ -378,11 +414,12 @@ model Event {
   /// Optional description / rules text
   description String?
 
-  signups     EventSignup[]
-  groups      EventGroup[]
-  teamSignups TeamEventSignup[]
-  runs        Run[]
-  runEvents   RunEvent[]        @relation("eventRuns")
+  signups      EventSignup[]
+  groups       EventGroup[]
+  teamSignups  TeamEventSignup[]
+  runs         Run[]
+  runEvents    RunEvent[]        @relation("eventRuns")
+  readyChecks  ReadyCheck[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -415,6 +452,16 @@ model EventSignup {
   /// sign up as tank.
   rolePreference String @map("role_preference") // "tank" | "healer" | "dps"
 
+  /// Secondary role the player is willing to flex to. "none" = player does
+  /// not want to flex. Flex is only pulled by matchmaking when doing so
+  /// unlocks an additional complete skeleton (see design spec §6.3).
+  flexRole FlexRole @default(none) @map("flex_role")
+
+  /// Set on a signup that participated in a Ready Check but was not
+  /// assigned to any group (solo, insufficient roles, bounced leftover).
+  /// Cleared on next assignment OR when the event transitions to completed.
+  priorityFlag Boolean @default(false) @map("priority_flag")
+
   /// The spec the player chose for this event. Always user-selected,
   /// never auto-set. Role is derived from spec.
   spec String?
@@ -425,9 +472,19 @@ model EventSignup {
   /// Signup intent: confirmed, tentative, or declined
   signupStatus SignupStatus @default(confirmed) @map("signup_status")
 
-  /// Which group was this player assigned to? Null until assign-groups runs.
+  /// Which group is this signup assigned to? Null until a Ready Check expires
+  /// and places them into a skeleton. Groups are ephemeral per RC.
   groupId Int?        @map("group_id")
   group   EventGroup? @relation(fields: [groupId], references: [id])
+
+  /// Which of the 5 skeleton seats this signup occupies within its group.
+  /// Null when groupId is null. A partial unique index on (group_id,
+  /// slot_position) WHERE slot_position IS NOT NULL enforces that each seat
+  /// is held by at most one signup; that constraint lives in the migration
+  /// SQL rather than here because Prisma can't express partial uniques.
+  slotPosition SlotPosition? @map("slot_position")
+
+  readyCheckParticipants ReadyCheckParticipant[]
 
   signedUpAt DateTime @default(now()) @map("signed_up_at")
 
@@ -441,20 +498,72 @@ model EventGroup {
   eventId Int   @map("event_id")
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  /// Display name, e.g. "Group Alpha", "Group 1", auto-generated
+  /// Display name, e.g. "Group 1", auto-generated at RC expiry.
   name String
 
-  /// Status: "assigned" | "ready" | "completed"
-  status String @default("assigned")
+  /// Lifecycle state. See EventGroupState for semantics.
+  state EventGroupState @default(forming)
+
+  /// The Ready Check that produced this group. Null only for legacy rows
+  /// pre-dating the RC system.
+  readyCheckId Int?        @map("ready_check_id")
+  readyCheck   ReadyCheck? @relation(fields: [readyCheckId], references: [id])
 
   members   EventSignup[]
   runs      Run[]
   runEvents RunEvent[]
 
   assignedAt DateTime @default(now()) @map("assigned_at")
+  /// Set when state transitions out of `forming`.
+  resolvedAt DateTime? @map("resolved_at")
 
   @@index([eventId])
+  @@index([state])
   @@map("event_groups")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ready Check — the group-forming mechanism (see design spec §5)
+// ─────────────────────────────────────────────────────────────
+
+model ReadyCheck {
+  id      Int   @id @default(autoincrement())
+  eventId Int   @map("event_id")
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  startedAt DateTime @default(now()) @map("started_at")
+  /// 5 minutes after startedAt by default; scheduler expires at this mark.
+  expiresAt DateTime @map("expires_at")
+
+  state ReadyCheckState @default(active)
+
+  /// Who clicked first — used for display and audit.
+  startedByUserId Int  @map("started_by_user_id")
+  startedByUser   User @relation("readyChecksStarted", fields: [startedByUserId], references: [id])
+
+  participants ReadyCheckParticipant[]
+  /// Groups produced when this RC expired. Zero if formation found no valid skeleton.
+  groups       EventGroup[]
+
+  @@index([eventId, state])
+  @@map("ready_checks")
+}
+
+model ReadyCheckParticipant {
+  id           Int        @id @default(autoincrement())
+  readyCheckId Int        @map("ready_check_id")
+  readyCheck   ReadyCheck @relation(fields: [readyCheckId], references: [id], onDelete: Cascade)
+  signupId     Int        @map("signup_id")
+  signup       EventSignup @relation(fields: [signupId], references: [id], onDelete: Cascade)
+
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+  /// Non-null = participant cancelled during the open window.
+  /// Cancelled participants are ignored at expiry.
+  cancelledAt DateTime? @map("cancelled_at")
+
+  @@unique([readyCheckId, signupId])
+  @@index([signupId])
+  @@map("ready_check_participants")
 }
 
 // ─────────────────────────────────────────────────────────────

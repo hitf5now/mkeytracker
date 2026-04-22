@@ -14,14 +14,15 @@ interface Props {
   maxKeyLevel: number;
 }
 
+// Under the Ready Check system, signups stay open through Posted and In
+// Progress; there is no separate "Assign Groups" phase — groups form
+// automatically at RC expiry. See docs/EVENT_READY_CHECK_SYSTEM.md.
 const STATUS_TRANSITIONS: Record<string, { label: string; target: string; style: string }[]> = {
-  open: [
-    { label: "Close Signups", target: "signups_closed", style: "bg-yellow-600 hover:bg-yellow-700" },
+  draft: [
+    { label: "Post Event", target: "open", style: "bg-green-600 hover:bg-green-700" },
     { label: "Cancel Event", target: "cancelled", style: "bg-red-600 hover:bg-red-700" },
   ],
-  signups_closed: [
-    { label: "Assign Groups", target: "_assign_groups", style: "bg-gold hover:bg-gold-dark text-background" },
-    { label: "Reopen Signups", target: "open", style: "bg-green-600 hover:bg-green-700" },
+  open: [
     { label: "Start Event", target: "in_progress", style: "bg-blue-600 hover:bg-blue-700" },
     { label: "Cancel Event", target: "cancelled", style: "bg-red-600 hover:bg-red-700" },
   ],
@@ -53,11 +54,7 @@ export function EventAdminPanel({
     setError(null);
 
     try {
-      const endpoint =
-        target === "_assign_groups"
-          ? `/api/event-actions?eventId=${eventId}&action=assign-groups`
-          : `/api/event-actions?eventId=${eventId}&action=transition&target=${target}`;
-
+      const endpoint = `/api/event-actions?eventId=${eventId}&action=transition&target=${target}`;
       const res = await fetch(endpoint, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

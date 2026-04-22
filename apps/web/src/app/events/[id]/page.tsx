@@ -59,9 +59,7 @@ export default async function EventDetailPage({ params }: Props) {
   // Fetch leaderboard for any non-cancelled event (live during in_progress, final on completed).
   // The /results endpoint will return whatever runs have been matched so far.
   const leaderboardEligible =
-    event.status === "signups_closed" ||
-    event.status === "in_progress" ||
-    event.status === "completed";
+    event.status === "in_progress" || event.status === "completed";
 
   let results: EventResults | null = null;
   if (leaderboardEligible) {

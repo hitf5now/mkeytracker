@@ -441,10 +441,6 @@ export const apiClient = {
   }): Promise<{ signup: { id: number }; updated: boolean }> =>
     apiPost(`/api/v1/events/${req.eventId}/signup`, req),
 
-  closeSignups: (
-    eventId: number,
-  ): Promise<AssignGroupsResponse> => apiPost(`/api/v1/events/${eventId}/close-signups`, {}),
-
   // ── Phase 2: Bot interaction endpoints ─────────────────────────
   getUserCharacters: (discordId: string): Promise<UserCharactersResponse> =>
     apiGetInternal(`/api/v1/users/by-discord/${encodeURIComponent(discordId)}/characters`),
@@ -471,9 +467,6 @@ export const apiClient = {
 
   removeSignup: (eventId: number, discordId: string): Promise<{ removed: boolean }> =>
     apiDelete(`/api/v1/events/${eventId}/signup?discordId=${encodeURIComponent(discordId)}`),
-
-  assignGroups: (eventId: number): Promise<AssignGroupsResponse> =>
-    apiPost(`/api/v1/events/${eventId}/assign-groups`, {}),
 
   transitionEvent: (eventId: number, targetStatus: string): Promise<{ event: EventResponse }> =>
     apiPost(`/api/v1/events/${eventId}/transition`, { targetStatus }),

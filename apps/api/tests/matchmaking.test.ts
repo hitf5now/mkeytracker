@@ -1,247 +1,284 @@
 /**
- * Unit tests for the matchmaking service.
+ * Unit tests for the skeleton matchmaker.
  *
- * Pure function tests — no DB, no network. Tests role-balanced group
- * assignment, bench handling, and companion-app redistribution.
+ * Covers the §6.4 outcome table from docs/EVENT_READY_CHECK_SYSTEM.md.
  */
 
 import { describe, it, expect } from "vitest";
-import { assignGroups, type SignupForMatching } from "../src/services/matchmaking.js";
+import {
+  formSkeletons,
+  type RCParticipant,
+  type Role,
+  type FlexRole,
+} from "../src/services/matchmaking.js";
 
-function makeSignup(
-  overrides: Partial<SignupForMatching> & { rolePreference: "tank" | "healer" | "dps" },
-  id?: number,
-): SignupForMatching {
-  const signupId = id ?? Math.floor(Math.random() * 100000);
+let seq = 1;
+function p(
+  primary: Role,
+  opts: { flex?: FlexRole; priority?: boolean; id?: number } = {},
+): RCParticipant {
+  const id = opts.id ?? seq++;
   return {
-    signupId,
-    userId: signupId,
-    characterId: signupId,
-    characterName: `Player${signupId}`,
+    signupId: id,
+    userId: id,
+    characterId: id,
+    characterName: `P${id}`,
     realm: "Illidan",
+    primaryRole: primary,
+    flexRole: opts.flex ?? "none",
+    priorityFlag: opts.priority ?? false,
     hasCompanionApp: false,
-    ...overrides,
   };
 }
 
-/** Helper: create a balanced pool of N groups worth of signups (1T + 1H + 3D each) */
-function makeBalancedPool(groupCount: number, opts?: { companionIds?: number[] }): SignupForMatching[] {
-  const signups: SignupForMatching[] = [];
-  let id = 1;
-  for (let g = 0; g < groupCount; g++) {
-    signups.push(makeSignup({ rolePreference: "tank", hasCompanionApp: opts?.companionIds?.includes(id) ?? false }, id++));
-    signups.push(makeSignup({ rolePreference: "healer", hasCompanionApp: opts?.companionIds?.includes(id) ?? false }, id++));
-    signups.push(makeSignup({ rolePreference: "dps", hasCompanionApp: opts?.companionIds?.includes(id) ?? false }, id++));
-    signups.push(makeSignup({ rolePreference: "dps", hasCompanionApp: opts?.companionIds?.includes(id) ?? false }, id++));
-    signups.push(makeSignup({ rolePreference: "dps", hasCompanionApp: opts?.companionIds?.includes(id) ?? false }, id++));
+function roleCounts(
+  s: ReturnType<typeof formSkeletons>["skeletons"][number],
+): { t: number; h: number; d: number; open: number } {
+  let t = 0,
+    h = 0,
+    d = 0,
+    open = 0;
+  for (const slot of s.slots) {
+    if (slot.participant === null) {
+      open++;
+    } else {
+      if (slot.position === "tank") t++;
+      else if (slot.position === "healer") h++;
+      else d++;
+    }
   }
-  return signups;
+  return { t, h, d, open };
 }
 
-describe("assignGroups", () => {
-  describe("balanced groups", () => {
-    it("forms 1 group from exactly 5 balanced signups", () => {
-      const pool = makeBalancedPool(1);
-      const result = assignGroups(pool);
+describe("formSkeletons — §6.4 outcome table", () => {
+  it("empty pool → no skeleton, no bounces", () => {
+    const r = formSkeletons([]);
+    expect(r.skeletons).toHaveLength(0);
+    expect(r.bounced).toHaveLength(0);
+  });
 
-      expect(result.groups).toHaveLength(1);
-      expect(result.benched).toHaveLength(0);
-      expect(result.stats.groupsFormed).toBe(1);
-      expect(result.stats.totalSignups).toBe(5);
-      expect(result.stats.benchedCount).toBe(0);
-    });
+  it("1 player, any role → bounced (min 2 members)", () => {
+    const r = formSkeletons([p("tank")]);
+    expect(r.skeletons).toHaveLength(0);
+    expect(r.bounced).toHaveLength(1);
+  });
 
-    it("each group has exactly 1 tank, 1 healer, 3 DPS", () => {
-      const pool = makeBalancedPool(3);
-      const result = assignGroups(pool);
+  it("2 players, 1T + 1H → 1 skeleton with 3 open DPS slots", () => {
+    const pool = [p("tank", { id: 1 }), p("healer", { id: 2 })];
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(1);
+    const c = roleCounts(r.skeletons[0]!);
+    expect(c).toEqual({ t: 1, h: 1, d: 0, open: 3 });
+    expect(r.bounced).toHaveLength(0);
+  });
 
-      expect(result.groups).toHaveLength(3);
-      for (const group of result.groups) {
-        expect(group.members).toHaveLength(5);
-        const tanks = group.members.filter((m) => m.rolePreference === "tank");
-        const healers = group.members.filter((m) => m.rolePreference === "healer");
-        const dps = group.members.filter((m) => m.rolePreference === "dps");
-        expect(tanks).toHaveLength(1);
-        expect(healers).toHaveLength(1);
-        expect(dps).toHaveLength(3);
-      }
-    });
+  it("2 DPS → 1 skeleton with 1T + 1H + 1DPS open (both assigned)", () => {
+    const r = formSkeletons([p("dps", { id: 1 }), p("dps", { id: 2 })]);
+    expect(r.skeletons).toHaveLength(1);
+    const c = roleCounts(r.skeletons[0]!);
+    expect(c).toEqual({ t: 0, h: 0, d: 2, open: 3 });
+    expect(r.bounced).toHaveLength(0);
+  });
 
-    it("forms multiple groups and names them sequentially", () => {
-      const pool = makeBalancedPool(4);
-      const result = assignGroups(pool);
+  it("2 tanks same role → both bounced (only 1 T slot per skeleton)", () => {
+    const r = formSkeletons([p("tank", { id: 1 }), p("tank", { id: 2 })]);
+    expect(r.skeletons).toHaveLength(0);
+    expect(r.bounced).toHaveLength(2);
+  });
 
-      expect(result.groups).toHaveLength(4);
-      expect(result.groups.map((g) => g.name)).toEqual([
-        "Group 1", "Group 2", "Group 3", "Group 4",
+  it("2 healers same role → both bounced", () => {
+    const r = formSkeletons([p("healer", { id: 1 }), p("healer", { id: 2 })]);
+    expect(r.skeletons).toHaveLength(0);
+    expect(r.bounced).toHaveLength(2);
+  });
+
+  it("5 balanced (1T/1H/3D) → 1 full skeleton, 0 open slots", () => {
+    const pool = [
+      p("tank", { id: 1 }),
+      p("healer", { id: 2 }),
+      p("dps", { id: 3 }),
+      p("dps", { id: 4 }),
+      p("dps", { id: 5 }),
+    ];
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(1);
+    expect(r.skeletons[0]!.realMemberCount).toBe(5);
+    expect(r.skeletons[0]!.openSlotCount).toBe(0);
+  });
+
+  it("10 balanced (2T/2H/6D) → 2 full skeletons", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 2; i++) pool.push(p("tank"));
+    for (let i = 0; i < 2; i++) pool.push(p("healer"));
+    for (let i = 0; i < 6; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(2);
+    for (const s of r.skeletons) expect(s.realMemberCount).toBe(5);
+  });
+
+  it("11 = 2T/2H/7D → 2 full skeletons + 1 bounced DPS (priority-flag candidate)", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 2; i++) pool.push(p("tank"));
+    for (let i = 0; i < 2; i++) pool.push(p("healer"));
+    for (let i = 0; i < 7; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(2);
+    expect(r.bounced).toHaveLength(1);
+    expect(r.bounced[0]!.primaryRole).toBe("dps");
+  });
+
+  it("12 = 2T/2H/8D → 2 full + 1 partial (2 DPS, 3 open)", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 2; i++) pool.push(p("tank"));
+    for (let i = 0; i < 2; i++) pool.push(p("healer"));
+    for (let i = 0; i < 8; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(3);
+    expect(r.skeletons.filter((s) => s.realMemberCount === 5)).toHaveLength(2);
+    const partial = r.skeletons.find((s) => s.realMemberCount === 2);
+    expect(partial).toBeDefined();
+    expect(roleCounts(partial!)).toEqual({ t: 0, h: 0, d: 2, open: 3 });
+  });
+
+  it("11 = 3T/3H/5D → 3 skeletons, all assigned", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 3; i++) pool.push(p("tank"));
+    for (let i = 0; i < 3; i++) pool.push(p("healer"));
+    for (let i = 0; i < 5; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(3);
+    expect(r.bounced).toHaveLength(0);
+    expect(r.skeletons[0]!.realMemberCount).toBe(5);
+    expect(r.skeletons[1]!.realMemberCount).toBe(4); // 1T + 1H + 2D
+    expect(r.skeletons[2]!.realMemberCount).toBe(2); // 1T + 1H, 3 open DPS
+  });
+
+  it("10 tanks → all bounced", () => {
+    const pool = Array.from({ length: 10 }, () => p("tank"));
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(0);
+    expect(r.bounced).toHaveLength(10);
+  });
+});
+
+describe("formSkeletons — flex pulls", () => {
+  it("pulls a DPS flex→healer when it unlocks a second skeleton", () => {
+    // 2T, 1H, 0D, 1 flexor (primary=dps, flex=healer).
+    // Without flex: T1+H1 form 1 skel with 3 open. T2 bounced, flexor kept as DPS → dps1 of same skel.
+    //   Actually: 1st draw = T1, H1, flexor, (no D), (no D) → 3 real.
+    //   2nd draw = T2, none, none → 1 real → bounce T2.
+    //   So 1 skeleton, 1 bounced.
+    // With flex: T1+H1 first draw, T2+flexor 2nd draw → 2 skeletons, 0 bounced.
+    const pool: RCParticipant[] = [
+      p("tank", { id: 1 }),
+      p("tank", { id: 2 }),
+      p("healer", { id: 3 }),
+      p("dps", { id: 4, flex: "healer" }),
+    ];
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(2);
+    expect(r.bounced).toHaveLength(0);
+    // Flexor must be in a healer slot and marked filledByFlex
+    const flexed = r.skeletons
+      .flatMap((s) => s.slots)
+      .find((slot) => slot.participant?.signupId === 4);
+    expect(flexed).toBeDefined();
+    expect(flexed!.position).toBe("healer");
+    expect(flexed!.filledByFlex).toBe(true);
+  });
+
+  it("does NOT pull flex when count would not increase", () => {
+    // 1T, 1H, 3D, flexor (primary=dps, flex=tank). Already 1 full skeleton.
+    // Pulling flex would strand DPS, count unchanged → don't pull.
+    const pool: RCParticipant[] = [
+      p("tank", { id: 1 }),
+      p("healer", { id: 2 }),
+      p("dps", { id: 3 }),
+      p("dps", { id: 4 }),
+      p("dps", { id: 5, flex: "tank" }),
+    ];
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(1);
+    const p5 = r.skeletons[0]!.slots.find((s) => s.participant?.signupId === 5);
+    expect(p5).toBeDefined();
+    expect(p5!.position.startsWith("dps")).toBe(true);
+    expect(p5!.filledByFlex).toBe(false);
+  });
+});
+
+describe("formSkeletons — priority flag", () => {
+  it("slots priority-flagged players before non-flagged of the same role", () => {
+    // 2T, 1H, 3D. Only 1 skeleton forms. The priority tank must land in it.
+    const pool: RCParticipant[] = [
+      p("tank", { id: 1, priority: false }),
+      p("tank", { id: 2, priority: true }),
+      p("healer", { id: 3 }),
+      p("dps", { id: 4 }),
+      p("dps", { id: 5 }),
+      p("dps", { id: 6 }),
+    ];
+    const r = formSkeletons(pool);
+    expect(r.skeletons).toHaveLength(1);
+    const tankSlot = r.skeletons[0]!.slots.find((s) => s.position === "tank");
+    expect(tankSlot!.participant!.signupId).toBe(2); // priority wins
+    expect(r.bounced).toHaveLength(1);
+    expect(r.bounced[0]!.signupId).toBe(1);
+  });
+});
+
+describe("formSkeletons — invariants", () => {
+  it("every skeleton has exactly 5 slots in canonical order", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 3; i++) pool.push(p("tank"));
+    for (let i = 0; i < 3; i++) pool.push(p("healer"));
+    for (let i = 0; i < 9; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    for (const s of r.skeletons) {
+      expect(s.slots.map((x) => x.position)).toEqual([
+        "tank",
+        "healer",
+        "dps1",
+        "dps2",
+        "dps3",
       ]);
-    });
+    }
   });
 
-  describe("limiting role and bench", () => {
-    it("benches surplus DPS when tanks are the bottleneck", () => {
-      const signups = [
-        makeSignup({ rolePreference: "tank" }, 1),
-        makeSignup({ rolePreference: "healer" }, 2),
-        makeSignup({ rolePreference: "healer" }, 3),
-        makeSignup({ rolePreference: "dps" }, 4),
-        makeSignup({ rolePreference: "dps" }, 5),
-        makeSignup({ rolePreference: "dps" }, 6),
-        makeSignup({ rolePreference: "dps" }, 7),
-        makeSignup({ rolePreference: "dps" }, 8),
-        makeSignup({ rolePreference: "dps" }, 9),
-      ];
-      const result = assignGroups(signups);
-
-      expect(result.groups).toHaveLength(1);
-      expect(result.stats.limitingRole).toBe("tank");
-      // Benched: 1 healer + 3 DPS = 4
-      expect(result.stats.benchedCount).toBe(4);
-      expect(result.benched).toHaveLength(4);
-    });
-
-    it("benches surplus when healers are the bottleneck", () => {
-      const signups = [
-        makeSignup({ rolePreference: "tank" }, 1),
-        makeSignup({ rolePreference: "tank" }, 2),
-        makeSignup({ rolePreference: "tank" }, 3),
-        makeSignup({ rolePreference: "healer" }, 4),
-        ...Array.from({ length: 9 }, (_, i) =>
-          makeSignup({ rolePreference: "dps" }, 10 + i),
-        ),
-      ];
-      const result = assignGroups(signups);
-
-      expect(result.groups).toHaveLength(1);
-      expect(result.stats.limitingRole).toBe("healer");
-      // Benched: 2 tanks + 6 DPS = 8
-      expect(result.stats.benchedCount).toBe(8);
-    });
-
-    it("benches surplus when DPS is the bottleneck", () => {
-      const signups = [
-        makeSignup({ rolePreference: "tank" }, 1),
-        makeSignup({ rolePreference: "tank" }, 2),
-        makeSignup({ rolePreference: "tank" }, 3),
-        makeSignup({ rolePreference: "healer" }, 4),
-        makeSignup({ rolePreference: "healer" }, 5),
-        makeSignup({ rolePreference: "healer" }, 6),
-        makeSignup({ rolePreference: "dps" }, 7),
-        makeSignup({ rolePreference: "dps" }, 8),
-      ];
-      const result = assignGroups(signups);
-
-      // Only 2 DPS → floor(2/3) = 0 groups
-      expect(result.groups).toHaveLength(0);
-      expect(result.stats.limitingRole).toBe("dps");
-      expect(result.stats.benchedCount).toBe(8);
-    });
+  it("every skeleton has >= 2 real members", () => {
+    const pool: RCParticipant[] = [
+      p("tank"),
+      p("healer"),
+      p("dps"),
+      p("dps"),
+      p("dps"),
+      p("dps"),
+      p("dps"),
+    ];
+    const r = formSkeletons(pool);
+    for (const s of r.skeletons) expect(s.realMemberCount).toBeGreaterThanOrEqual(2);
   });
 
-  describe("edge cases", () => {
-    it("returns 0 groups for empty input", () => {
-      const result = assignGroups([]);
-
-      expect(result.groups).toHaveLength(0);
-      expect(result.benched).toHaveLength(0);
-      expect(result.stats.groupsFormed).toBe(0);
-      expect(result.stats.benchedCount).toBe(0);
+  it("no participant appears in more than one skeleton", () => {
+    const pool = Array.from({ length: 20 }, (_, i) => {
+      const role: Role = i % 3 === 0 ? "tank" : i % 3 === 1 ? "healer" : "dps";
+      return p(role);
     });
-
-    it("returns 0 groups when all signups are the same role", () => {
-      const signups = Array.from({ length: 10 }, (_, i) =>
-        makeSignup({ rolePreference: "dps" }, i + 1),
-      );
-      const result = assignGroups(signups);
-
-      expect(result.groups).toHaveLength(0);
-      expect(result.stats.benchedCount).toBe(10);
-    });
-
-    it("returns 0 groups when only 2 roles are present", () => {
-      const signups = [
-        makeSignup({ rolePreference: "tank" }, 1),
-        makeSignup({ rolePreference: "dps" }, 2),
-        makeSignup({ rolePreference: "dps" }, 3),
-        makeSignup({ rolePreference: "dps" }, 4),
-      ];
-      const result = assignGroups(signups);
-
-      expect(result.groups).toHaveLength(0);
-      expect(result.stats.benchedCount).toBe(4);
-    });
-
-    it("no duplicate signups across groups and bench", () => {
-      const pool = [
-        ...makeBalancedPool(2),
-        makeSignup({ rolePreference: "dps" }, 999),
-        makeSignup({ rolePreference: "tank" }, 998),
-      ];
-      const result = assignGroups(pool);
-
-      const allIds = [
-        ...result.groups.flatMap((g) => g.members.map((m) => m.signupId)),
-        ...result.benched.map((b) => b.signupId),
-      ];
-      expect(new Set(allIds).size).toBe(allIds.length);
-      expect(allIds.length).toBe(pool.length);
-    });
+    const r = formSkeletons(pool);
+    const placed = r.skeletons.flatMap((s) =>
+      s.slots.filter((slot) => slot.participant).map((slot) => slot.participant!.signupId),
+    );
+    expect(new Set(placed).size).toBe(placed.length);
   });
 
-  describe("companion app redistribution", () => {
-    it("swaps companion users between groups when possible", () => {
-      // Group 1 gets all companion DPS, Group 2 gets none
-      // After redistribution, both groups should have at least 1
-      const signups = [
-        makeSignup({ rolePreference: "tank", hasCompanionApp: false }, 1),
-        makeSignup({ rolePreference: "tank", hasCompanionApp: false }, 2),
-        makeSignup({ rolePreference: "healer", hasCompanionApp: false }, 3),
-        makeSignup({ rolePreference: "healer", hasCompanionApp: false }, 4),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 5),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 6),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 7),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: false }, 8),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: false }, 9),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: false }, 10),
-      ];
-
-      // Run multiple times since shuffle is random
-      let redistributedAtLeastOnce = false;
-      for (let i = 0; i < 20; i++) {
-        const result = assignGroups(signups);
-        expect(result.groups).toHaveLength(2);
-
-        const groupsWithCompanion = result.groups.filter((g) =>
-          g.members.some((m) => m.hasCompanionApp),
-        );
-        if (groupsWithCompanion.length === 2) {
-          redistributedAtLeastOnce = true;
-          break;
-        }
-      }
-      // With redistribution, both groups should eventually get companion users
-      expect(redistributedAtLeastOnce).toBe(true);
-    });
-
-    it("reports groups without companion users in stats", () => {
-      // All 5 signups, nobody has companion
-      const pool = makeBalancedPool(1);
-      const result = assignGroups(pool);
-
-      expect(result.stats.groupsWithoutCompanion).toBe(1);
-    });
-
-    it("reports 0 groups without companion when all have it", () => {
-      const signups = [
-        makeSignup({ rolePreference: "tank", hasCompanionApp: true }, 1),
-        makeSignup({ rolePreference: "healer", hasCompanionApp: true }, 2),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 3),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 4),
-        makeSignup({ rolePreference: "dps", hasCompanionApp: true }, 5),
-      ];
-      const result = assignGroups(signups);
-
-      expect(result.stats.groupsWithoutCompanion).toBe(0);
-    });
+  it("totalParticipants = placed + bounced", () => {
+    const pool: RCParticipant[] = [];
+    for (let i = 0; i < 4; i++) pool.push(p("tank"));
+    for (let i = 0; i < 2; i++) pool.push(p("healer"));
+    for (let i = 0; i < 9; i++) pool.push(p("dps"));
+    const r = formSkeletons(pool);
+    const placed = r.skeletons.flatMap((s) =>
+      s.slots.filter((slot) => slot.participant),
+    ).length;
+    expect(placed + r.bounced.length).toBe(pool.length);
   });
 });

@@ -1,13 +1,27 @@
 /**
  * Events API routes.
  *
- * POST   /events              — create a new event (internal auth)
- * GET    /events              — list active/upcoming events (public)
- * GET    /events/:id          — event detail + signups + groups (public)
- * POST   /events/:id/signup   — sign up for an event (internal auth, bot forwards)
- * POST   /events/:id/close-signups — lock signups + trigger matchmaking (internal)
- * POST   /events/:id/start    — mark event in_progress (internal)
- * POST   /events/:id/complete — mark event completed (internal)
+ * Event CRUD:
+ *   POST   /events                — create (internal auth)
+ *   PATCH  /events/:id            — edit (internal auth)
+ *   GET    /events                — list (public)
+ *   GET    /events/:id            — detail (public)
+ *   POST   /events/:id/transition — status change (internal auth)
+ *
+ * Signup (roster intent; stays open until event is completed):
+ *   POST   /events/:id/signup         — create/update signup (internal auth)
+ *   DELETE /events/:id/signup         — remove (internal auth)
+ *   GET    /events/:id/signup-check   — has this user signed up? (internal auth)
+ *
+ * Ready Check (group formation):
+ *   POST   /events/:id/ready-check           — start-or-join the active RC
+ *   POST   /events/:id/ready-check/:rcId/cancel — cancel my participation
+ *   POST   /ready-checks/:rcId/expire        — force expire (scheduler/testing)
+ *   GET    /events/:id/ready-check           — current active RC, if any
+ *
+ * Ops (scheduler):
+ *   POST   /ready-checks/sweep-expired   — run expiry for any overdue RCs
+ *   POST   /events/:id/groups/sweep-timed-out — auto-disband stale `forming` groups
  */
 
 import type { FastifyInstance } from "fastify";
@@ -15,7 +29,14 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
-import { assignGroups, type SignupForMatching } from "../services/matchmaking.js";
+import {
+  startOrJoin,
+  cancelParticipation,
+  expireReadyCheck,
+  sweepExpiredReadyChecks,
+  autoDisbandTimedOutGroups,
+  ReadyCheckError,
+} from "../services/ready-check.js";
 import { computeEventResults } from "../services/event-results.js";
 import { getAllEventTypes, getEventTypeConfig } from "../config/event-types.js";
 
@@ -35,105 +56,42 @@ const CreateEventSchema = z.object({
   discordGuildId: z.string().regex(/^\d{17,20}$/).optional(),
 });
 
+/**
+ * Resolve a signup identity from a request body that may contain either:
+ *   - `signupId` (direct, used by tests / admin tools), OR
+ *   - `discordId` (used by the bot — look up the user's signup on this event)
+ */
+async function resolveSignupId(body: unknown, eventId: number): Promise<number | null> {
+  const b = (body ?? {}) as { signupId?: number; discordId?: string };
+  if (typeof b.signupId === "number") {
+    const s = await prisma.eventSignup.findUnique({
+      where: { id: b.signupId },
+      select: { id: true, eventId: true },
+    });
+    return s && s.eventId === eventId ? s.id : null;
+  }
+  if (typeof b.discordId === "string") {
+    const s = await prisma.eventSignup.findUnique({
+      where: { eventId_discordUserId: { eventId, discordUserId: b.discordId } },
+      select: { id: true },
+    });
+    return s?.id ?? null;
+  }
+  return null;
+}
+
 const SignupSchema = z.object({
   discordId: z.string().regex(/^\d{17,20}$/),
   characterName: z.string().min(2).max(12),
   characterRealm: z.string().min(1).max(50),
   characterRegion: z.enum(["us", "eu", "kr", "tw", "cn"]),
   rolePreference: z.enum(["tank", "healer", "dps"]),
+  /** Secondary role the player is willing to flex to. "none" is valid. */
+  flexRole: z.enum(["tank", "healer", "dps", "none"]).default("none"),
   signupStatus: z.enum(["confirmed", "tentative"]).default("confirmed"),
   spec: z.string().max(30).optional(),
   characterClass: z.string().max(30).optional(),
 });
-
-/** Shared matchmaking logic used by close-signups (autoAssign) and assign-groups */
-async function runMatchmaking(eventId: number, req: { log: { info: (...args: unknown[]) => void } }) {
-  const signups = await prisma.eventSignup.findMany({
-    where: { eventId, signupStatus: "confirmed" },
-    include: { character: true },
-  });
-
-  if (signups.length < 5) {
-    throw { statusCode: 409, error: "not_enough_signups", message: `Need at least 5 confirmed signups. Currently ${signups.length}.` };
-  }
-
-  const pool: SignupForMatching[] = signups.map((s) => ({
-    signupId: s.id,
-    userId: s.userId,
-    characterId: s.characterId,
-    rolePreference: s.rolePreference as "tank" | "healer" | "dps",
-    characterName: s.character.name,
-    realm: s.character.realm,
-    hasCompanionApp: s.character.hasCompanionApp,
-  }));
-
-  const result = assignGroups(pool);
-
-  // Build a PUG group from benched players (incomplete group that needs pickup members)
-  const pugGroup = result.benched.length > 0
-    ? { name: `Group ${result.groups.length + 1} - PUG`, members: result.benched }
-    : null;
-
-  await prisma.$transaction(async (tx) => {
-    for (const group of result.groups) {
-      const created = await tx.eventGroup.create({
-        data: { eventId, name: group.name, status: "assigned" },
-      });
-      for (const member of group.members) {
-        await tx.eventSignup.update({
-          where: { id: member.signupId },
-          data: { groupId: created.id },
-        });
-      }
-    }
-    if (pugGroup) {
-      const created = await tx.eventGroup.create({
-        data: { eventId, name: pugGroup.name, status: "assigned" },
-      });
-      for (const member of pugGroup.members) {
-        await tx.eventSignup.update({
-          where: { id: member.signupId },
-          data: { groupId: created.id },
-        });
-      }
-    }
-    await tx.event.update({
-      where: { id: eventId },
-      data: { status: "signups_closed" },
-    });
-  });
-
-  const allGroups = pugGroup ? [...result.groups, pugGroup] : result.groups;
-
-  req.log.info(
-    { eventId, groups: result.stats.groupsFormed, pug: pugGroup ? pugGroup.members.length : 0 },
-    "Groups assigned",
-  );
-
-  const responsePayload = {
-    groups: allGroups.map((g) => ({
-      name: g.name,
-      members: g.members.map((m) => ({
-        characterName: m.characterName,
-        realm: m.realm,
-        role: m.rolePreference,
-      })),
-    })),
-    stats: result.stats,
-  };
-
-  // Notify the bot to post groups embed in the event's Discord channel
-  await redis.publish(
-    "mplus:bot-notifications",
-    JSON.stringify({
-      type: "groups_assigned",
-      eventId,
-      ...responsePayload,
-    }),
-  );
-
-  return responsePayload;
-}
 
 export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   // ── Create event (internal auth) ────────────────────────────
@@ -217,8 +175,10 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
 
       const event = await prisma.event.findUnique({ where: { id: eventId } });
       if (!event) return reply.code(404).send({ error: "event_not_found" });
-      if (event.status !== "open") {
-        return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}, not accepting signups.` });
+      // Under the Ready Check system, signups stay open through Posted (`open`)
+      // and In Progress. Only draft/completed/cancelled reject signups.
+      if (event.status !== "open" && event.status !== "in_progress") {
+        return reply.code(409).send({ error: "event_not_accepting_signups", message: `Event is ${event.status}, not accepting signups.` });
       }
       if (event.mode === "team") {
         return reply.code(409).send({ error: "team_mode_event", message: "This is a team-mode event. Sign up your team instead of individually." });
@@ -280,11 +240,13 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
         where: { eventId_discordUserId: { eventId, discordUserId: body.discordId } },
       });
       if (existing) {
-        // Update signup details
+        // Update signup details. Role/flex changes apply to future Ready
+        // Checks only; groups already formed are not re-shuffled.
         const updated = await prisma.eventSignup.update({
           where: { id: existing.id },
           data: {
             rolePreference: body.rolePreference,
+            flexRole: body.flexRole,
             characterId: character.id,
             signupStatus: body.signupStatus,
             spec: body.spec ?? existing.spec,
@@ -300,6 +262,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           discordUserId: body.discordId,
           characterId: character.id,
           rolePreference: body.rolePreference,
+          flexRole: body.flexRole,
           signupStatus: body.signupStatus,
           spec: body.spec,
         },
@@ -365,57 +328,107 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send({ removed: true });
     });
 
-    // ── Close signups (transition to Group Assignments) ──────────
-    scope.post<{ Params: { id: string } }>("/events/:id/close-signups", async (req, reply) => {
+    // ── Ready Check: start-or-join the active RC ────────────────
+    // Body: { discordId } OR { signupId }
+    scope.post<{ Params: { id: string } }>("/events/:id/ready-check", async (req, reply) => {
       const eventId = parseInt(req.params.id, 10);
       if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
 
-      const event = await prisma.event.findUnique({ where: { id: eventId } });
-      if (!event) return reply.code(404).send({ error: "event_not_found" });
-      if (event.status !== "open") {
-        return reply.code(409).send({ error: "event_not_open", message: `Event is ${event.status}.` });
+      const signupId = await resolveSignupId(req.body, eventId);
+      if (!signupId) {
+        return reply.code(400).send({
+          error: "signup_not_found",
+          message: "Supply either `signupId` or `discordId` of a signed-up player",
+        });
       }
 
-      // Backward compat: ?autoAssign=true does close + matchmaking in one call
-      const autoAssign = (req.query as { autoAssign?: string }).autoAssign === "true";
-
-      if (autoAssign) {
-        const result = await runMatchmaking(eventId, req);
+      try {
+        const result = await startOrJoin(eventId, signupId);
+        req.log.info(
+          { eventId, signupId, startedNew: result.startedNew, rcId: result.readyCheckId },
+          result.startedNew ? "Ready Check started" : "Joined active Ready Check",
+        );
         return reply.code(200).send(result);
+      } catch (err) {
+        if (err instanceof ReadyCheckError) {
+          return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+        }
+        throw err;
       }
-
-      // Just close signups — no matchmaking
-      await prisma.event.update({
-        where: { id: eventId },
-        data: { status: "signups_closed" },
-      });
-
-      req.log.info({ eventId }, "Signups closed (Group Assignments phase)");
-      return reply.code(200).send({ status: "signups_closed" });
     });
 
-    // ── Assign groups (matchmaking during Group Assignments) ─────
-    scope.post<{ Params: { id: string } }>("/events/:id/assign-groups", async (req, reply) => {
-      const eventId = parseInt(req.params.id, 10);
-      if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+    // ── Ready Check: cancel participation ────────────────────────
+    scope.post<{ Params: { id: string; rcId: string } }>(
+      "/events/:id/ready-check/:rcId/cancel",
+      async (req, reply) => {
+        const eventId = parseInt(req.params.id, 10);
+        const rcId = parseInt(req.params.rcId, 10);
+        if (isNaN(eventId) || isNaN(rcId))
+          return reply.code(400).send({ error: "invalid_ids" });
 
-      const event = await prisma.event.findUnique({ where: { id: eventId } });
-      if (!event) return reply.code(404).send({ error: "event_not_found" });
-      if (event.status !== "signups_closed") {
-        return reply.code(409).send({
-          error: "wrong_status",
-          message: `Event must be in Group Assignments phase (signups_closed). Currently: ${event.status}.`,
-        });
-      }
-      if (event.mode === "team") {
-        return reply.code(409).send({
-          error: "team_mode_event",
-          message: "Cannot assign groups for a team-mode event. Teams sign up directly.",
-        });
-      }
+        const signupId = await resolveSignupId(req.body, eventId);
+        if (!signupId) {
+          return reply.code(400).send({
+            error: "signup_not_found",
+            message: "Supply either `signupId` or `discordId`",
+          });
+        }
 
-      const result = await runMatchmaking(eventId, req);
-      return reply.code(200).send(result);
+        try {
+          await cancelParticipation(rcId, signupId);
+          return reply.code(200).send({ cancelled: true });
+        } catch (err) {
+          if (err instanceof ReadyCheckError) {
+            return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+          }
+          throw err;
+        }
+      },
+    );
+
+    // ── Ready Check: force expire (scheduler / testing) ──────────
+    // Returns the formed group summary. Idempotent.
+    scope.post<{ Params: { rcId: string } }>(
+      "/ready-checks/:rcId/expire",
+      async (req, reply) => {
+        const rcId = parseInt(req.params.rcId, 10);
+        if (isNaN(rcId)) return reply.code(400).send({ error: "invalid_ready_check_id" });
+
+        try {
+          const result = await expireReadyCheck(rcId);
+          req.log.info(
+            { rcId, groupsFormed: result.groupsFormed, bounced: result.bouncedSignupIds.length },
+            "Ready Check expired",
+          );
+
+          // Notify the bot so Discord can post the formed groups
+          await redis.publish(
+            "mplus:bot-notifications",
+            JSON.stringify({ type: "ready_check_expired", ...result }),
+          );
+
+          return reply.code(200).send(result);
+        } catch (err) {
+          if (err instanceof ReadyCheckError) {
+            return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+          }
+          throw err;
+        }
+      },
+    );
+
+    // ── Sweep: expire any overdue Ready Checks ───────────────────
+    scope.post("/ready-checks/sweep-expired", async (req, reply) => {
+      const expired = await sweepExpiredReadyChecks();
+      req.log.info({ count: expired.length, ids: expired }, "Swept expired Ready Checks");
+      return reply.code(200).send({ expiredReadyCheckIds: expired });
+    });
+
+    // ── Sweep: auto-disband `forming` groups past 2h OR event end ─
+    scope.post("/events/:id/groups/sweep-timed-out", async (req, reply) => {
+      const disbanded = await autoDisbandTimedOutGroups();
+      req.log.info({ count: disbanded.length }, "Swept timed-out groups");
+      return reply.code(200).send({ timedOutGroupIds: disbanded });
     });
 
     // ── Team signup (team-mode events) ──────────────────────────
@@ -533,12 +546,12 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       const event = await prisma.event.findUnique({ where: { id: eventId } });
       if (!event) return reply.code(404).send({ error: "event_not_found" });
 
-      // Validate allowed transitions
+      // Validate allowed transitions. `signups_closed` was removed with the
+      // Ready Check system — signups never close until completion.
       const allowed: Record<string, string[]> = {
-        open: ["signups_closed", "cancelled"],
-        signups_closed: ["in_progress", "open", "cancelled"],
-        in_progress: ["completed", "cancelled"],
         draft: ["open", "cancelled"],
+        open: ["in_progress", "cancelled"],
+        in_progress: ["completed", "cancelled"],
       };
 
       const validTargets = allowed[event.status] ?? ["cancelled"];
@@ -556,8 +569,13 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
 
       req.log.info({ eventId, from: event.status, to: body.targetStatus }, "Event status transition");
 
-      // On completion: compute results and notify bot
+      // On completion: clear priority flags on any remaining signups, compute
+      // results, and notify the bot.
       if (body.targetStatus === "completed") {
+        await prisma.eventSignup.updateMany({
+          where: { eventId, priorityFlag: true },
+          data: { priorityFlag: false },
+        });
         try {
           const results = await computeEventResults(eventId);
           await redis.publish(
@@ -667,6 +685,44 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Public read routes ──────────────────────────────────────
 
+  // Active Ready Check for an event, if any. Returns null when none active.
+  app.get<{ Params: { id: string } }>("/events/:id/ready-check", async (req, reply) => {
+    const eventId = parseInt(req.params.id, 10);
+    if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+    const active = await prisma.readyCheck.findFirst({
+      where: { eventId, state: "active" },
+      orderBy: { startedAt: "desc" },
+      include: {
+        participants: {
+          where: { cancelledAt: null },
+          include: { signup: { include: { character: true } } },
+          orderBy: { joinedAt: "asc" },
+        },
+      },
+    });
+
+    if (!active) return reply.code(200).send({ active: null });
+
+    return reply.code(200).send({
+      active: {
+        id: active.id,
+        startedAt: active.startedAt,
+        expiresAt: active.expiresAt,
+        state: active.state,
+        participants: active.participants.map((p) => ({
+          signupId: p.signupId,
+          joinedAt: p.joinedAt,
+          characterName: p.signup.character.name,
+          realm: p.signup.character.realm,
+          primaryRole: p.signup.rolePreference,
+          flexRole: p.signup.flexRole,
+          priorityFlag: p.signup.priorityFlag,
+        })),
+      },
+    });
+  });
+
   // Event type registry — returns rules, scoring, and config for all types
   app.get("/event-types", async (_req, reply) => {
     return reply.code(200).send({ eventTypes: getAllEventTypes() });
@@ -687,7 +743,7 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     if (query.status) {
       where.status = query.status;
     } else {
-      where.status = { in: ["open", "signups_closed", "in_progress"] };
+      where.status = { in: ["open", "in_progress"] };
     }
 
     // Type filter
