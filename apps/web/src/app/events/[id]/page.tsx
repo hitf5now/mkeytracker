@@ -232,45 +232,116 @@ export default async function EventDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* Groups (group-mode events) */}
-      {event.mode !== "team" && event.groups.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-xl font-bold">Groups</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {event.groups.map((group) => (
-              <div
-                key={group.id}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <h3 className="font-semibold text-gold">{group.name}</h3>
-                {group.members && group.members.length > 0 && (
-                  <ul className="mt-3 space-y-2">
-                    {group.members.map((member) => (
-                      <li
-                        key={member.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span className="flex items-center gap-1">
-                          <ClassBadge
-                            name={member.character.name}
-                            realm={member.character.realm}
-                            region={member.character.region}
-                            classSlug={member.character.class}
-                          />
-                          {member.character.hasCompanionApp && (
-                            <span title="Companion app linked — runs auto-tracked" className="text-gold">⚡</span>
-                          )}
+      {/* Groups — formed via Ready Check (group-mode events) */}
+      {event.mode !== "team" && event.groups.length > 0 && (() => {
+        const SLOT_ORDER: Array<"tank" | "healer" | "dps1" | "dps2" | "dps3"> =
+          ["tank", "healer", "dps1", "dps2", "dps3"];
+        const SLOT_LABEL: Record<string, string> = {
+          tank: "Tank", healer: "Healer", dps1: "DPS 1", dps2: "DPS 2", dps3: "DPS 3",
+        };
+        const STATE_BADGE: Record<string, { label: string; cls: string }> = {
+          forming: { label: "Forming", cls: "bg-blue-500/20 text-blue-400" },
+          matched: { label: "Matched", cls: "bg-green-500/20 text-green-400" },
+          timed_out: { label: "Timed Out", cls: "bg-muted text-muted-foreground" },
+        };
+        const DEFAULT_BADGE = { label: "Unknown", cls: "bg-muted text-muted-foreground" };
+
+        return (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold">Formed Groups</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Groups form automatically when a Ready Check closes. Each group is
+              1 Tank / 1 Healer / 3 DPS; unfilled seats are filled by PUGs in game
+              (no event credit).
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {event.groups.map((group) => {
+                const byPosition = new Map(
+                  (group.members ?? []).map((m) => [m.slotPosition, m] as const),
+                );
+                const run = group.runs?.[0];
+                const badge = STATE_BADGE[group.state] ?? DEFAULT_BADGE;
+
+                return (
+                  <div
+                    key={group.id}
+                    className="rounded-lg border border-border bg-card p-4"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-gold">{group.name}</h3>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {SLOT_ORDER.map((position) => {
+                        const member = byPosition.get(position);
+                        if (!member) {
+                          return (
+                            <li
+                              key={position}
+                              className="flex items-center justify-between rounded-md border border-dashed border-border/60 px-2 py-1 text-xs italic text-muted-foreground"
+                            >
+                              <span>{SLOT_LABEL[position]}</span>
+                              <span>Open — PUG seat</span>
+                            </li>
+                          );
+                        }
+                        const flexed =
+                          member.flexRole !== "none" &&
+                          member.flexRole !== member.rolePreference;
+                        return (
+                          <li
+                            key={position}
+                            className="flex items-center justify-between"
+                          >
+                            <span className="flex items-center gap-1">
+                              <RoleIcon role={member.rolePreference} />
+                              <ClassBadge
+                                name={member.character.name}
+                                realm={member.character.realm}
+                                region={member.character.region}
+                                classSlug={member.character.class}
+                              />
+                              {member.character.hasCompanionApp && (
+                                <span title="Companion app linked — runs auto-tracked" className="text-gold">⚡</span>
+                              )}
+                              {flexed && (
+                                <span
+                                  title={`Flexed from ${member.rolePreference}`}
+                                  className="text-[10px] uppercase tracking-wide text-yellow-400"
+                                >
+                                  flex
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {SLOT_LABEL[position]}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {run && (
+                      <div className="mt-3 rounded-md bg-background/60 px-2 py-1.5 text-xs">
+                        <span className={run.onTime ? "text-green-400" : "text-red-400"}>
+                          {run.onTime ? "✅ Timed" : "❌ Depleted"}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          {run.dungeon?.shortCode ?? "?"} +{run.keystoneLevel}
+                          {run.upgrades > 0 ? ` · +${run.upgrades}` : ""}
                         </span>
-                        <RoleIcon role={member.rolePreference} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Signups — grouped by role (group-mode only) */}
       {event.mode !== "team" && event.signups.length > 0 && (() => {
@@ -291,6 +362,22 @@ export default async function EventDetailPage({ params }: Props) {
               />
               {signup.spec && (
                 <span className="text-xs text-muted-foreground">{signup.spec}</span>
+              )}
+              {signup.flexRole !== "none" && (
+                <span
+                  title={`Willing to flex as ${signup.flexRole}`}
+                  className="rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-blue-300"
+                >
+                  flex {signup.flexRole}
+                </span>
+              )}
+              {signup.priorityFlag && (
+                <span
+                  title="Priority flag — bounced from last Ready Check, will be slotted first in the next one"
+                  className="text-yellow-400"
+                >
+                  ⭐
+                </span>
               )}
               {signup.character.hasCompanionApp && (
                 <span title="Companion app linked" className="text-gold">⚡</span>

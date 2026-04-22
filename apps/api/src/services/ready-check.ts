@@ -34,7 +34,23 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { redis } from "../lib/redis.js";
 import { formSkeletons, type RCParticipant, type SlotPosition } from "./matchmaking.js";
+
+const BOT_CHANNEL = "mplus:bot-notifications";
+
+/**
+ * Fire-and-forget publisher. Failures are logged but don't abort the
+ * caller's transaction — the bot reads authoritative state via HTTP on
+ * every notification, so a missed ping is self-healing on next click.
+ */
+function publishBotEvent(type: string, payload: Record<string, unknown>): void {
+  redis
+    .publish(BOT_CHANNEL, JSON.stringify({ type, ...payload }))
+    .catch((err) => {
+      console.error(`[ready-check] failed to publish ${type}:`, err);
+    });
+}
 
 const READY_CHECK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const FORMING_GROUP_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -69,7 +85,7 @@ export async function startOrJoin(
   eventId: number,
   signupId: number,
 ): Promise<StartOrJoinResult> {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const signup = await tx.eventSignup.findUnique({
       where: { id: signupId },
       select: {
@@ -157,6 +173,14 @@ export async function startOrJoin(
       participantCount: 1,
     };
   });
+
+  publishBotEvent("ready_check_updated", {
+    readyCheckId: result.readyCheckId,
+    eventId,
+    reason: result.startedNew ? "started" : "joined",
+  });
+
+  return result;
 }
 
 /**
@@ -208,10 +232,10 @@ export async function cancelParticipation(
   readyCheckId: number,
   signupId: number,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const eventId = await prisma.$transaction(async (tx) => {
     const rc = await tx.readyCheck.findUnique({
       where: { id: readyCheckId },
-      select: { state: true, expiresAt: true },
+      select: { state: true, expiresAt: true, eventId: true },
     });
     if (!rc) throw new ReadyCheckError("ready_check_not_found", "Ready Check not found", 404);
     if (rc.state !== "active")
@@ -223,7 +247,10 @@ export async function cancelParticipation(
       where: { readyCheckId_signupId: { readyCheckId, signupId } },
       data: { cancelledAt: new Date() },
     });
+    return rc.eventId;
   });
+
+  publishBotEvent("ready_check_updated", { readyCheckId, eventId, reason: "cancelled" });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -247,7 +274,7 @@ export interface ExpireResult {
 const SLOT_ORDER: SlotPosition[] = ["tank", "healer", "dps1", "dps2", "dps3"];
 
 export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResult> {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const rc = await tx.readyCheck.findUnique({
       where: { id: readyCheckId },
       include: {
@@ -266,9 +293,10 @@ export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResu
       // Already expired — treat as idempotent no-op
       return {
         readyCheckId,
+        eventId: rc.eventId,
         groupsFormed: 0,
-        groupIds: [],
-        bouncedSignupIds: [],
+        groupIds: [] as number[],
+        bouncedSignupIds: [] as number[],
         stats: {
           totalParticipants: 0,
           skeletonsFormed: 0,
@@ -345,12 +373,32 @@ export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResu
 
     return {
       readyCheckId: rc.id,
+      eventId: rc.eventId,
       groupsFormed: result.skeletons.length,
       groupIds,
       bouncedSignupIds: bouncedIds,
       stats: result.stats,
     };
   });
+
+  if (result.groupsFormed > 0 || result.bouncedSignupIds.length > 0) {
+    publishBotEvent("ready_check_expired", {
+      readyCheckId: result.readyCheckId,
+      eventId: result.eventId,
+      groupIds: result.groupIds,
+      bouncedSignupIds: result.bouncedSignupIds,
+      stats: result.stats,
+    });
+  }
+
+  // Strip eventId from the public return type (internal-only)
+  return {
+    readyCheckId: result.readyCheckId,
+    groupsFormed: result.groupsFormed,
+    groupIds: result.groupIds,
+    bouncedSignupIds: result.bouncedSignupIds,
+    stats: result.stats,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -423,3 +471,73 @@ export async function autoDisbandTimedOutGroups(): Promise<number[]> {
  * transactional client. Not used in production.
  */
 export type TxClient = Prisma.TransactionClient | PrismaClient;
+
+// ─────────────────────────────────────────────────────────────
+// Disband vote
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * In-memory disband-vote tally. Per §7.2, any 2 members can vote to
+ * disband a `forming` group. Votes reset on restart — acceptable because
+ * groups auto-disband after 2h anyway.
+ */
+const disbandVotes = new Map<number, Set<number>>();
+
+export interface DisbandVoteResult {
+  groupId: number;
+  voteCount: number;
+  required: number;
+  disbanded: boolean;
+}
+
+export async function recordDisbandVote(
+  groupId: number,
+  signupId: number,
+): Promise<DisbandVoteResult> {
+  const group = await prisma.eventGroup.findUnique({
+    where: { id: groupId },
+    include: {
+      members: { select: { id: true, userId: true } },
+    },
+  });
+  if (!group) throw new ReadyCheckError("group_not_found", "Group not found", 404);
+  if (group.state !== "forming")
+    throw new ReadyCheckError("group_not_forming", `Group is ${group.state}, cannot disband`);
+
+  const isMember = group.members.some((m) => m.id === signupId);
+  if (!isMember)
+    throw new ReadyCheckError(
+      "not_a_member",
+      "Only members of the group can vote to disband",
+      403,
+    );
+
+  const votes = disbandVotes.get(groupId) ?? new Set<number>();
+  votes.add(signupId);
+  disbandVotes.set(groupId, votes);
+
+  const required = 2;
+  if (votes.size < required) {
+    return { groupId, voteCount: votes.size, required, disbanded: false };
+  }
+
+  // Threshold met — disband atomically.
+  await prisma.$transaction(async (tx) => {
+    const count = await tx.eventGroup.updateMany({
+      where: { id: groupId, state: "forming" },
+      data: { state: "disbanded", resolvedAt: new Date() },
+    });
+    if (count.count === 1) {
+      // Release members back to the pool.
+      await tx.eventSignup.updateMany({
+        where: { groupId },
+        data: { groupId: null, slotPosition: null },
+      });
+    }
+  });
+
+  disbandVotes.delete(groupId);
+  publishBotEvent("event_group_disbanded", { groupId, eventId: group.eventId });
+
+  return { groupId, voteCount: votes.size, required, disbanded: true };
+}

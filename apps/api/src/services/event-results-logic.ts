@@ -451,6 +451,76 @@ function buildHint(
   }
 }
 
+// ── Multi-run team aggregation (§10) ──────────────────────────
+
+/**
+ * Event types whose runs aggregate across groups sharing the same 5
+ * character set. Two matched groups with identical members roll up into
+ * a single scoring entity. Keeps "play with who you RC'd with" while
+ * rewarding repeat collaboration.
+ */
+const AGGREGATING_EVENT_TYPES = new Set(["marathon", "best_average"]);
+
+function characterSetSignature(
+  members: { characterName: string; realm: string }[],
+): string {
+  return members
+    .map((m) => `${m.realm.toLowerCase()}::${m.characterName.toLowerCase()}`)
+    .sort()
+    .join("|");
+}
+
+/**
+ * Merge groups sharing the same character set. Returned "team" groups
+ * get synthetic negative IDs so they don't collide with real EventGroup
+ * IDs. Runs are remapped to their merged group.
+ */
+export function aggregateTeams(
+  groups: GroupInfo[],
+  runs: RunData[],
+): { groups: GroupInfo[]; runs: RunData[] } {
+  const bySignature = new Map<string, GroupInfo[]>();
+  for (const g of groups) {
+    if (g.members.length === 0) {
+      // Group with no real members — skip aggregation, pass through
+      bySignature.set(`lone-${g.groupId}`, [g]);
+      continue;
+    }
+    const sig = characterSetSignature(g.members);
+    const bucket = bySignature.get(sig) ?? [];
+    bucket.push(g);
+    bySignature.set(sig, bucket);
+  }
+
+  const mergedGroups: GroupInfo[] = [];
+  const groupIdMap = new Map<number, number>();
+  let nextTeamId = -1;
+
+  for (const [, bucket] of bySignature) {
+    if (bucket.length === 1) {
+      const only = bucket[0]!;
+      mergedGroups.push(only);
+      groupIdMap.set(only.groupId, only.groupId);
+      continue;
+    }
+    const teamId = nextTeamId--;
+    const names = bucket.map((b) => b.groupName).join(" + ");
+    mergedGroups.push({
+      groupId: teamId,
+      groupName: `Team (${bucket.length} runs): ${names}`,
+      members: bucket[0]!.members,
+    });
+    for (const g of bucket) groupIdMap.set(g.groupId, teamId);
+  }
+
+  const remappedRuns = runs.map((r) => ({
+    ...r,
+    groupId: groupIdMap.get(r.groupId) ?? r.groupId,
+  }));
+
+  return { groups: mergedGroups, runs: remappedRuns };
+}
+
 // ── Dispatcher ────────────────────────────────────────────────
 
 export function computeStandings(
@@ -459,23 +529,28 @@ export function computeStandings(
   groups: GroupInfo[],
   options: { minKeyLevel?: number; runsToCount?: number } = {},
 ): GroupStanding[] {
+  // For event types that aggregate across multiple groups sharing a
+  // character set, preprocess first (§10 multi-run team aggregation).
+  const { groups: workingGroups, runs: workingRuns } =
+    AGGREGATING_EVENT_TYPES.has(eventType) ? aggregateTeams(groups, runs) : { groups, runs };
+
   let standings: GroupStanding[];
   switch (eventType) {
     case "key_climbing":
-      standings = scoreKeyClimbing(runs, groups, options.minKeyLevel ?? 2);
+      standings = scoreKeyClimbing(workingRuns, workingGroups, options.minKeyLevel ?? 2);
       break;
     case "marathon":
-      standings = scoreMarathon(runs, groups);
+      standings = scoreMarathon(workingRuns, workingGroups);
       break;
     case "best_average":
-      standings = scoreBestAverage(runs, groups, options.runsToCount ?? 3);
+      standings = scoreBestAverage(workingRuns, workingGroups, options.runsToCount ?? 3);
       break;
     case "bracket_tournament":
-      standings = scoreBracketTournament(runs, groups);
+      standings = scoreBracketTournament(workingRuns, workingGroups);
       break;
     default:
       // Fallback for other types: rank by total eventJuice
-      standings = scoreBracketTournament(runs, groups);
+      standings = scoreBracketTournament(workingRuns, workingGroups);
   }
   computeGapHints(eventType, standings);
   return standings;

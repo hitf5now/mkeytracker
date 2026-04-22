@@ -16,6 +16,13 @@ import {
 } from "discord.js";
 import { env } from "../config/env.js";
 import { apiClient } from "./api-client.js";
+import {
+  postOrUpdateReadyCheckMessage,
+  finalizeReadyCheckMessage,
+  buildGroupEmbed,
+  buildGroupButtons,
+  type FormedGroupView,
+} from "../components/ready-check.js";
 
 /**
  * Display labels for endorsement categories, mirroring
@@ -53,19 +60,34 @@ const TYPE_SUMMARIES: Record<string, string> = {
 
 const CHANNEL = "mplus:bot-notifications";
 
+function buildGroupEventButtons(
+  eventId: number,
+  eventStatus: string,
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`event-signup:${eventId}`)
+      .setLabel("Sign Up")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`event-tentative:${eventId}`)
+      .setLabel("Tentative")
+      .setStyle(ButtonStyle.Secondary),
+  );
+  if (eventStatus === "in_progress") {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-ready-check:${eventId}`)
+        .setLabel("Ready Check")
+        .setEmoji("⚡")
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  return row;
+}
+
 /** Public base URL for the website — used to deep-link run detail pages. */
 const WEB_BASE = "https://mythicplustracker.com";
-
-interface GroupMember {
-  characterName: string;
-  realm: string;
-  role: "tank" | "healer" | "dps";
-}
-
-interface AssignedGroupPayload {
-  name: string;
-  members: GroupMember[];
-}
 
 interface BotNotification {
   type: string;
@@ -82,16 +104,6 @@ interface BotNotification {
   deaths?: number;
   juice?: number;
   members?: Array<{ name: string; realm: string; class: string; role: string }>;
-  // groups_assigned payload
-  groups?: AssignedGroupPayload[];
-  benched?: GroupMember[];
-  stats?: {
-    totalSignups: number;
-    groupsFormed: number;
-    benchedCount: number;
-    limitingRole: string;
-    groupsWithoutCompanion: number;
-  };
   // event_completed payload
   results?: {
     eventId: number;
@@ -119,6 +131,13 @@ interface BotNotification {
   receiverCharacterName?: string | null;
   receiverCharacterClass?: string | null;
   channelIds?: string[];
+  // ready_check_updated / ready_check_expired payload
+  readyCheckId?: number;
+  reason?: string;
+  groupIds?: number[];
+  bouncedSignupIds?: number[];
+  // event_group_disbanded payload
+  groupId?: number;
 }
 
 export function startNotificationSubscriber(client: Client): void {
@@ -143,8 +162,14 @@ export function startNotificationSubscriber(client: Client): void {
         await handleEventCreated(client, notification.eventId);
       } else if (notification.type === "event_updated" && notification.eventId) {
         await handleEventUpdated(client, notification.eventId);
-      } else if (notification.type === "groups_assigned" && notification.eventId) {
-        await handleGroupsAssigned(client, notification);
+      } else if (notification.type === "event_reposted" && notification.eventId) {
+        await handleEventReposted(client, notification.eventId);
+      } else if (notification.type === "ready_check_updated" && notification.readyCheckId && notification.eventId) {
+        await handleReadyCheckUpdated(client, notification.readyCheckId, notification.eventId);
+      } else if (notification.type === "ready_check_expired" && notification.readyCheckId && notification.eventId) {
+        await handleReadyCheckExpired(client, notification);
+      } else if (notification.type === "event_group_disbanded" && notification.groupId && notification.eventId) {
+        await handleGroupDisbanded(client, notification.groupId, notification.eventId);
       } else if (notification.type === "event_completed" && notification.eventId) {
         await handleEventCompleted(client, notification);
       } else if (notification.type === "run_completed" && notification.runId) {
@@ -223,16 +248,7 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
             .setLabel("Sign Up Team")
             .setStyle(ButtonStyle.Success),
         )
-      : new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`event-signup:${event.id}`)
-            .setLabel("Sign Up")
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`event-tentative:${event.id}`)
-            .setLabel("Tentative")
-            .setStyle(ButtonStyle.Secondary),
-        );
+      : buildGroupEventButtons(event.id, event.status);
 
     const channel = await client.channels.fetch(channelId) as TextChannel | null;
     if (!channel) {
@@ -252,6 +268,166 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
     console.log(`Posted event #${event.id} embed to channel ${channelId}`);
   } catch (err) {
     console.error(`Failed to post event #${eventId} embed:`, err);
+  }
+}
+
+/** Resolve the events channel for a guild — null if unconfigured. */
+async function resolveEventsChannel(guildId: string | null | undefined): Promise<string | null> {
+  if (!guildId) return null;
+  try {
+    const { config } = await apiClient.getServerConfig(guildId);
+    return config?.eventsChannelId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function handleReadyCheckUpdated(
+  client: Client,
+  readyCheckId: number,
+  eventId: number,
+): Promise<void> {
+  try {
+    const [{ event }, rc] = await Promise.all([
+      apiClient.getEvent(eventId),
+      apiClient.getActiveReadyCheck(eventId),
+    ]);
+    if (!rc.active || rc.active.id !== readyCheckId) {
+      // The RC has already moved on (expired/cancelled) — skip refresh
+      return;
+    }
+
+    const channelId = await resolveEventsChannel(event.discordGuildId);
+    if (!channelId) {
+      console.log(`No events channel for event #${eventId} — skipping RC message`);
+      return;
+    }
+
+    await postOrUpdateReadyCheckMessage(client, {
+      eventId,
+      readyCheckId,
+      channelId,
+      eventName: event.name,
+      expiresAt: new Date(rc.active.expiresAt),
+      participants: rc.active.participants.map((p) => ({
+        characterName: p.characterName,
+        realm: p.realm,
+        primaryRole: p.primaryRole,
+        flexRole: p.flexRole,
+        priorityFlag: p.priorityFlag,
+      })),
+    });
+  } catch (err) {
+    console.error(`Failed to refresh RC message for event #${eventId}:`, err);
+  }
+}
+
+async function handleReadyCheckExpired(
+  client: Client,
+  notification: BotNotification,
+): Promise<void> {
+  const { readyCheckId, eventId, groupIds, bouncedSignupIds } = notification;
+  if (!readyCheckId || !eventId) return;
+
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+    const groupCount = (groupIds ?? []).length;
+    const bouncedCount = (bouncedSignupIds ?? []).length;
+
+    // Convert the RC message into a "complete" summary
+    await finalizeReadyCheckMessage(client, {
+      readyCheckId,
+      eventName: event.name,
+      groupCount,
+      bouncedCount,
+    });
+
+    if (groupCount === 0) return;
+
+    const channelId = await resolveEventsChannel(event.discordGuildId);
+    if (!channelId) return;
+    const channel = (await client.channels.fetch(channelId)) as TextChannel | null;
+    if (!channel) return;
+
+    // Match formed groups against the event's groups list (which we
+    // just refetched). For each group, post a standalone card with
+    // slot layout + vote-to-disband button.
+    const newlyFormed = event.groups.filter(
+      (g) => g.readyCheckId === readyCheckId && g.state === "forming",
+    );
+
+    for (const group of newlyFormed) {
+      const slots: FormedGroupView["slots"] = (
+        ["tank", "healer", "dps1", "dps2", "dps3"] as const
+      ).map((position) => {
+        const member = group.members.find((m) => m.slotPosition === position);
+        if (!member) return { position, participant: null };
+        return {
+          position,
+          participant: {
+            characterName: member.character.name,
+            realm: member.character.realm,
+            classSlug: member.character.class,
+            primaryRole: member.rolePreference as "tank" | "healer" | "dps",
+            flexRole: member.flexRole,
+          },
+        };
+      });
+
+      const view: FormedGroupView = { groupId: group.id, name: group.name, slots };
+      await channel.send({
+        embeds: [buildGroupEmbed(event.name, view)],
+        components: [buildGroupButtons(group.id)],
+      });
+    }
+
+    console.log(
+      `Posted ${newlyFormed.length} group card(s) for event #${eventId} (RC #${readyCheckId})`,
+    );
+  } catch (err) {
+    console.error(`Failed to handle RC expired for event #${eventId}:`, err);
+  }
+}
+
+async function handleGroupDisbanded(
+  client: Client,
+  _groupId: number,
+  eventId: number,
+): Promise<void> {
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+    const channelId = await resolveEventsChannel(event.discordGuildId);
+    if (!channelId) return;
+    const channel = (await client.channels.fetch(channelId)) as TextChannel | null;
+    if (!channel) return;
+    await channel.send(
+      `🛑 A group for **${event.name}** was disbanded by its members. Those players are free to Ready Check again.`,
+    );
+  } catch (err) {
+    console.error(`Failed to announce group disband for event #${eventId}:`, err);
+  }
+}
+
+async function handleEventReposted(client: Client, eventId: number): Promise<void> {
+  try {
+    const { event } = await apiClient.getEvent(eventId);
+    if (!event.discordChannelId) return;
+
+    const channel = (await client.channels.fetch(event.discordChannelId)) as TextChannel | null;
+    if (!channel) return;
+
+    const link = event.discordMessageId
+      ? `https://discord.com/channels/${event.discordGuildId ?? "@me"}/${event.discordChannelId}/${event.discordMessageId}`
+      : null;
+
+    const body = link
+      ? `📌 **${event.name}** is still accepting signups — [jump to event](${link})`
+      : `📌 **${event.name}** is still accepting signups.`;
+
+    await channel.send(body);
+    console.log(`Posted repost pointer for event #${eventId}`);
+  } catch (err) {
+    console.error(`Failed to repost event #${eventId}:`, err);
   }
 }
 
@@ -347,16 +523,7 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
             .setLabel("Sign Up Team")
             .setStyle(ButtonStyle.Success),
         )
-      : new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`event-signup:${event.id}`)
-            .setLabel("Sign Up")
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`event-tentative:${event.id}`)
-            .setLabel("Tentative")
-            .setStyle(ButtonStyle.Secondary),
-        );
+      : buildGroupEventButtons(event.id, event.status);
 
     const channel = await client.channels.fetch(event.discordChannelId) as TextChannel | null;
     if (!channel) return;
@@ -367,64 +534,6 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
     console.log(`Updated Discord embed for event #${eventId}`);
   } catch (err) {
     console.error(`Failed to update event #${eventId} embed:`, err);
-  }
-}
-
-async function handleGroupsAssigned(client: Client, notification: BotNotification): Promise<void> {
-  const { eventId, groups, stats } = notification;
-  if (!eventId || !groups || !stats) return;
-
-  try {
-    const { event } = await apiClient.getEvent(eventId);
-
-    // Find the events channel for this server
-    let channelId: string | null = null;
-    const guildId = event.discordGuildId;
-    if (guildId) {
-      const { config } = await apiClient.getServerConfig(guildId);
-      channelId = config?.eventsChannelId ?? null;
-    }
-    if (!channelId) {
-      console.log(`No events channel configured for event #${eventId} — skipping groups embed`);
-      return;
-    }
-
-    const ROLE_ICONS: Record<string, string> = { tank: "🛡", healer: "💚", dps: "⚔" };
-
-    const fullGroups = groups.filter((g) => !g.name.includes("PUG"));
-    const pugGroups = groups.filter((g) => g.name.includes("PUG"));
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🎯 Groups Assigned — ${event.name}`)
-      .setColor(0xffcc00)
-      .setDescription(
-        `**${fullGroups.length}** group${fullGroups.length !== 1 ? "s" : ""} formed from **${stats.totalSignups}** signups.` +
-        (pugGroups.length > 0 ? ` **${pugGroups.reduce((n, g) => n + g.members.length, 0)}** player${pugGroups[0]!.members.length !== 1 ? "s" : ""} need PUG members.` : ""),
-      );
-
-    for (const group of groups) {
-      const isPug = group.name.includes("PUG");
-      const memberLines = group.members.map((m) => {
-        const icon = ROLE_ICONS[m.role] ?? "•";
-        return `${icon} **${m.characterName}**-${m.realm}`;
-      });
-      embed.addFields({ name: isPug ? `📋 ${group.name}` : group.name, value: memberLines.join("\n"), inline: true });
-    }
-
-    if (stats.limitingRole) {
-      embed.setFooter({ text: `Event #${eventId} · Limiting role: ${stats.limitingRole}` });
-    }
-
-    const channel = await client.channels.fetch(channelId) as TextChannel | null;
-    if (!channel) {
-      console.error(`Events channel ${channelId} not found for groups embed`);
-      return;
-    }
-
-    await channel.send({ embeds: [embed] });
-    console.log(`Posted groups assigned embed for event #${eventId} to channel ${channelId}`);
-  } catch (err) {
-    console.error(`Failed to post groups assigned embed for event #${eventId}:`, err);
   }
 }
 

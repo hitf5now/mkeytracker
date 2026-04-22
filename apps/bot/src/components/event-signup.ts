@@ -156,8 +156,11 @@ function buildRosterEmbed(event: EventForEmbed, signups: SignupForRoster[]): Emb
   return embed;
 }
 
-function buildEventButtons(eventId: number): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+export function buildEventButtons(
+  eventId: number,
+  eventStatus: string,
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`event-signup:${eventId}`)
       .setLabel("Sign Up")
@@ -167,6 +170,17 @@ function buildEventButtons(eventId: number): ActionRowBuilder<ButtonBuilder> {
       .setLabel("Tentative")
       .setStyle(ButtonStyle.Secondary),
   );
+  // Ready Check only available while the event is actively running.
+  if (eventStatus === "in_progress") {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-ready-check:${eventId}`)
+        .setLabel("Ready Check")
+        .setEmoji("⚡")
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  return row;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -194,7 +208,7 @@ async function updateEventEmbed(eventId: number, client: Client): Promise<void> 
       }));
 
       const embed = buildRosterEmbed(event, signups);
-      const buttons = buildEventButtons(eventId);
+      const buttons = buildEventButtons(eventId, event.status);
 
       const channel = await client.channels.fetch(event.discordChannelId) as TextChannel | null;
       if (!channel) return;
@@ -545,7 +559,7 @@ async function handleCharSelect(interaction: StringSelectMenuInteraction, client
   });
 }
 
-async function handleSpecSelect(interaction: StringSelectMenuInteraction, client: Client): Promise<void> {
+async function handleSpecSelect(interaction: StringSelectMenuInteraction, _client: Client): Promise<void> {
   await interaction.deferUpdate();
   const parts = interaction.customId.split(":");
   const eventId = parseInt(parts[1] ?? "0", 10);
@@ -563,6 +577,58 @@ async function handleSpecSelect(interaction: StringSelectMenuInteraction, client
   // Derive role from spec
   const role = roleFromSpec(char.class, specName) ?? "dps";
 
+  // Now ask for flex role. customId encodes all the submission data so we
+  // can finish the signup on their next click without re-fetching.
+  const flexOptions = buildFlexOptions(role);
+  const flexRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(
+        `event-flex:${eventId}:${characterId}:${encodeURIComponent(specName)}:${role}`,
+      )
+      .setPlaceholder("Flex role (one you'd also fill)")
+      .addOptions(flexOptions),
+  );
+
+  await interaction.editReply({
+    content:
+      `Selected **${specName} ${CLASSES[char.class]?.name ?? char.class}** (${role.toUpperCase()}). ` +
+      `Pick a flex role — the matchmaker can pull you into that role if it unlocks another group.`,
+    components: [flexRow],
+  });
+}
+
+/** Build flex-role select menu options, excluding the user's primary role. */
+function buildFlexOptions(
+  primary: "tank" | "healer" | "dps",
+): Array<{ label: string; value: string; description?: string }> {
+  const all: Array<{ label: string; value: string; description: string }> = [
+    { label: "Tank", value: "tank", description: "Can also fill tank" },
+    { label: "Healer", value: "healer", description: "Can also fill healer" },
+    { label: "DPS", value: "dps", description: "Can also fill DPS" },
+    { label: "None — primary role only", value: "none", description: "Don't flex me" },
+  ];
+  return all.filter((o) => o.value !== primary);
+}
+
+async function handleFlexSelect(
+  interaction: StringSelectMenuInteraction,
+  client: Client,
+): Promise<void> {
+  await interaction.deferUpdate();
+  const parts = interaction.customId.split(":");
+  const eventId = parseInt(parts[1] ?? "0", 10);
+  const characterId = parseInt(parts[2] ?? "0", 10);
+  const specName = decodeURIComponent(parts[3] ?? "");
+  const role = (parts[4] ?? "dps") as "tank" | "healer" | "dps";
+  const flexRole = interaction.values[0] as "tank" | "healer" | "dps" | "none";
+
+  const { characters } = await apiClient.getUserCharacters(interaction.user.id);
+  const char = characters.find((c: UserCharacter) => c.id === characterId);
+  if (!char) {
+    await interaction.editReply({ content: "❌ Character not found.", components: [] });
+    return;
+  }
+
   try {
     await apiClient.eventSignup({
       eventId,
@@ -571,12 +637,14 @@ async function handleSpecSelect(interaction: StringSelectMenuInteraction, client
       characterRealm: char.realm,
       characterRegion: char.region as "us" | "eu" | "kr" | "tw" | "cn",
       rolePreference: role,
+      flexRole,
       spec: specName,
       characterClass: char.class,
     });
 
+    const flexLabel = flexRole === "none" ? "no flex" : `flex ${flexRole.toUpperCase()}`;
     await interaction.editReply({
-      content: `✅ Signed up as **${specName} ${CLASSES[char.class]?.name ?? char.class}** (${role.toUpperCase()}) with **${char.name}**!`,
+      content: `✅ Signed up as **${specName} ${CLASSES[char.class]?.name ?? char.class}** (${role.toUpperCase()}, ${flexLabel}) with **${char.name}**!`,
       components: [],
     });
 
@@ -863,6 +931,11 @@ export const eventCharHandler: ComponentHandler = {
 export const eventSpecHandler: ComponentHandler = {
   prefix: "event-spec",
   handleSelectMenu: handleSpecSelect,
+};
+
+export const eventFlexHandler: ComponentHandler = {
+  prefix: "event-flex",
+  handleSelectMenu: handleFlexSelect,
 };
 
 export const eventManualHandler: ComponentHandler = {

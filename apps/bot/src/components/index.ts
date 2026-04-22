@@ -33,12 +33,18 @@ import {
   eventSwitchConfirmedHandler,
   eventCharHandler,
   eventSpecHandler,
+  eventFlexHandler,
   eventManualHandler,
   eventManualSpecHandler,
   eventConfirmHandler,
   eventCancelHandler,
   eventRoleHandler,
 } from "./event-signup.js";
+import {
+  eventReadyCheckHandler,
+  readyCheckCancelHandler,
+  groupDisbandHandler,
+} from "./ready-check.js";
 
 const handlers: ComponentHandler[] = [
   eventSignupHandler,
@@ -49,11 +55,15 @@ const handlers: ComponentHandler[] = [
   eventSwitchConfirmedHandler,
   eventCharHandler,
   eventSpecHandler,
+  eventFlexHandler,
   eventManualHandler,
   eventManualSpecHandler,
   eventConfirmHandler,
   eventCancelHandler,
   eventRoleHandler,
+  eventReadyCheckHandler,
+  readyCheckCancelHandler,
+  groupDisbandHandler,
 ];
 
 /** Map of prefix → handler for fast lookup */

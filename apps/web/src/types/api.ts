@@ -196,6 +196,10 @@ export interface EventSummary {
   updatedAt: string;
 }
 
+export type FlexRole = "tank" | "healer" | "dps" | "none";
+export type SlotPosition = "tank" | "healer" | "dps1" | "dps2" | "dps3";
+export type EventGroupState = "forming" | "matched" | "disbanded" | "timed_out";
+
 export interface EventSignup {
   id: number;
   eventId: number;
@@ -203,10 +207,13 @@ export interface EventSignup {
   discordUserId: string | null;
   characterId: number;
   rolePreference: "tank" | "healer" | "dps";
+  flexRole: FlexRole;
+  priorityFlag: boolean;
   spec: string | null;
   signupSource: string;
   signupStatus: string;
   groupId: number | null;
+  slotPosition: SlotPosition | null;
   signedUpAt: string;
   character: {
     id: number;
@@ -222,13 +229,43 @@ export interface EventSignup {
   group: EventGroup | null;
 }
 
+export interface EventGroupRun {
+  id: number;
+  completionMs: number;
+  onTime: boolean;
+  upgrades: number;
+  keystoneLevel: number;
+  dungeon: { name: string; shortCode: string } | null;
+}
+
 export interface EventGroup {
   id: number;
   eventId: number;
   name: string;
-  status: string;
+  state: EventGroupState;
+  readyCheckId: number | null;
   assignedAt: string;
+  resolvedAt: string | null;
   members?: EventSignup[];
+  runs?: EventGroupRun[];
+}
+
+export interface ReadyCheckParticipantView {
+  signupId: number;
+  joinedAt: string;
+  characterName: string;
+  realm: string;
+  primaryRole: "tank" | "healer" | "dps";
+  flexRole: FlexRole;
+  priorityFlag: boolean;
+}
+
+export interface ActiveReadyCheck {
+  id: number;
+  startedAt: string;
+  expiresAt: string;
+  state: "active" | "expired";
+  participants: ReadyCheckParticipantView[];
 }
 
 export interface TeamEventSignup {

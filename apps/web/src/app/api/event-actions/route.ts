@@ -3,7 +3,7 @@
  *
  * Query params:
  *   eventId: number
- *   action: "transition" | "edit" | "sync-discord"
+ *   action: "transition" | "edit" | "sync-discord" | "repost"
  *   target: string (for transition action)
  */
 
@@ -53,6 +53,10 @@ export async function POST(request: Request) {
     case "sync-discord":
       // Publish a notification to refresh the Discord embed
       apiUrl = `${API_BASE}/api/v1/events/${eventId}/sync-discord`;
+      body = "{}";
+      break;
+    case "repost":
+      apiUrl = `${API_BASE}/api/v1/events/${eventId}/repost`;
       body = "{}";
       break;
     default:

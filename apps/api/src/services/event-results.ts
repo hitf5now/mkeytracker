@@ -26,9 +26,14 @@ export async function computeEventResults(eventId: number): Promise<EventResults
     },
   });
 
-  // Load all groups for this event with their members
+  // Load non-terminal-abandoned groups for scoring. Disbanded + timed_out
+  // groups have no matched runs (those states are terminal without a run),
+  // so omitting them keeps the results view focused on real play.
   const groups = await prisma.eventGroup.findMany({
-    where: { eventId },
+    where: {
+      eventId,
+      state: { in: ["forming", "matched"] },
+    },
     include: {
       members: {
         where: { signupStatus: "confirmed" },

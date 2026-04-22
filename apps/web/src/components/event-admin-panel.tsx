@@ -68,6 +68,24 @@ export function EventAdminPanel({
     }
   }
 
+  async function handleRepost() {
+    setLoading("repost");
+    setError(null);
+    try {
+      const res = await fetch(`/api/event-actions?eventId=${eventId}&action=repost`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error((data as { message?: string })?.message ?? `Failed (${res.status})`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Repost failed");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   async function handleSyncDiscord() {
     setLoading("discord");
     setError(null);
@@ -157,7 +175,7 @@ export function EventAdminPanel({
         </div>
       )}
 
-      {/* Edit + Discord sync */}
+      {/* Edit + Discord sync + Repost */}
       {!editing && (
         <div className="mt-3 flex gap-2">
           <button
@@ -175,6 +193,17 @@ export function EventAdminPanel({
           >
             {loading === "discord" ? "Syncing..." : "Update Discord"}
           </button>
+          {(currentStatus === "open" || currentStatus === "in_progress") && (
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={handleRepost}
+              title="Post a pointer message in Discord linking back to this event's embed"
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              {loading === "repost" ? "Reposting..." : "Repost to Discord"}
+            </button>
+          )}
         </div>
       )}
 

@@ -138,15 +138,22 @@ export interface EventListItem extends EventResponse {
 export interface EventSignupDetail {
   id: number;
   rolePreference: string;
+  flexRole: "tank" | "healer" | "dps" | "none";
+  priorityFlag: boolean;
   spec: string | null;
   signupStatus: string;
   discordUserId: string | null;
+  slotPosition: "tank" | "healer" | "dps1" | "dps2" | "dps3" | null;
   character: { name: string; realm: string; region: string; class: string; hasCompanionApp: boolean };
   group: { id: number; name: string } | null;
 }
 
 export interface EventGroupDetail {
   id: number;
+  state: "forming" | "matched" | "disbanded" | "timed_out";
+  readyCheckId: number | null;
+  assignedAt: string;
+  resolvedAt: string | null;
   name: string;
   members: EventSignupDetail[];
 }
@@ -435,11 +442,66 @@ export const apiClient = {
     characterRealm: string;
     characterRegion: "us" | "eu" | "kr" | "tw" | "cn";
     rolePreference: "tank" | "healer" | "dps";
+    flexRole?: "tank" | "healer" | "dps" | "none";
     signupStatus?: "confirmed" | "tentative";
     spec?: string;
     characterClass?: string;
   }): Promise<{ signup: { id: number }; updated: boolean }> =>
     apiPost(`/api/v1/events/${req.eventId}/signup`, req),
+
+  // ── Ready Check endpoints ─────────────────────────────────────
+  readyCheckStartOrJoin: (
+    eventId: number,
+    discordId: string,
+  ): Promise<{
+    readyCheckId: number;
+    startedNew: boolean;
+    expiresAt: string;
+    participantCount: number;
+  }> =>
+    apiPost(`/api/v1/events/${eventId}/ready-check`, { discordId }),
+
+  readyCheckCancel: (
+    eventId: number,
+    readyCheckId: number,
+    discordId: string,
+  ): Promise<{ cancelled: boolean }> =>
+    apiPost(`/api/v1/events/${eventId}/ready-check/${readyCheckId}/cancel`, { discordId }),
+
+  getActiveReadyCheck: (
+    eventId: number,
+  ): Promise<{
+    active: null | {
+      id: number;
+      startedAt: string;
+      expiresAt: string;
+      state: string;
+      participants: Array<{
+        signupId: number;
+        joinedAt: string;
+        characterName: string;
+        realm: string;
+        primaryRole: "tank" | "healer" | "dps";
+        flexRole: "tank" | "healer" | "dps" | "none";
+        priorityFlag: boolean;
+      }>;
+    };
+  }> =>
+    apiGet(`/api/v1/events/${eventId}/ready-check`),
+
+  disbandVote: (
+    groupId: number,
+    discordId: string,
+  ): Promise<{
+    groupId: number;
+    voteCount: number;
+    required: number;
+    disbanded: boolean;
+  }> =>
+    apiPost(`/api/v1/event-groups/${groupId}/disband-vote`, { discordId }),
+
+  repostEvent: (eventId: number): Promise<{ reposted: boolean }> =>
+    apiPost(`/api/v1/events/${eventId}/repost`, {}),
 
   // ── Phase 2: Bot interaction endpoints ─────────────────────────
   getUserCharacters: (discordId: string): Promise<UserCharactersResponse> =>

@@ -35,6 +35,7 @@ import {
   expireReadyCheck,
   sweepExpiredReadyChecks,
   autoDisbandTimedOutGroups,
+  recordDisbandVote,
   ReadyCheckError,
 } from "../services/ready-check.js";
 import { computeEventResults } from "../services/event-results.js";
@@ -425,11 +426,77 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // ── Sweep: auto-disband `forming` groups past 2h OR event end ─
-    scope.post("/events/:id/groups/sweep-timed-out", async (req, reply) => {
+    // Not scoped to an event; the sweep considers every forming group.
+    scope.post("/event-groups/sweep-timed-out", async (req, reply) => {
       const disbanded = await autoDisbandTimedOutGroups();
       req.log.info({ count: disbanded.length }, "Swept timed-out groups");
       return reply.code(200).send({ timedOutGroupIds: disbanded });
     });
+
+    // ── Group disband vote ───────────────────────────────────────
+    // Body: { signupId } OR { discordId } — must be a member of the group.
+    // Any 2 members voting disbands the group. Vote tally is in-memory
+    // on the api container; it resets on restart (groups auto-disband
+    // after 2h anyway, so a lost tally is self-healing).
+    scope.post<{ Params: { id: string } }>(
+      "/event-groups/:id/disband-vote",
+      async (req, reply) => {
+        const groupId = parseInt(req.params.id, 10);
+        if (isNaN(groupId)) return reply.code(400).send({ error: "invalid_group_id" });
+
+        // Resolve signupId; group.eventId is looked up by the service.
+        const body = (req.body ?? {}) as { signupId?: number; discordId?: string };
+        let signupId: number | undefined;
+        if (typeof body.signupId === "number") {
+          signupId = body.signupId;
+        } else if (typeof body.discordId === "string") {
+          // We need the event to resolve the signup — use the group's eventId.
+          const group = await prisma.eventGroup.findUnique({
+            where: { id: groupId },
+            select: { eventId: true },
+          });
+          if (!group) return reply.code(404).send({ error: "group_not_found" });
+          const signup = await prisma.eventSignup.findUnique({
+            where: {
+              eventId_discordUserId: { eventId: group.eventId, discordUserId: body.discordId },
+            },
+            select: { id: true },
+          });
+          signupId = signup?.id;
+        }
+        if (!signupId) return reply.code(400).send({ error: "signup_not_found" });
+
+        try {
+          const result = await recordDisbandVote(groupId, signupId);
+          return reply.code(200).send(result);
+        } catch (err) {
+          if (err instanceof ReadyCheckError) {
+            return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+          }
+          throw err;
+        }
+      },
+    );
+
+    // ── Repost event (§3 — append pointer message, don't replace) ─
+    scope.post<{ Params: { id: string } }>(
+      "/events/:id/repost",
+      async (req, reply) => {
+        const eventId = parseInt(req.params.id, 10);
+        if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+        const event = await prisma.event.findUnique({ where: { id: eventId } });
+        if (!event) return reply.code(404).send({ error: "event_not_found" });
+
+        await redis.publish(
+          "mplus:bot-notifications",
+          JSON.stringify({ type: "event_reposted", eventId }),
+        );
+
+        req.log.info({ eventId }, "Event repost requested");
+        return reply.code(200).send({ reposted: true });
+      },
+    );
 
     // ── Team signup (team-mode events) ──────────────────────────
     scope.post<{ Params: { id: string } }>("/events/:id/team-signup", async (req, reply) => {
@@ -781,9 +848,24 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           orderBy: { signedUpAt: "asc" },
         },
         groups: {
+          // Hide disbanded groups from the public view per §12.1.
+          where: { state: { in: ["forming", "matched", "timed_out"] } },
           include: {
             members: { include: { character: true } },
+            runs: {
+              select: {
+                id: true,
+                completionMs: true,
+                onTime: true,
+                upgrades: true,
+                keystoneLevel: true,
+                dungeon: { select: { name: true, shortCode: true } },
+              },
+              orderBy: { recordedAt: "desc" },
+              take: 1,
+            },
           },
+          orderBy: { assignedAt: "asc" },
         },
         teamSignups: {
           where: { status: "registered" },
@@ -801,10 +883,23 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!event) return reply.code(404).send({ error: "event_not_found" });
 
+    // Surface the active Ready Check inline so clients don't need a second call.
+    const activeRC = await prisma.readyCheck.findFirst({
+      where: { eventId, state: "active" },
+      orderBy: { startedAt: "desc" },
+      include: {
+        participants: {
+          where: { cancelledAt: null },
+          include: { signup: { include: { character: true } } },
+          orderBy: { joinedAt: "asc" },
+        },
+      },
+    });
+
     // Include the type config from the registry
     const typeInfo = getEventTypeConfig(event.type);
 
-    return reply.code(200).send({ event, typeInfo });
+    return reply.code(200).send({ event, typeInfo, activeReadyCheck: activeRC });
   });
 
   // ── Event results (computed standings) ──────────────────────

@@ -34,18 +34,67 @@ function makeRun(overrides: Partial<RunData> & { groupId: number }): RunData {
 }
 
 function makeGroup(id: number, name: string): GroupInfo {
+  // Suffix character names with the group id so groups don't accidentally
+  // share a character set — the multi-run team aggregator merges groups
+  // with identical member lists, which would collapse separate test
+  // fixtures into a single "team" and change the expected ranking.
   return {
     groupId: id,
     groupName: name,
     members: [
-      { characterName: "Tank", realm: "illidan", classSlug: "warrior" },
-      { characterName: "Healer", realm: "illidan", classSlug: "priest" },
-      { characterName: "DPS1", realm: "illidan", classSlug: "mage" },
-      { characterName: "DPS2", realm: "illidan", classSlug: "rogue" },
-      { characterName: "DPS3", realm: "illidan", classSlug: "hunter" },
+      { characterName: `Tank${id}`, realm: "illidan", classSlug: "warrior" },
+      { characterName: `Healer${id}`, realm: "illidan", classSlug: "priest" },
+      { characterName: `DPS1-${id}`, realm: "illidan", classSlug: "mage" },
+      { characterName: `DPS2-${id}`, realm: "illidan", classSlug: "rogue" },
+      { characterName: `DPS3-${id}`, realm: "illidan", classSlug: "hunter" },
     ],
   };
 }
+
+// ── Multi-run team aggregation (§10) ─────────────────────────────
+
+describe("multi-run team aggregation", () => {
+  const sharedMembers = [
+    { characterName: "Tank", realm: "illidan", classSlug: "warrior" },
+    { characterName: "Healer", realm: "illidan", classSlug: "priest" },
+    { characterName: "DPS1", realm: "illidan", classSlug: "mage" },
+    { characterName: "DPS2", realm: "illidan", classSlug: "rogue" },
+    { characterName: "DPS3", realm: "illidan", classSlug: "hunter" },
+  ];
+  const twinA: GroupInfo = { groupId: 10, groupName: "Group 1", members: sharedMembers };
+  const twinB: GroupInfo = { groupId: 11, groupName: "Group 2", members: sharedMembers };
+
+  it("marathon collapses two groups with identical 5-char sets into one team", () => {
+    const runs = [
+      makeRun({ groupId: 10, runId: 1, keystoneLevel: 15, onTime: true, dungeonId: 1 }),
+      makeRun({ groupId: 11, runId: 2, keystoneLevel: 15, onTime: true, dungeonId: 2 }),
+    ];
+    const result = computeStandings("marathon", runs, [twinA, twinB]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.groupName).toContain("Team");
+    expect(result[0]!.runCount).toBe(2);
+  });
+
+  it("key_climbing does NOT aggregate (non-aggregating event type)", () => {
+    const runs = [
+      makeRun({ groupId: 10, runId: 1, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 11, runId: 2, keystoneLevel: 18, onTime: true }),
+    ];
+    const result = computeStandings("key_climbing", runs, [twinA, twinB], { minKeyLevel: 2 });
+    expect(result).toHaveLength(2); // still independent groups
+  });
+
+  it("best_average aggregates matching character sets and scores the merged runs", () => {
+    const runs = [
+      makeRun({ groupId: 10, runId: 1, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 10, runId: 2, keystoneLevel: 15, onTime: true }),
+      makeRun({ groupId: 11, runId: 3, keystoneLevel: 15, onTime: true }),
+    ];
+    const result = computeStandings("best_average", runs, [twinA, twinB], { runsToCount: 3 });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.runCount).toBe(3); // all 3 runs count for the team
+  });
+});
 
 // ── Key Climbing ─────────────────────────────────────────────────
 

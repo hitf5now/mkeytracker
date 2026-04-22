@@ -114,6 +114,24 @@ services:
       - tech-stack-net
     mem_limit: 512m
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: apps/scheduler/Dockerfile
+    image: mplus-scheduler:local
+    container_name: mplus-scheduler
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://mplus-api:3001
+      API_INTERNAL_SECRET: ${API_INTERNAL_SECRET}
+    networks:
+      - tech-stack-net
+    mem_limit: 128m
+
   web:
     build:
       context: .
