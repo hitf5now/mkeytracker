@@ -37,8 +37,37 @@ client.once(Events.ClientReady, (c) => {
     console.log(`   Dev guild: ${env.DISCORD_GUILD_ID}`);
   }
   void syncGuildCache(client);
+  void backfillDiscordServers(c);
   startNotificationSubscriber(client);
 });
+
+// Reconciles `discord_servers` rows against the bot's live guild list.
+// GuildCreate only fires for new joins, so guilds the bot has been in since
+// before the row was missing (DB wipe, manual delete, pre-multitenant version)
+// would otherwise stay un-rowed. Idempotent: initServer is upsert.
+async function backfillDiscordServers(c: Client<true>): Promise<void> {
+  const guilds = [...c.guilds.cache.values()];
+  if (guilds.length === 0) return;
+  console.log(`   Reconciling ${guilds.length} guild(s) into discord_servers...`);
+  let ok = 0;
+  let failed = 0;
+  await Promise.all(
+    guilds.map(async (guild) => {
+      try {
+        await apiClient.initServer(guild.id, {
+          guildName: guild.name,
+          guildIconUrl: guild.iconURL({ size: 128 }),
+          installedByDiscordId: guild.ownerId,
+        });
+        ok++;
+      } catch (err) {
+        failed++;
+        console.error(`   Backfill failed for ${guild.id} (${guild.name}):`, err);
+      }
+    }),
+  );
+  console.log(`   Backfill complete: ${ok} ok, ${failed} failed`);
+}
 
 const WEB_BASE = "https://mythicplustracker.com";
 
