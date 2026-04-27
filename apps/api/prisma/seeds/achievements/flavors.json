@@ -613,5 +613,151 @@
     "rarity": "common",
     "weight": 100,
     "themeTags": ["juice"]
+  },
+
+  {
+    "archetype": "tank_most_deaths",
+    "key": "glass_pitcher",
+    "name": "Glass Pitcher",
+    "flavorText": "Tank led the party in deaths. Fragile pour.",
+    "description": "The healer was working their full kit. The DPS were respecting your cooldowns. The boss apparently was not. You shattered like the dungeon had it personally rehearsed against you, and the recap is mostly tank-shaped.",
+    "icon": "🫙",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "tank_most_deaths",
+    "key": "bottom_of_the_bottle",
+    "name": "Bottom of the Bottle",
+    "flavorText": "Tank led the party in deaths. Drained to the dregs.",
+    "description": "Every defensive used. Every cooldown traded. Every health bar emptied. There was always one more swing than there was tank, and the dungeon knew it. Whatever was in your bottle, it ran out before the last boss did.",
+    "icon": "🍶",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "tank_most_deaths",
+    "key": "cracked_carafe",
+    "name": "Cracked Carafe",
+    "flavorText": "Tank led the party in deaths. Hairline turned full break.",
+    "description": "One bad pull and a defensive on cooldown, and suddenly the whole structure went. Healer mana sailed past 0% trying to plug the cracks. Some runs you tank; some runs you crumble. Tonight was the latter.",
+    "icon": "🏺",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "tank_most_deaths",
+    "key": "lid_off",
+    "name": "Lid Off",
+    "flavorText": "Tank led the party in deaths. Pressure unsealed.",
+    "description": "When the tank goes, everything behind the tank goes too. Mobs scattered. Healer scrambled. DPS stopped DPSing. Every death after the first was just gravity finishing what your defensive rotation started.",
+    "icon": "🔓",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "tank_most_deaths",
+    "key": "decanter_down",
+    "name": "Decanter Down",
+    "flavorText": "Tank led the party in deaths. The good vessel hit the floor.",
+    "description": "Tanks dying at all is a moment. Tanks dying most is a story. Whoever was healing tonight is currently writing a memoir, and the chapter on you has citations. The recap will live in screenshots.",
+    "icon": "🍷",
+    "severity": "negative",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "tank_most_deaths",
+    "key": "spilled_the_set",
+    "name": "Spilled the Set",
+    "flavorText": "Tank led the party in deaths. Brought the rest of the tray.",
+    "description": "When the lead glass goes over, the whole tray follows. Every wipe in the recap had your name at or near the top, and a depressing number of corpses fanned out behind you like a service of tragic dishware.",
+    "icon": "🍶",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "the_fountain",
+    "name": "The Fountain",
+    "flavorText": "Zero deaths as healer. Never stopped flowing.",
+    "description": "Tanks took hits, DPS took dumb hits, bosses took swings — and through all of it, the green bar at the bottom of the screen stayed green. You weren't a healer tonight, you were public infrastructure. Citizens of M+ thank you.",
+    "icon": "⛲",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "endless_refill",
+    "name": "Endless Refill",
+    "flavorText": "Healer survived the run. Kept the cup topped.",
+    "description": "Mana never bottomed, defensives never failed, your own health never dipped past comfortable. While four other people were learning what a Spirit Healer's UI looks like, you were busy doing your job. Cleanly. Repeatedly.",
+    "icon": "🥤",
+    "severity": "positive",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "the_source",
+    "name": "The Source",
+    "flavorText": "Zero deaths as healer. Origin held firm.",
+    "description": "Everything good in this run came back to you. Topped HP after a tank-buster? You. Cleanse on the dispel mob? You. Survival across every chaotic pull? Also you. The party drinks from the source and the source did not run dry.",
+    "icon": "💧",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "self_sealing",
+    "name": "Self-Sealing",
+    "flavorText": "Healer never died. Patched themselves and everyone else.",
+    "description": "Damage came in. Damage went out. None of it got past you. Whatever the DPS did to themselves, you fixed; whatever the boss did to you, you fixed faster. A solo masterclass in nobody-dies-on-my-watch.",
+    "icon": "🛡️",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "last_pour_standing",
+    "name": "Last Pour Standing",
+    "flavorText": "Zero deaths as healer through the whole run. Held to the final swing.",
+    "description": "The DPS were on their second corpse run. The tank was sweating through the last 5%. You — calm, mana-stable, still pouring out heals like it was a Tuesday morning. Every clutch screenshot in the recap has your name at the top of the kept-alive list.",
+    "icon": "🍶",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": ["juice"]
+  },
+  {
+    "archetype": "healer_zero_deaths",
+    "key": "unspillable",
+    "name": "Unspillable",
+    "flavorText": "Zero deaths as healer. Sealed lid, stable hands.",
+    "description": "Some healers fold under one bad mechanic. You had a full run's worth of bad mechanics aimed at you and didn't fold once. Maybe the run was clean, maybe it was a horror show — the party doesn't always know. The healer always does.",
+    "icon": "🥛",
+    "severity": "positive",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": ["juice"]
   }
 ]
