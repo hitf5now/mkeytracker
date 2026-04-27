@@ -14,22 +14,17 @@
 import type {
   AchievementFlavor,
   AchievementRarity,
-  AchievementSeverity,
   PrismaClient,
   Prisma,
 } from "@prisma/client";
 
 import { archetypeRegistry } from "./archetypes.js";
 import type {
-  PartyArchetype,
   PartyStats,
-  PlayerArchetype,
   PlayerRole,
   PlayerRuleContext,
   PlayerStats,
   RunStats,
-  SelectedAchievement,
-  TriggeredArchetype,
 } from "./types.js";
 
 const PER_PLAYER_CAP = 3;
@@ -343,14 +338,9 @@ export async function evaluateAndPersist({
     grouped.set(k, arr);
   }
 
-  const finalRows: SelectedAchievement[] & {
-    runId: number;
-    memberId: number | null;
-    characterId: number | null;
-    archetypeId: number;
-    flavorId: number;
-  }[] = [] as never;
-
+  // Severity is intentionally NOT persisted here — it lives on
+  // AchievementFlavor and is read via the join. Pushing it as a column would
+  // make Prisma's createMany reject the row (unknown column).
   const persistRows: Array<{
     runId: number;
     memberId: number | null;
@@ -358,7 +348,6 @@ export async function evaluateAndPersist({
     archetypeId: number;
     flavorId: number;
     rarity: AchievementRarity;
-    severity: AchievementSeverity;
     reason: string;
   }> = [];
 
@@ -374,7 +363,6 @@ export async function evaluateAndPersist({
         archetypeId: archetype.id,
         flavorId: s.flavor.id,
         rarity: s.flavor.rarity,
-        severity: s.flavor.severity,
         reason: s.reason,
       });
     }
