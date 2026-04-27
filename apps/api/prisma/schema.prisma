@@ -174,6 +174,7 @@ model Character {
   eventSignups         EventSignup[]
   teamMembers          TeamMember[]
   runEnrichmentPlayers RunEnrichmentPlayer[]
+  runAchievements      RunAchievement[]
   endorsementsGivenByCharacter    Endorsement[] @relation("endorsementsGivenByCharacter")
   endorsementsReceivedByCharacter Endorsement[] @relation("endorsementsReceivedByCharacter")
 
@@ -266,6 +267,7 @@ model Run {
   /// Optional: populated when the companion is running, ACL is enabled, and a
   /// matching log segment was found. Runs are still valid without it.
   enrichment   RunEnrichment?
+  achievements RunAchievement[]
 
   @@index([seasonId, dungeonId, completionMs])
   @@index([seasonId, keystoneLevel])
@@ -837,9 +839,10 @@ model RunMember {
   specSnapshot  String @map("spec_snapshot")
   roleSnapshot  String @map("role_snapshot")
 
-  run       Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
-  user      User?     @relation(fields: [userId], references: [id])
-  character Character @relation(fields: [characterId], references: [id])
+  run          Run              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id])
+  character    Character        @relation(fields: [characterId], references: [id])
+  achievements RunAchievement[]
 
   @@unique([runId, characterId])
   @@index([userId])
@@ -1025,4 +1028,123 @@ model RunEnrichmentEncounter {
   @@index([enrichmentId])
   @@index([encounterId])
   @@map("run_enrichment_encounters")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Achievements (Sprint 16)
+//
+// Two-layer model:
+//   Archetype = a single trigger condition (engineer-defined, code-backed).
+//   Flavor    = one of many user-facing badges that share an archetype's
+//               trigger. The evaluator picks one weighted by rarity, with a
+//               3-run anti-repeat per (character, archetype).
+//
+// RunAchievement persists what was actually awarded so the gallery,
+// dedup, and rarity calibration all work off the same source of truth.
+// ─────────────────────────────────────────────────────────────
+
+enum AchievementSeverity {
+  positive
+  negative
+  neutral
+}
+
+enum AchievementRarity {
+  common
+  uncommon
+  rare
+  epic
+  legendary
+}
+
+enum AchievementApplies {
+  player
+  party
+}
+
+model AchievementArchetype {
+  id          Int                @id @default(autoincrement())
+  /// Stable string key referenced by code triggers, e.g. "top_damage_in_party_dps".
+  key         String             @unique
+  /// Loose grouping for UI/admin filtering: "performance" | "shape" | "milestone" | "identity" | "comedic" | "party"
+  category    String
+  appliesTo   AchievementApplies @map("applies_to")
+  /// Role gate for player-scope archetypes: null | "tank" | "healer" | "dps".
+  roleGate    String?            @map("role_gate")
+  /// Engineer-facing description of what triggers it.
+  description String
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  flavors          AchievementFlavor[]
+  runAchievements  RunAchievement[]
+
+  @@map("achievement_archetypes")
+}
+
+model AchievementFlavor {
+  id            Int                  @id @default(autoincrement())
+  archetypeId   Int                  @map("archetype_id")
+  archetype     AchievementArchetype @relation(fields: [archetypeId], references: [id], onDelete: Cascade)
+  /// Stable string key, unique across all flavors. Used by anti-repeat lookup.
+  key           String               @unique
+  name          String
+  /// Short tagline shown in the modal subtitle (1 line).
+  flavorText    String               @map("flavor_text")
+  /// Full body shown in the modal (2-3 sentences).
+  description   String
+  icon          String
+  severity      AchievementSeverity
+  rarity        AchievementRarity
+  /// Tiebreaker within rarity tier; higher = more likely.
+  weight        Int                  @default(100)
+  /// Free-form tags for theme filtering (e.g. ["juice", "season_2"]).
+  themeTags     String[]             @default([]) @map("theme_tags")
+  /// null = any class; else lowercase class slug (e.g. "warrior").
+  classFilter   String?              @map("class_filter")
+  /// null = any spec; else lowercase spec slug.
+  specFilter    String?              @map("spec_filter")
+  /// null = any dungeon; else dungeon slug.
+  dungeonFilter String?              @map("dungeon_filter")
+  isActive      Boolean              @default(true) @map("is_active")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  runAchievements RunAchievement[]
+
+  @@index([archetypeId, isActive])
+  @@index([classFilter])
+  @@index([dungeonFilter])
+  @@map("achievement_flavors")
+}
+
+model RunAchievement {
+  id          Int        @id @default(autoincrement())
+  runId       Int        @map("run_id")
+  run         Run        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// null for party-wide awards.
+  memberId    Int?       @map("member_id")
+  member      RunMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// Denormalized for fast gallery queries on a character's history.
+  characterId Int?       @map("character_id")
+  character   Character? @relation(fields: [characterId], references: [id])
+
+  archetypeId Int                  @map("archetype_id")
+  archetype   AchievementArchetype @relation(fields: [archetypeId], references: [id])
+  flavorId    Int                  @map("flavor_id")
+  flavor      AchievementFlavor    @relation(fields: [flavorId], references: [id])
+
+  rarity     AchievementRarity
+  /// Computed "why you got this" sentence, captured at evaluation time so
+  /// it can't drift if rule code or data later changes.
+  reason     String
+  awardedAt  DateTime          @default(now()) @map("awarded_at")
+
+  /// Enforces "1 per archetype per (run, member)" at the DB level.
+  @@unique([runId, memberId, archetypeId])
+  @@index([characterId, awardedAt])
+  @@index([archetypeId])
+  @@index([runId])
+  @@map("run_achievements")
 }

@@ -112,6 +112,21 @@ async function main(): Promise<void> {
     );
   }
 
+  // ── Achievement catalog ─────────────────────────────────────────
+  const { loadAchievementSeed } = await import("../src/services/achievements/seed-loader.js");
+  const achReport = await loadAchievementSeed(prisma);
+  console.log(
+    `✅ Achievements: ${achReport.archetypesUpserted} archetypes, ` +
+      `${achReport.flavorsUpserted} flavors upserted ` +
+      `(skipped ${achReport.flavorsSkipped})`,
+  );
+  if (achReport.unknownArchetypeRefs.length > 0) {
+    console.warn(
+      "⚠️  Flavors referencing unknown archetypes:",
+      achReport.unknownArchetypeRefs,
+    );
+  }
+
   console.log("✅ Seed complete");
 }
 

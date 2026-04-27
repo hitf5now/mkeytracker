@@ -26,6 +26,7 @@ import { matchRunToEvents, markGroupsMatched } from "../services/event-matcher.j
 import { scoreRun } from "../services/scoring.js";
 import { grantJuiceTokens } from "../services/endorsement-tokens.js";
 import { fetchCharacterMedia } from "../lib/blizzard.js";
+import { evaluateAndPersist as evaluateAchievements } from "../services/achievements/evaluator.js";
 
 const RegionSchema = z.enum(["us", "eu", "kr", "tw", "cn"]);
 
@@ -903,6 +904,15 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           "Run recorded",
         );
 
+        // Evaluate achievements and persist to run_achievements. Wrapped in
+        // try/catch so a content/evaluator bug never blocks the submission.
+        try {
+          const n = await evaluateAchievements({ runId: run.id, prisma });
+          req.log.info({ runId: run.id, achievementsWritten: n }, "Achievements evaluated");
+        } catch (err) {
+          req.log.error({ runId: run.id, err }, "Achievement evaluation failed (non-fatal)");
+        }
+
         // Publish run-completed notification for bot to announce
         publishRunCompleted({
           runId: run.id,
@@ -967,6 +977,101 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       }
     });
 
+  // ─── GET /api/v1/runs — public paginated list of runs ───────────────────
+  //
+  // Public read: no auth. Powers the /runs page on the website. Sorted by
+  // recordedAt DESC. Defaults to the active season; pass `?seasonId=all` to
+  // span every season.
+  const RunsListQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    offset: z.coerce.number().int().min(0).default(0),
+    seasonId: z.union([z.coerce.number().int().positive(), z.literal("all")]).optional(),
+  });
+
+  app.get<{ Querystring: unknown }>("/runs", async (req, reply) => {
+    const parsed = RunsListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: "invalid_query",
+        issues: parsed.error.issues,
+      });
+    }
+    const { limit, offset, seasonId } = parsed.data;
+
+    let resolvedSeasonId: number | null = null;
+    let seasonInfo: { id: number; slug: string; name: string } | null = null;
+    if (seasonId === "all") {
+      resolvedSeasonId = null;
+    } else if (typeof seasonId === "number") {
+      const s = await prisma.season.findUnique({ where: { id: seasonId } });
+      if (!s) return reply.code(404).send({ error: "season_not_found" });
+      resolvedSeasonId = s.id;
+      seasonInfo = { id: s.id, slug: s.slug, name: s.name };
+    } else {
+      const active = await prisma.season.findFirst({ where: { isActive: true } });
+      if (!active) return reply.code(500).send({ error: "no_active_season" });
+      resolvedSeasonId = active.id;
+      seasonInfo = { id: active.id, slug: active.slug, name: active.name };
+    }
+
+    const where = resolvedSeasonId ? { seasonId: resolvedSeasonId } : {};
+
+    const [total, runs] = await Promise.all([
+      prisma.run.count({ where }),
+      prisma.run.findMany({
+        where,
+        orderBy: { recordedAt: "desc" },
+        skip: offset,
+        take: limit,
+        include: {
+          dungeon: { select: { id: true, name: true, slug: true, shortCode: true } },
+          season: { select: { id: true, slug: true, name: true } },
+          members: {
+            include: {
+              character: {
+                select: { id: true, name: true, realm: true, class: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return reply.send({
+      runs: runs.map((r) => ({
+        id: r.id,
+        keystoneLevel: r.keystoneLevel,
+        completionMs: r.completionMs,
+        parMs: r.parMs,
+        onTime: r.onTime,
+        upgrades: r.upgrades,
+        deaths: r.deaths,
+        personalJuice: r.personalJuice,
+        eventJuice: r.eventJuice,
+        teamJuice: r.teamJuice,
+        recordedAt: r.recordedAt.toISOString(),
+        source: r.source,
+        dungeonName: r.dungeonName ?? r.dungeon.name,
+        dungeon: r.dungeon,
+        season: r.season,
+        members: r.members.map((m) => ({
+          id: m.id,
+          characterId: m.characterId,
+          classSnapshot: m.classSnapshot,
+          specSnapshot: m.specSnapshot,
+          roleSnapshot: m.roleSnapshot,
+          characterName: m.character?.name ?? "Unknown",
+          characterRealm: m.character?.realm ?? null,
+          characterClass: m.character?.class ?? m.classSnapshot,
+        })),
+      })),
+      total,
+      limit,
+      offset,
+      season: seasonInfo,
+    });
+  });
+
   // ─── GET /api/v1/runs/:id — fetch a run with its enrichment ──────────────
   //
   // Public read: no auth required. Returns the run plus dungeon/season meta,
@@ -1011,6 +1116,13 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           include: {
             giver: { select: { id: true, discordId: true } },
             receiver: { select: { id: true, discordId: true } },
+          },
+        },
+        achievements: {
+          orderBy: [{ memberId: "asc" }, { id: "asc" }],
+          include: {
+            archetype: { select: { key: true, category: true } },
+            flavor: true,
           },
         },
       },
@@ -1102,6 +1214,22 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           createdAt: e.createdAt.toISOString(),
           giverDiscordId: e.giver.discordId,
           receiverDiscordId: e.receiver.discordId,
+        })),
+        achievements: run.achievements.map((a) => ({
+          id: a.id,
+          memberId: a.memberId,
+          characterId: a.characterId,
+          archetypeKey: a.archetype.key,
+          archetypeCategory: a.archetype.category,
+          flavorKey: a.flavor.key,
+          name: a.flavor.name,
+          flavorText: a.flavor.flavorText,
+          description: a.flavor.description,
+          icon: a.flavor.icon,
+          severity: a.flavor.severity,
+          rarity: a.rarity,
+          reason: a.reason,
+          awardedAt: a.awardedAt.toISOString(),
         })),
       },
     });

@@ -16,8 +16,8 @@ import { TankingTimelineChart } from "./_components/tanking-timeline-chart";
 import { TimelineTabs } from "./_components/timeline-tabs";
 import { AchievementList } from "./_components/achievement-badges";
 import { EndorsementsBox } from "./_components/endorsements-box";
-import { evaluateRun, achievementsForMember } from "@/lib/achievements";
 import { auth } from "@/lib/auth";
+import type { RunDetailAchievement } from "@/types/api";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +56,18 @@ export default async function RunDetailPage({ params }: Props) {
 
   const dungeonName = run.dungeonName ?? run.dungeon.name;
   const resultClass = run.onTime ? "text-green-400" : "text-red-400";
-  const achievements = evaluateRun(run);
+
+  // Achievements arrive pre-evaluated from the API. Split by memberId once
+  // here so each member card can grab its own list without rescanning.
+  const allAchievements: RunDetailAchievement[] = run.achievements ?? [];
+  const partyAchievements = allAchievements.filter((a) => a.memberId === null);
+  const achievementsByMemberId = new Map<number, RunDetailAchievement[]>();
+  for (const a of allAchievements) {
+    if (a.memberId == null) continue;
+    const arr = achievementsByMemberId.get(a.memberId) ?? [];
+    arr.push(a);
+    achievementsByMemberId.set(a.memberId, arr);
+  }
 
   const session = await auth();
   const currentUserId = (session?.userId as number | undefined) ?? null;
@@ -101,9 +112,9 @@ export default async function RunDetailPage({ params }: Props) {
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Party</h2>
-          {achievements.party.length > 0 && (
+          {partyAchievements.length > 0 && (
             <AchievementList
-              awarded={achievements.party}
+              achievements={partyAchievements}
               stepMs={90}
             />
           )}
@@ -112,11 +123,7 @@ export default async function RunDetailPage({ params }: Props) {
           {sortPartyForDisplay(run).map((m) => {
             const cls = m.character?.class ?? m.classSnapshot;
             const color = getClassColor(cls);
-            const memberAchievements = achievementsForMember(
-              run,
-              m,
-              achievements,
-            );
+            const memberAchievements = achievementsByMemberId.get(m.id) ?? [];
             const name = m.character?.name ?? "Unknown";
             const roleLabel = formatRoleLabel(m.roleSnapshot);
             return (
@@ -163,7 +170,7 @@ export default async function RunDetailPage({ params }: Props) {
                   <SectionHeader>Run Achievements</SectionHeader>
                   {memberAchievements.length > 0 ? (
                     <AchievementList
-                      awarded={memberAchievements}
+                      achievements={memberAchievements}
                       baseDelayMs={120}
                       direction="col"
                       className="mt-1.5"

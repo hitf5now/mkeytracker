@@ -1,0 +1,233 @@
+[
+  {
+    "key": "many_deaths_self",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Player died 5+ times."
+  },
+  {
+    "key": "most_deaths_in_party",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Player died the most in the party (>1 death, > everyone else)."
+  },
+  {
+    "key": "majority_of_party_deaths",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Player accounted for >50% of party deaths (party deaths >= 4, self deaths >= 3)."
+  },
+  {
+    "key": "zero_interrupts_offensive",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Tank or DPS landed zero interrupts while the rest of the party did kick."
+  },
+  {
+    "key": "top_interrupts_in_party",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Player landed the most interrupts (>=3 party max, >0)."
+  },
+  {
+    "key": "second_lowest_dps",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS finished second-from-bottom on the meter (>=3 DPS in party)."
+  },
+  {
+    "key": "outdamaged_by_tank",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS did less damage than the tank."
+  },
+  {
+    "key": "outdamaged_by_healer",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS did less damage than the healer."
+  },
+  {
+    "key": "low_damage_share_dps",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS contributed <10% of party damage."
+  },
+  {
+    "key": "flat_burst_profile",
+    "category": "shape",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS's peak 5s window is <1.3x their active-combat average (no real burst)."
+  },
+  {
+    "key": "single_burst_majority",
+    "category": "shape",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS's peak 5s window held >25% of their entire run damage."
+  },
+  {
+    "key": "narrowly_outdpsed",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS finished within 500 DPS below another DPS."
+  },
+  {
+    "key": "top_damage_in_party",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS topped the party damage meter."
+  },
+  {
+    "key": "carry_damage_share",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS contributed >40% of total party damage."
+  },
+  {
+    "key": "biggest_burst_in_party",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "dps",
+    "description": "DPS had the highest peak/active-avg ratio among party DPS, >4x."
+  },
+  {
+    "key": "many_party_deaths_as_healer",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "4+ party deaths happened on the healer's watch."
+  },
+  {
+    "key": "high_overheal_ratio",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Healer's overheal share of total raw heals exceeded 50%."
+  },
+  {
+    "key": "zero_dispels_as_healer",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Healer landed zero dispels while the rest of the party did."
+  },
+  {
+    "key": "healer_outdamages_dps",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Healer dealt more damage than at least one party DPS."
+  },
+  {
+    "key": "healer_zero_deaths",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Healer survived the entire run without dying."
+  },
+  {
+    "key": "top_dispels_in_party",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Healer landed the most dispels (>=3 party max, >0)."
+  },
+  {
+    "key": "zero_party_deaths_as_healer",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "healer",
+    "description": "Zero party deaths on the healer's watch."
+  },
+  {
+    "key": "tank_overheals_self",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "tank",
+    "description": "Tank's self-overheal share exceeded 60%."
+  },
+  {
+    "key": "tank_zero_interrupts",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "tank",
+    "description": "Tank landed zero interrupts while the rest of the party did."
+  },
+  {
+    "key": "tank_most_deaths",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "tank",
+    "description": "Tank led the party in deaths (>=2 deaths, ties or beats every other player)."
+  },
+  {
+    "key": "tank_zero_deaths",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": "tank",
+    "description": "Tank survived the entire run without dying."
+  },
+  {
+    "key": "party_zero_deaths",
+    "category": "performance",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "No party deaths the entire run."
+  },
+  {
+    "key": "plus_three",
+    "category": "milestone",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Run finished as a +3 keystone upgrade."
+  },
+  {
+    "key": "personal_record",
+    "category": "milestone",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Run set a personal best for this dungeon and/or affix combo."
+  },
+  {
+    "key": "depleted",
+    "category": "comedic",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Run failed to beat the timer."
+  },
+  {
+    "key": "deeply_depleted",
+    "category": "comedic",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Run depleted by >25% over par."
+  },
+  {
+    "key": "high_time_lost",
+    "category": "comedic",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Deaths added more than 60s to the run clock."
+  },
+  {
+    "key": "everyone_died",
+    "category": "comedic",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Every player in the party died at least once."
+  }
+]

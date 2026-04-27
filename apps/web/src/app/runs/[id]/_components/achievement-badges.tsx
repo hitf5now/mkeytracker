@@ -2,42 +2,47 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { AwardedAchievement } from "@/lib/achievements";
+import type { RunDetailAchievement } from "@/types/api";
 import { cn } from "@/lib/utils";
 
 // ─── Badge ────────────────────────────────────────────────────────────────
 
 interface AchievementBadgeProps {
-  awarded: AwardedAchievement;
+  achievement: RunDetailAchievement;
   delayMs?: number;
 }
 
 export function AchievementBadge({
-  awarded,
+  achievement,
   delayMs = 0,
 }: AchievementBadgeProps) {
   const [open, setOpen] = useState(false);
-  const { def } = awarded;
   const severityClass =
-    def.severity === "negative"
+    achievement.severity === "negative"
       ? "ach-negative"
-      : def.severity === "positive"
+      : achievement.severity === "positive"
         ? "ach-positive"
         : "ach-neutral";
+  const rarityClass = `ach-rarity-${achievement.rarity}`;
 
   return (
     <>
       <button
         type="button"
-        className={cn("ach-badge", severityClass)}
+        className={cn("ach-badge", severityClass, rarityClass)}
         style={{ animationDelay: `${delayMs}ms` }}
-        title={def.flavor}
+        title={achievement.flavorText}
         onClick={() => setOpen(true)}
-        aria-label={`Achievement: ${def.name}`}
+        aria-label={`Achievement: ${achievement.name}`}
       >
-        {def.name}
+        {achievement.name}
       </button>
-      {open && <AchievementDetailModal awarded={awarded} onClose={() => setOpen(false)} />}
+      {open && (
+        <AchievementDetailModal
+          achievement={achievement}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -45,7 +50,7 @@ export function AchievementBadge({
 // ─── List ─────────────────────────────────────────────────────────────────
 
 interface AchievementListProps {
-  awarded: AwardedAchievement[];
+  achievements: RunDetailAchievement[];
   baseDelayMs?: number;
   stepMs?: number;
   /** "row" = inline flex-wrap (default). "col" = one badge per row. */
@@ -54,23 +59,23 @@ interface AchievementListProps {
 }
 
 export function AchievementList({
-  awarded,
+  achievements,
   baseDelayMs = 0,
   stepMs = 70,
   direction = "row",
   className,
 }: AchievementListProps) {
-  if (awarded.length === 0) return null;
+  if (achievements.length === 0) return null;
   const layout =
     direction === "col"
       ? "flex flex-col items-start gap-1"
       : "flex flex-wrap gap-1";
   return (
     <div className={cn(layout, className)}>
-      {awarded.map((a, i) => (
+      {achievements.map((a, i) => (
         <AchievementBadge
-          key={a.def.id}
-          awarded={a}
+          key={a.id}
+          achievement={a}
           delayMs={baseDelayMs + i * stepMs}
         />
       ))}
@@ -81,13 +86,11 @@ export function AchievementList({
 // ─── Detail modal ─────────────────────────────────────────────────────────
 
 interface ModalProps {
-  awarded: AwardedAchievement;
+  achievement: RunDetailAchievement;
   onClose: () => void;
 }
 
-function AchievementDetailModal({ awarded, onClose }: ModalProps) {
-  const { def, reason } = awarded;
-
+function AchievementDetailModal({ achievement, onClose }: ModalProps) {
   // ESC-to-close + body scroll lock while open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,16 +108,16 @@ function AchievementDetailModal({ awarded, onClose }: ModalProps) {
   if (typeof document === "undefined") return null;
 
   const severityClass =
-    def.severity === "negative"
+    achievement.severity === "negative"
       ? "ach-modal-negative"
-      : def.severity === "positive"
+      : achievement.severity === "positive"
         ? "ach-modal-positive"
         : "ach-modal-neutral";
 
   const severityLabel =
-    def.severity === "negative"
+    achievement.severity === "negative"
       ? "Roast"
-      : def.severity === "positive"
+      : achievement.severity === "positive"
         ? "Praise"
         : "Note";
 
@@ -140,20 +143,22 @@ function AchievementDetailModal({ awarded, onClose }: ModalProps) {
         </button>
 
         <div className="ach-modal-icon" aria-hidden>
-          {def.icon}
+          {achievement.icon}
         </div>
 
-        <div className="ach-modal-severity">{severityLabel}</div>
+        <div className="ach-modal-severity">
+          {severityLabel} · <span className="capitalize">{achievement.rarity}</span>
+        </div>
         <h3 id="ach-modal-title" className="ach-modal-title">
-          {def.name}
+          {achievement.name}
         </h3>
-        <p className="ach-modal-flavor">{def.flavor}</p>
+        <p className="ach-modal-flavor">{achievement.flavorText}</p>
 
-        <p className="ach-modal-description">{def.description}</p>
+        <p className="ach-modal-description">{achievement.description}</p>
 
         <div className="ach-modal-reason">
           <div className="ach-modal-reason-label">Why you earned this</div>
-          <div className="ach-modal-reason-body">{reason}</div>
+          <div className="ach-modal-reason-body">{achievement.reason}</div>
         </div>
       </div>
     </div>,

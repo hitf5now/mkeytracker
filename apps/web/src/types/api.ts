@@ -701,6 +701,46 @@ export interface UserRunsResult {
   filterDungeons: UserRunsFilterOption<number>[];
 }
 
+// ─── Public runs list ──────────────────────────────────────────────
+
+export interface RunsListMember {
+  id: number;
+  characterId: number;
+  classSnapshot: string;
+  specSnapshot: string;
+  roleSnapshot: string;
+  characterName: string;
+  characterRealm: string | null;
+  characterClass: string;
+}
+
+export interface RunsListItem {
+  id: number;
+  keystoneLevel: number;
+  completionMs: number;
+  parMs: number;
+  onTime: boolean;
+  upgrades: number;
+  deaths: number;
+  personalJuice: number;
+  eventJuice: number | null;
+  teamJuice: number | null;
+  recordedAt: string;
+  source: string;
+  dungeonName: string;
+  dungeon: { id: number; name: string; slug: string; shortCode: string };
+  season: { id: number; slug: string; name: string };
+  members: RunsListMember[];
+}
+
+export interface RunsListResult {
+  runs: RunsListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  season: { id: number; slug: string; name: string } | null;
+}
+
 export interface RunDetail {
   id: number;
   keystoneLevel: number;
@@ -737,4 +777,28 @@ export interface RunDetail {
   members: RunDetailMember[];
   enrichment: RunDetailEnrichment | null;
   endorsements: RunDetailEndorsement[];
+  achievements: RunDetailAchievement[];
+}
+
+// ─── Persisted achievements (Sprint 16) ────────────────────────────
+
+export type AchievementSeverity = "positive" | "negative" | "neutral";
+export type AchievementRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
+
+export interface RunDetailAchievement {
+  id: number;
+  /** null = party-wide award. Else points to a RunMember.id. */
+  memberId: number | null;
+  characterId: number | null;
+  archetypeKey: string;
+  archetypeCategory: string;
+  flavorKey: string;
+  name: string;
+  flavorText: string;
+  description: string;
+  icon: string;
+  severity: AchievementSeverity;
+  rarity: AchievementRarity;
+  reason: string;
+  awardedAt: string;
 }
