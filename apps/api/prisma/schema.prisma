@@ -1062,6 +1062,18 @@ enum AchievementApplies {
   party
 }
 
+/// Evaluation tier:
+///   - base: triggers off raw run/player/party stats (the original 37 archetypes).
+///   - composite: triggers off the *result* of pass-1 base archetypes —
+///     "fired ≥2 positives and 0 negatives", "every player got a roast", etc.
+///     Composites land in the run_achievements table just like base rows but
+///     are surfaced separately in the UI as a "legendary" tier above the
+///     normal cap.
+enum AchievementTier {
+  base
+  composite
+}
+
 model AchievementArchetype {
   id          Int                @id @default(autoincrement())
   /// Stable string key referenced by code triggers, e.g. "top_damage_in_party_dps".
@@ -1069,6 +1081,10 @@ model AchievementArchetype {
   /// Loose grouping for UI/admin filtering: "performance" | "shape" | "milestone" | "identity" | "comedic" | "party"
   category    String
   appliesTo   AchievementApplies @map("applies_to")
+  /// base = run-data trigger; composite = evaluates after base archetypes,
+  /// reads which base archetypes fired and their severities. See the
+  /// AchievementTier enum docstring.
+  tier        AchievementTier    @default(base)
   /// Role gate for player-scope archetypes: null | "tank" | "healer" | "dps".
   roleGate    String?            @map("role_gate")
   /// Engineer-facing description of what triggers it.

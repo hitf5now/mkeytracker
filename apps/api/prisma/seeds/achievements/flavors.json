@@ -9,7 +9,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -21,7 +23,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "majority_of_party_deaths",
@@ -33,7 +37,9 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "zero_interrupts_offensive",
@@ -45,7 +51,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -57,7 +65,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "second_lowest_dps",
@@ -69,7 +79,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "outdamaged_by_tank",
@@ -81,7 +93,9 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "outdamaged_by_healer",
@@ -93,7 +107,9 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "low_damage_share_dps",
@@ -105,7 +121,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "flat_burst_profile",
@@ -117,7 +135,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "single_burst_majority",
@@ -129,7 +149,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "narrowly_outdpsed",
@@ -141,7 +163,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -153,7 +177,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "carry_damage_share",
@@ -165,7 +191,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "biggest_burst_in_party",
@@ -177,7 +205,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_party_deaths_as_healer",
@@ -189,7 +219,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "high_overheal_ratio",
@@ -201,7 +233,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "zero_dispels_as_healer",
@@ -213,7 +247,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_outdamages_dps",
@@ -225,7 +261,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -237,7 +275,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_dispels_in_party",
@@ -249,7 +289,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "zero_party_deaths_as_healer",
@@ -261,7 +303,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_overheals_self",
@@ -273,7 +317,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_zero_interrupts",
@@ -285,7 +331,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -297,7 +345,9 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_zero_deaths",
@@ -309,7 +359,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "party_zero_deaths",
@@ -321,7 +373,9 @@
     "severity": "positive",
     "rarity": "epic",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -333,7 +387,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -345,7 +401,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -357,7 +415,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "deeply_depleted",
@@ -369,7 +429,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "high_time_lost",
@@ -381,7 +443,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "everyone_died",
@@ -393,9 +457,10 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "top_damage_in_party",
     "key": "cold_pressed",
@@ -406,7 +471,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -418,7 +485,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -430,7 +499,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -442,7 +513,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -454,7 +527,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_damage_in_party",
@@ -466,9 +541,10 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "most_deaths_in_party",
     "key": "pulped",
@@ -479,7 +555,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -491,7 +569,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -503,7 +583,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -515,7 +597,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -527,7 +611,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "most_deaths_in_party",
@@ -539,9 +625,10 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "depleted",
     "key": "pulp_friction",
@@ -552,7 +639,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -564,7 +653,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -576,7 +667,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -588,7 +681,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -600,7 +695,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "depleted",
@@ -612,9 +709,10 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "tank_most_deaths",
     "key": "glass_pitcher",
@@ -625,7 +723,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -637,7 +737,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -649,7 +751,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -661,7 +765,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -673,7 +779,9 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_most_deaths",
@@ -685,9 +793,10 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "healer_zero_deaths",
     "key": "the_fountain",
@@ -698,7 +807,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -710,7 +821,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -722,7 +835,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -734,7 +849,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -746,7 +863,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "healer_zero_deaths",
@@ -758,9 +877,10 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "many_deaths_self",
     "key": "spoiled_rotten",
@@ -771,7 +891,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_deaths_self",
@@ -783,7 +905,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_deaths_self",
@@ -795,7 +919,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_deaths_self",
@@ -807,7 +933,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_deaths_self",
@@ -819,7 +947,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "many_deaths_self",
@@ -831,9 +961,10 @@
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "top_interrupts_in_party",
     "key": "the_bouncer",
@@ -844,7 +975,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -856,7 +989,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -868,7 +1003,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -880,7 +1017,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -892,7 +1031,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "top_interrupts_in_party",
@@ -904,9 +1045,10 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "plus_three",
     "key": "triple_distilled",
@@ -917,7 +1059,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -929,7 +1073,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -941,7 +1087,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -953,7 +1101,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -965,7 +1115,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "plus_three",
@@ -977,9 +1129,10 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "personal_record",
     "key": "house_record",
@@ -990,7 +1143,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -1002,7 +1157,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -1014,7 +1171,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -1026,7 +1185,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -1038,7 +1199,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "personal_record",
@@ -1050,9 +1213,10 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "tank_any_death",
     "key": "tank_down",
@@ -1063,7 +1227,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_any_death",
@@ -1075,7 +1241,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_any_death",
@@ -1087,7 +1255,9 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_any_death",
@@ -1099,7 +1269,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_any_death",
@@ -1111,7 +1283,9 @@
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "tank_any_death",
@@ -1123,9 +1297,10 @@
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "clutch_finish",
     "key": "bottled_at_the_buzzer",
@@ -1136,7 +1311,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "clutch_finish",
@@ -1148,7 +1325,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "clutch_finish",
@@ -1160,7 +1339,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "clutch_finish",
@@ -1172,7 +1353,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "clutch_finish",
@@ -1184,7 +1367,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "clutch_finish",
@@ -1196,9 +1381,10 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "solo_interrupter",
     "key": "personal_mute_button",
@@ -1209,7 +1395,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "solo_interrupter",
@@ -1221,7 +1409,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "solo_interrupter",
@@ -1233,7 +1423,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "solo_interrupter",
@@ -1245,7 +1437,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "solo_interrupter",
@@ -1257,7 +1451,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "solo_interrupter",
@@ -1269,9 +1465,10 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
-
   {
     "archetype": "survived_chaos",
     "key": "eye_of_the_storm",
@@ -1282,7 +1479,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "survived_chaos",
@@ -1294,7 +1493,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "survived_chaos",
@@ -1306,7 +1507,9 @@
     "severity": "positive",
     "rarity": "uncommon",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "survived_chaos",
@@ -1318,7 +1521,9 @@
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "survived_chaos",
@@ -1330,7 +1535,9 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
   },
   {
     "archetype": "survived_chaos",
@@ -1342,6 +1549,458 @@
     "severity": "positive",
     "rarity": "common",
     "weight": 100,
-    "themeTags": ["juice"]
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "flawless_player",
+    "key": "the_perfect_pour",
+    "name": "The Perfect Pour",
+    "flavorText": "Praise across the board, no roasts, zero deaths.",
+    "description": "Top of the meter, a kick or two, every cup full and not a single death. The kind of run people screenshot before logging out. The juice came out clear, the recap is poetry, and the dungeon is going to need a minute.",
+    "icon": "🌟",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "flawless_player",
+    "key": "clean_sheet",
+    "name": "Clean Sheet",
+    "flavorText": "Every column on your row says yes. Every column.",
+    "description": "Damage, kicks, deaths, dispels — pick a column, you nailed it. No roast on your card, multiple praises lit up. The kind of player every group secretly hopes shows up. Bottle this one.",
+    "icon": "📜",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "flawless_player",
+    "key": "distilled_to_perfect",
+    "name": "Distilled to Perfect",
+    "flavorText": "Every dimension positive. No flaws to fault.",
+    "description": "Every measurement we took came back green. Damage was up, kicks were on, deaths were zero, party survived because of you. Whatever you're doing this run, keep doing it. The juice has reached its final form.",
+    "icon": "✨",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "disaster_player",
+    "key": "complete_disaster",
+    "name": "Complete Disaster",
+    "flavorText": "Three roasts, zero praise. A full set.",
+    "description": "Every dimension we measured found a way to disappoint. Damage low, deaths high, kicks missing — pick a roast, you've earned it. The recap is going to need its own folder. Tomorrow's a new key.",
+    "icon": "💩",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "disaster_player",
+    "key": "the_unhappy_meal",
+    "name": "The Unhappy Meal",
+    "flavorText": "Three roasts, no praise. Combo deal of regret.",
+    "description": "You ordered the everything-wrong set and the dungeon delivered. Wrong damage, wrong kicks, wrong deaths — every box on the recap got the bad checkmark. A historic effort in the wrong direction.",
+    "icon": "🍔",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "disaster_player",
+    "key": "poured_down_the_drain",
+    "name": "Poured Down the Drain",
+    "flavorText": "Three roasts. Whatever was in the cup is gone now.",
+    "description": "Every column lit up red. Whatever skill ceiling existed for this run, you went the other way. Every roast on the card connects to a different recap moment. Brush it off — keys reset eventually.",
+    "icon": "🕳",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "mixed_bag",
+    "key": "sweet_and_sour",
+    "name": "Sweet and Sour",
+    "flavorText": "At least one praise AND at least one roast. Both at once.",
+    "description": "Topped the meter and died five times. Most kicks and lowest damage. The recap reads like two different runs, both with your name on them. A polarizing performance — Discord will have opinions.",
+    "icon": "🍬",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "mixed_bag",
+    "key": "chunky_smoothie",
+    "name": "Chunky Smoothie",
+    "flavorText": "Praise and roast in the same blender.",
+    "description": "Some of it was great. Some of it was lumpy. The blender ran but the consistency is something you'd ask the bartender about. Mostly delicious. Mostly. The party will remember the praise OR the roast — depends on who you ask.",
+    "icon": "🥤",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "mixed_bag",
+    "key": "two_sided_label",
+    "name": "Two-Sided Label",
+    "flavorText": "Praise on one side, roast on the other.",
+    "description": "The bottle's front says one thing, the back says another. Front: 'Top of the meter.' Back: 'Died five times.' Both true. Both your work. Both featured prominently in the recap.",
+    "icon": "🏷",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "damage_clean_sweep",
+    "key": "triple_threat",
+    "name": "Triple Threat",
+    "flavorText": "Top damage, biggest share, biggest burst. The complete DPS set.",
+    "description": "You didn't just top the meter. You did 40%+ of the party damage AND had the biggest peak burst window in the run. Three different dimensions of damage dominance, all yours. People are now using you as the benchmark.",
+    "icon": "💥",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "damage_clean_sweep",
+    "key": "the_full_concentrate",
+    "name": "The Full Concentrate",
+    "flavorText": "Topped damage, carried damage, biggest burst — a one-DPS show.",
+    "description": "Top of the meter. Forty percent of party damage. Largest burst spike. There is no DPS dimension you didn't dominate. The other DPS are filing complaints with HR. The boss is filing complaints with the dungeon.",
+    "icon": "🔥",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "damage_clean_sweep",
+    "key": "single_origin",
+    "name": "Single Origin",
+    "flavorText": "All three damage praises. One DPS, every dimension.",
+    "description": "The whole damage story this run came from one player. Top of meter, dominant share, biggest spike. The recap might as well just have your character's portrait taking up the whole panel. Bottle it. Frame it. Logs are public.",
+    "icon": "☕",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "dragged_down",
+    "key": "anchor_overboard",
+    "name": "Anchor Overboard",
+    "flavorText": "Three roasts on a depleted run. The boat went down with you on it.",
+    "description": "Three different roasts on your card AND the timer didn't make it. Whatever sank this run had your fingerprints on it. The other four players will ABSOLUTELY remember. So will the recap.",
+    "icon": "⚓",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "dragged_down",
+    "key": "the_weak_link",
+    "name": "The Weak Link",
+    "flavorText": "Three roasts on a depleted key. Chain found its weakest point.",
+    "description": "Every party has the player carrying the run. This run, your party didn't have one — they had you, going the other direction. Three roasts, depleted key. The recap is going to be a teaching moment in someone's Discord.",
+    "icon": "🔗",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "dragged_down",
+    "key": "sediment_at_the_bottom",
+    "name": "Sediment at the Bottom",
+    "flavorText": "Three roasts on a depleted run. Settled to the bottom of the cup.",
+    "description": "Whatever was supposed to flow through this run got stuck. Three roasts deep, timer gone, and the dungeon noticed. Some runs are bad luck. Some runs are bad reads. This was both, and the recap doesn't differentiate.",
+    "icon": "🪨",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "wing_man",
+    "key": "held_up_my_end",
+    "name": "Held Up My End",
+    "flavorText": "Two praises on a depleted run. You did your job.",
+    "description": "The timer ran out, but the recap on YOUR card looks great. Top damage, big kicks, kept the cup full — none of it was enough this time. Sometimes you get the run you deserve. Sometimes the team gets the run they didn't.",
+    "icon": "💪",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "wing_man",
+    "key": "good_in_a_bad_run",
+    "name": "Good in a Bad Run",
+    "flavorText": "Multiple praises on a depleted key. A bright spot.",
+    "description": "The dungeon won. Your individual play didn't lose. Multiple praises on your card, even though the timer didn't cooperate. Take the small win. Tomorrow's key is a fresh start.",
+    "icon": "🌤",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "wing_man",
+    "key": "ace_in_the_hole",
+    "name": "Ace in the Hole",
+    "flavorText": "Two praises on a depleted run. The card the party didn't draw.",
+    "description": "Whatever the team needed tonight, you brought half of it. Multiple praises in the recap, on a key that didn't survive. The party had a wing-man. The wing-man could only do so much.",
+    "icon": "🃏",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "flawless_party",
+    "key": "the_dream_team",
+    "name": "The Dream Team",
+    "flavorText": "Every player got praise. Nobody got roasted. Vanishingly rare.",
+    "description": "All five players earned at least one praise. Zero roasts on anyone. The kind of run that doesn't happen most weeks. Every cup stayed full. Every measurement landed in the green. The recap is a postcard.",
+    "icon": "🏆",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "flawless_party",
+    "key": "the_perfect_batch",
+    "name": "The Perfect Batch",
+    "flavorText": "Praise across all five players, zero roasts. Bottled.",
+    "description": "Pour from any cup tonight and it tastes the same — perfect. Five players, multiple praises distributed evenly, no roasts anywhere. A party-wide masterclass. Save the screenshot; runs like this aren't on the schedule.",
+    "icon": "🍾",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "flawless_party",
+    "key": "clean_glassware",
+    "name": "Clean Glassware",
+    "flavorText": "Every player praised, none roasted. Spotless party run.",
+    "description": "Five clean cups on the rack. Five sets of praise on the recap. Zero roasts to file. The run earned a separate folder in someone's logs because they're going to be linking it for weeks.",
+    "icon": "🥂",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "roast_party",
+    "key": "everyones_a_critic",
+    "name": "Everyone's a Critic",
+    "flavorText": "Every player earned a roast. The whole table is bitter.",
+    "description": "Pour from any cup tonight, it's lukewarm. Every single player has at least one roast on their card. Everyone contributed to the wreckage. The recap is just five small disasters stacked into a tall one.",
+    "icon": "🍋",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "roast_party",
+    "key": "the_whole_cup_spilled",
+    "name": "The Whole Cup Spilled",
+    "flavorText": "Every player got at least one roast. Zero clean records.",
+    "description": "The recap looks like a five-way tie for last place. Every column has at least one red mark. Bonding experience: yes. Run worth bragging about: no. Brush each other off — every party has nights like this.",
+    "icon": "🫗",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "roast_party",
+    "key": "five_strikes_no_balls",
+    "name": "Five Strikes No Balls",
+    "flavorText": "Every player roasted. The whole batting order missed.",
+    "description": "Five players. Five roasts (or more). The recap is a strike-zone diagram with every pitch outside it. Some runs the team plays well. Some runs the dungeon plays better. Tonight the dungeon won by a wide margin.",
+    "icon": "⚾",
+    "severity": "negative",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "silent_run",
+    "key": "pure_mid",
+    "name": "Pure Mid",
+    "flavorText": "Almost no achievements fired. The most average run in history.",
+    "description": "Nobody topped anything. Nobody bottomed anything. Nobody died too much, kicked too much, or stood out at all. The recap could be five different runs and you couldn't tell. A genuinely forgettable, technically-fine outcome.",
+    "icon": "😐",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "silent_run",
+    "key": "the_unflavored_run",
+    "name": "The Unflavored Run",
+    "flavorText": "Almost no achievements fired. No notes worth tasting.",
+    "description": "Pour the run into a cup, sniff it, look puzzled. Nothing extreme, nothing notable. Five players had a perfectly mid time. The recap is a single shrug emoji. A category of run that exists but rarely warrants a screenshot.",
+    "icon": "🥛",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "silent_run",
+    "key": "library_voice",
+    "name": "Library Voice",
+    "flavorText": "Quiet run. Nothing exceptional in either direction.",
+    "description": "Whisper, pull, kill, repeat. Nobody did anything wrong enough to roast. Nobody did anything right enough to praise. The dungeon was vanquished politely and everyone went home. A small badge for a small run.",
+    "icon": "📚",
+    "severity": "neutral",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "praise_storm",
+    "key": "the_full_pour",
+    "name": "The Full Pour",
+    "flavorText": "10+ positives party-wide. Every cup overflowed.",
+    "description": "Ten or more praise badges fired across the run. The whole party nailed it — at every position, in every dimension. The recap is a wall of green. Whatever clicked tonight, schedule another night just like it.",
+    "icon": "🌊",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "praise_storm",
+    "key": "juice_flooding",
+    "name": "Juice Flooding",
+    "flavorText": "10+ positives party-wide. The juice came out everywhere.",
+    "description": "Damage, kicks, dispels, deaths-not-happening — pick a praise, it fired tonight. Ten or more across the party. The kind of run where every player's screenshot looks like a highlight reel. Pure flow state, group edition.",
+    "icon": "⛲",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
+  },
+  {
+    "archetype": "praise_storm",
+    "key": "festival_of_praise",
+    "name": "Festival of Praise",
+    "flavorText": "10+ positives across the party. Everyone's getting confetti.",
+    "description": "The recap looks like a parade. Every dimension we measured fired green for someone. Tonight the party didn't have a weakness, the dungeon didn't have a counter, and the screenshots are going in the cellar with a label.",
+    "icon": "🎉",
+    "severity": "positive",
+    "rarity": "legendary",
+    "weight": 100,
+    "themeTags": [
+      "juice",
+      "composite"
+    ]
   }
 ]

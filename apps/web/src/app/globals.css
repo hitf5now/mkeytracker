@@ -234,6 +234,103 @@
     0 0 16px rgba(251, 191, 36, 0.6);
 }
 
+/* ─── Composite "lightning" frames on the player card ──────────────────
+   Applied to .player-card when a composite (legendary tier) achievement
+   has fired for that member. Three colors:
+     orange  — legendary positive composite
+     purple  — epic positive composite
+     red     — any negative composite (legendary or epic)
+   The effect combines a slow-rotating gradient ring with periodic flash
+   pulses to feel alive without being distracting. */
+
+.player-card {
+  position: relative;
+  overflow: visible;
+}
+
+.player-card.lightning-orange,
+.player-card.lightning-purple,
+.player-card.lightning-red {
+  /* lift the card slightly so the aura reads */
+  z-index: 1;
+}
+
+.player-card.lightning-orange::before,
+.player-card.lightning-purple::before,
+.player-card.lightning-red::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  z-index: -1;
+  background: conic-gradient(
+    from var(--lightning-angle, 0deg),
+    transparent 0deg,
+    var(--lightning-color) 60deg,
+    var(--lightning-color-bright) 90deg,
+    var(--lightning-color) 120deg,
+    transparent 180deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: lightning-rotate 5s linear infinite;
+  filter: drop-shadow(0 0 6px var(--lightning-color));
+}
+
+.player-card.lightning-orange::after,
+.player-card.lightning-purple::after,
+.player-card.lightning-red::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow: 0 0 0 1px var(--lightning-color), 0 0 18px var(--lightning-color-bright);
+  animation: lightning-flash 4.5s ease-in-out infinite;
+  opacity: 0;
+}
+
+.player-card.lightning-orange {
+  --lightning-color: rgba(251, 146, 60, 0.85);
+  --lightning-color-bright: rgba(254, 215, 170, 1);
+}
+.player-card.lightning-purple {
+  --lightning-color: rgba(168, 85, 247, 0.85);
+  --lightning-color-bright: rgba(216, 180, 254, 1);
+}
+.player-card.lightning-red {
+  --lightning-color: rgba(239, 68, 68, 0.9);
+  --lightning-color-bright: rgba(254, 202, 202, 1);
+}
+
+@keyframes lightning-rotate {
+  0%   { --lightning-angle: 0deg; }
+  100% { --lightning-angle: 360deg; }
+}
+
+/* Modern browsers register the custom property as an angle so it
+   tweens smoothly. Older browsers fall back to a static border. */
+@property --lightning-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes lightning-flash {
+  0%, 70%, 100% { opacity: 0; }
+  72%           { opacity: 0.95; }
+  74%           { opacity: 0.2; }
+  76%           { opacity: 0.85; }
+  82%           { opacity: 0; }
+}
+
 /* ─── Achievement detail modal ──────────────────────────────────────────── */
 
 @keyframes ach-modal-in {

@@ -18,7 +18,10 @@ import { activeAvgBucket, formatNumber, pctOf, secToMMSS } from "./helpers.js";
 import type {
   ArchetypeRegistry,
   PartyArchetype,
+  PartyCompositeArchetype,
   PlayerArchetype,
+  PlayerCompositeArchetype,
+  TriggeredArchetype,
 } from "./types.js";
 
 // ─── Per-player archetypes ────────────────────────────────────────────────
@@ -576,13 +579,201 @@ const partyArchetypes: PartyArchetype[] = [
   },
 ];
 
+// ─── Composite archetypes (pass-2) ───────────────────────────────────────
+//
+// Composite archetypes don't read raw run data — they read the *list of
+// base archetypes that fired in pass 1*. They light up when meaningful
+// patterns emerge across multiple base triggers (e.g., "all praise no
+// roast", "the whole party got roasted"). Always epic or legendary —
+// they're rare by construction.
+
+const positiveCount = (t: TriggeredArchetype[]): number =>
+  t.filter((x) => x.severity === "positive").length;
+const negativeCount = (t: TriggeredArchetype[]): number =>
+  t.filter((x) => x.severity === "negative").length;
+const hasKey = (t: TriggeredArchetype[], key: string): boolean =>
+  t.some((x) => x.archetypeKey === key);
+
+const playerCompositeArchetypes: PlayerCompositeArchetype[] = [
+  {
+    key: "flawless_player",
+    category: "performance",
+    roleGate: null,
+    description:
+      "Player triggered ≥2 positive base archetypes, 0 negatives, 0 deaths.",
+    match: (ctx) => {
+      if (ctx.player.deaths !== 0) return false;
+      const t = ctx.triggeredForPlayer;
+      if (positiveCount(t) < 2) return false;
+      if (negativeCount(t) !== 0) return false;
+      return {
+        reason: `${positiveCount(t)} positive achievements, no roasts, no deaths.`,
+      };
+    },
+  },
+  {
+    key: "disaster_player",
+    category: "comedic",
+    roleGate: null,
+    description:
+      "Player triggered ≥3 negative base archetypes and 0 positives.",
+    match: (ctx) => {
+      const t = ctx.triggeredForPlayer;
+      if (negativeCount(t) < 3) return false;
+      if (positiveCount(t) !== 0) return false;
+      return {
+        reason: `${negativeCount(t)} roasts, zero praise. A complete-set run.`,
+      };
+    },
+  },
+  {
+    key: "mixed_bag",
+    category: "comedic",
+    roleGate: null,
+    description: "Player triggered both ≥1 positive AND ≥1 negative.",
+    match: (ctx) => {
+      const t = ctx.triggeredForPlayer;
+      if (positiveCount(t) < 1) return false;
+      if (negativeCount(t) < 1) return false;
+      return {
+        reason: `${positiveCount(t)} praise, ${negativeCount(t)} roast — both sides at once.`,
+      };
+    },
+  },
+  {
+    key: "damage_clean_sweep",
+    category: "performance",
+    roleGate: "dps",
+    description:
+      "DPS triggered top_damage_in_party AND carry_damage_share AND biggest_burst_in_party.",
+    match: (ctx) => {
+      const t = ctx.triggeredForPlayer;
+      if (!hasKey(t, "top_damage_in_party")) return false;
+      if (!hasKey(t, "carry_damage_share")) return false;
+      if (!hasKey(t, "biggest_burst_in_party")) return false;
+      return {
+        reason: "Top damage, 40%+ share, AND biggest burst — full sweep.",
+      };
+    },
+  },
+  {
+    key: "dragged_down",
+    category: "comedic",
+    roleGate: null,
+    description:
+      "Player triggered ≥3 negative base archetypes AND the run depleted.",
+    match: (ctx) => {
+      if (ctx.run.onTime) return false;
+      const t = ctx.triggeredForPlayer;
+      if (negativeCount(t) < 3) return false;
+      return {
+        reason: `${negativeCount(t)} roasts on a depleted run. The recap has receipts.`,
+      };
+    },
+  },
+  {
+    key: "wing_man",
+    category: "performance",
+    roleGate: null,
+    description:
+      "Player triggered ≥2 positive base archetypes on a depleted run.",
+    match: (ctx) => {
+      if (ctx.run.onTime) return false;
+      const t = ctx.triggeredForPlayer;
+      if (positiveCount(t) < 2) return false;
+      return {
+        reason: `${positiveCount(t)} praises on a depleted run. You held up your end.`,
+      };
+    },
+  },
+];
+
+const partyCompositeArchetypes: PartyCompositeArchetype[] = [
+  {
+    key: "flawless_party",
+    category: "performance",
+    description:
+      "Every player triggered ≥1 positive AND zero of them triggered any negative.",
+    match: (ctx) => {
+      if (ctx.players.length < 4) return false;
+      let totalPositives = 0;
+      for (const p of ctx.players) {
+        const t = ctx.triggeredByPlayer.get(p.id) ?? [];
+        const pos = positiveCount(t);
+        const neg = negativeCount(t);
+        if (pos < 1) return false;
+        if (neg > 0) return false;
+        totalPositives += pos;
+      }
+      return {
+        reason: `Every party member earned praise (${totalPositives} total) — zero roasts across the run.`,
+      };
+    },
+  },
+  {
+    key: "roast_party",
+    category: "comedic",
+    description:
+      "Every player triggered ≥1 negative base archetype.",
+    match: (ctx) => {
+      if (ctx.players.length < 4) return false;
+      let totalRoasts = 0;
+      for (const p of ctx.players) {
+        const t = ctx.triggeredByPlayer.get(p.id) ?? [];
+        const neg = negativeCount(t);
+        if (neg < 1) return false;
+        totalRoasts += neg;
+      }
+      return {
+        reason: `Every party member earned a roast (${totalRoasts} total). The whole cup spilled.`,
+      };
+    },
+  },
+  {
+    key: "silent_run",
+    category: "comedic",
+    description:
+      "Total triggered base archetypes across all players ≤2 (the boringly-average run).",
+    match: (ctx) => {
+      if (ctx.players.length < 4) return false;
+      let total = 0;
+      for (const p of ctx.players) {
+        total += (ctx.triggeredByPlayer.get(p.id) ?? []).length;
+      }
+      total += ctx.triggeredForParty.length;
+      if (total > 2) return false;
+      return {
+        reason: `Only ${total} achievement${total === 1 ? "" : "s"} fired across the entire run. Pure mid.`,
+      };
+    },
+  },
+  {
+    key: "praise_storm",
+    category: "performance",
+    description:
+      "≥10 positive base archetypes triggered party-wide (across players + party).",
+    match: (ctx) => {
+      let total = positiveCount(ctx.triggeredForParty);
+      for (const t of ctx.triggeredByPlayer.values()) total += positiveCount(t);
+      if (total < 10) return false;
+      return {
+        reason: `${total} positive achievements fired party-wide. The juice was flowing.`,
+      };
+    },
+  },
+];
+
 export const archetypeRegistry: ArchetypeRegistry = {
   player: playerArchetypes,
   party: partyArchetypes,
+  playerComposite: playerCompositeArchetypes,
+  partyComposite: partyCompositeArchetypes,
 };
 
 /** Lookup by key — used by the seed loader to validate orphan flavors. */
 export const archetypeKeys: Set<string> = new Set([
   ...playerArchetypes.map((a) => a.key),
   ...partyArchetypes.map((a) => a.key),
+  ...playerCompositeArchetypes.map((a) => a.key),
+  ...partyCompositeArchetypes.map((a) => a.key),
 ]);

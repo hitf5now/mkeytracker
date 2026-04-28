@@ -88,7 +88,7 @@ export async function achievementsRoutes(app: FastifyInstance): Promise<void> {
       const rows = await prisma.runAchievement.findMany({
         where: { runId },
         include: {
-          archetype: { select: { key: true, category: true } },
+          archetype: { select: { key: true, category: true, tier: true } },
           flavor: true,
         },
         orderBy: [{ memberId: "asc" }, { id: "asc" }],
@@ -100,6 +100,7 @@ export async function achievementsRoutes(app: FastifyInstance): Promise<void> {
           characterId: r.characterId,
           archetypeKey: r.archetype.key,
           archetypeCategory: r.archetype.category,
+          archetypeTier: r.archetype.tier,
           flavorKey: r.flavor.key,
           name: r.flavor.name,
           flavorText: r.flavor.flavorText,

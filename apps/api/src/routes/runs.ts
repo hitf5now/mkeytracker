@@ -1121,7 +1121,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         achievements: {
           orderBy: [{ memberId: "asc" }, { id: "asc" }],
           include: {
-            archetype: { select: { key: true, category: true } },
+            archetype: { select: { key: true, category: true, tier: true } },
             flavor: true,
           },
         },
@@ -1221,6 +1221,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           characterId: a.characterId,
           archetypeKey: a.archetype.key,
           archetypeCategory: a.archetype.category,
+          archetypeTier: a.archetype.tier,
           flavorKey: a.flavor.key,
           name: a.flavor.name,
           flavorText: a.flavor.flavorText,

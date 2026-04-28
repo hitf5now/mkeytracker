@@ -123,11 +123,54 @@ export interface PartyArchetype {
 
 /**
  * One archetype that fired during evaluation, before flavor selection.
- * Carries the archetype key + the reason sentence.
+ * Carries the archetype key + the reason sentence + metadata that
+ * composite (pass-2) archetypes filter on.
  */
 export interface TriggeredArchetype {
   archetypeKey: string;
   reason: string;
+  /** Severity inferred from the archetype's flavor pool — composites read this. */
+  severity: AchievementSeverity;
+  /** Category of the base archetype (performance/comedic/etc) — composites read this. */
+  category: string;
+}
+
+/** Context handed to a player-scope composite archetype trigger. */
+export interface PlayerCompositeContext {
+  run: RunStats;
+  player: PlayerStats;
+  party: PartyStats;
+  role: PlayerRole;
+  /** Base archetypes that fired for this specific player. */
+  triggeredForPlayer: TriggeredArchetype[];
+  /** Base archetypes that fired party-wide (not member-specific). */
+  triggeredForParty: TriggeredArchetype[];
+}
+
+/** Context handed to a party-scope composite archetype trigger. */
+export interface PartyCompositeContext {
+  run: RunStats;
+  players: PlayerStats[];
+  party: PartyStats;
+  /** Per-player triggered base archetypes, keyed by enrichment player id. */
+  triggeredByPlayer: Map<number, TriggeredArchetype[]>;
+  /** Base archetypes that fired party-wide. */
+  triggeredForParty: TriggeredArchetype[];
+}
+
+export interface PlayerCompositeArchetype {
+  key: string;
+  category: "performance" | "comedic" | "milestone";
+  roleGate: PlayerRole | null;
+  description: string;
+  match: (ctx: PlayerCompositeContext) => MatchResult;
+}
+
+export interface PartyCompositeArchetype {
+  key: string;
+  category: "performance" | "comedic" | "milestone" | "party";
+  description: string;
+  match: (ctx: PartyCompositeContext) => MatchResult;
 }
 
 /**
@@ -150,4 +193,6 @@ export interface SelectedAchievement {
 export interface ArchetypeRegistry {
   player: PlayerArchetype[];
   party: PartyArchetype[];
+  playerComposite: PlayerCompositeArchetype[];
+  partyComposite: PartyCompositeArchetype[];
 }

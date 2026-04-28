@@ -59,14 +59,49 @@ export default async function RunDetailPage({ params }: Props) {
 
   // Achievements arrive pre-evaluated from the API. Split by memberId once
   // here so each member card can grab its own list without rescanning.
+  // Composites (legendary tier) are surfaced separately so the UI can
+  // render them at the TOP of each member's stack with a lightning frame.
   const allAchievements: RunDetailAchievement[] = run.achievements ?? [];
-  const partyAchievements = allAchievements.filter((a) => a.memberId === null);
-  const achievementsByMemberId = new Map<number, RunDetailAchievement[]>();
+  const partyComposite = allAchievements.filter(
+    (a) => a.memberId === null && a.archetypeTier === "composite",
+  );
+  const partyBase = allAchievements.filter(
+    (a) => a.memberId === null && a.archetypeTier === "base",
+  );
+  const compositeByMemberId = new Map<number, RunDetailAchievement[]>();
+  const baseByMemberId = new Map<number, RunDetailAchievement[]>();
   for (const a of allAchievements) {
     if (a.memberId == null) continue;
-    const arr = achievementsByMemberId.get(a.memberId) ?? [];
+    const target = a.archetypeTier === "composite" ? compositeByMemberId : baseByMemberId;
+    const arr = target.get(a.memberId) ?? [];
     arr.push(a);
-    achievementsByMemberId.set(a.memberId, arr);
+    target.set(a.memberId, arr);
+  }
+
+  // Lightning class for a player card: orange = legendary positive,
+  // purple = epic positive, red = any negative composite. If multiple
+  // composites fire on a player, negative wins (red), then legendary
+  // (orange), then epic (purple).
+  function lightningClassFor(memberId: number): string {
+    const arr = compositeByMemberId.get(memberId);
+    if (!arr || arr.length === 0) return "";
+    const hasNeg = arr.some((a) => a.severity === "negative");
+    if (hasNeg) return "lightning-red";
+    const hasLegendary = arr.some((a) => a.rarity === "legendary");
+    if (hasLegendary) return "lightning-orange";
+    const hasEpic = arr.some((a) => a.rarity === "epic");
+    if (hasEpic) return "lightning-purple";
+    return "";
+  }
+  function partyLightningClass(): string {
+    if (partyComposite.length === 0) return "";
+    const hasNeg = partyComposite.some((a) => a.severity === "negative");
+    if (hasNeg) return "lightning-red";
+    const hasLegendary = partyComposite.some((a) => a.rarity === "legendary");
+    if (hasLegendary) return "lightning-orange";
+    const hasEpic = partyComposite.some((a) => a.rarity === "epic");
+    if (hasEpic) return "lightning-purple";
+    return "";
   }
 
   const session = await auth();
@@ -112,24 +147,36 @@ export default async function RunDetailPage({ params }: Props) {
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Party</h2>
-          {partyAchievements.length > 0 && (
-            <AchievementList
-              achievements={partyAchievements}
-              stepMs={90}
-            />
+          {(partyComposite.length > 0 || partyBase.length > 0) && (
+            <div className={`flex flex-col items-end gap-1 ${partyLightningClass()}`}>
+              {partyComposite.length > 0 && (
+                <AchievementList
+                  achievements={partyComposite}
+                  stepMs={90}
+                />
+              )}
+              {partyBase.length > 0 && (
+                <AchievementList
+                  achievements={partyBase}
+                  stepMs={90}
+                />
+              )}
+            </div>
           )}
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {sortPartyForDisplay(run).map((m) => {
             const cls = m.character?.class ?? m.classSnapshot;
             const color = getClassColor(cls);
-            const memberAchievements = achievementsByMemberId.get(m.id) ?? [];
+            const memberCompositeAchievements = compositeByMemberId.get(m.id) ?? [];
+            const memberBaseAchievements = baseByMemberId.get(m.id) ?? [];
+            const lightningClass = lightningClassFor(m.id);
             const name = m.character?.name ?? "Unknown";
             const roleLabel = formatRoleLabel(m.roleSnapshot);
             return (
               <div
                 key={m.id}
-                className="flex flex-col rounded border border-border bg-card p-3"
+                className={`player-card flex flex-col rounded border border-border bg-card p-3 ${lightningClass}`}
                 style={{ borderTopColor: color, borderTopWidth: 3 }}
               >
                 {/* Section 1: Role + identity */}
@@ -165,21 +212,29 @@ export default async function RunDetailPage({ params }: Props) {
                   />
                 </div>
 
-                {/* Divider + Section 3: Run achievements */}
+                {/* Divider + Section 3: Run achievements (composites on top) */}
                 <div className="mt-3 border-t border-border/60 pt-3">
                   <SectionHeader>Run Achievements</SectionHeader>
-                  {memberAchievements.length > 0 ? (
+                  {memberCompositeAchievements.length > 0 && (
                     <AchievementList
-                      achievements={memberAchievements}
+                      achievements={memberCompositeAchievements}
+                      baseDelayMs={60}
+                      direction="col"
+                      className="mt-1.5"
+                    />
+                  )}
+                  {memberBaseAchievements.length > 0 ? (
+                    <AchievementList
+                      achievements={memberBaseAchievements}
                       baseDelayMs={120}
                       direction="col"
                       className="mt-1.5"
                     />
-                  ) : (
+                  ) : memberCompositeAchievements.length === 0 ? (
                     <div className="mt-1.5 text-[11px] italic text-muted-foreground">
                       Nothing earned this run.
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );

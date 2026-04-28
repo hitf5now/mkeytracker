@@ -784,6 +784,7 @@ export interface RunDetail {
 
 export type AchievementSeverity = "positive" | "negative" | "neutral";
 export type AchievementRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
+export type AchievementTier = "base" | "composite";
 
 export interface RunDetailAchievement {
   id: number;
@@ -792,6 +793,8 @@ export interface RunDetailAchievement {
   characterId: number | null;
   archetypeKey: string;
   archetypeCategory: string;
+  /** "base" = standard pass-1 archetype. "composite" = pass-2 legendary tier. */
+  archetypeTier: AchievementTier;
   flavorKey: string;
   name: string;
   flavorText: string;

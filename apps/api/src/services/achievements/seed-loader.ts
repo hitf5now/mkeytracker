@@ -25,6 +25,7 @@ import type {
   AchievementApplies,
   AchievementRarity,
   AchievementSeverity,
+  AchievementTier,
   PrismaClient,
 } from "@prisma/client";
 
@@ -38,6 +39,8 @@ interface ArchetypeSeed {
   key: string;
   category: string;
   appliesTo: AchievementApplies;
+  /** Defaults to "base" when omitted (existing rows). */
+  tier?: AchievementTier;
   roleGate: string | null;
   description: string;
 }
@@ -99,12 +102,14 @@ export async function loadAchievementSeed(
   let archetypesUpserted = 0;
   const archetypeIdByKey = new Map<string, number>();
   for (const a of archetypes) {
+    const tier: AchievementTier = a.tier ?? "base";
     const row = await prisma.achievementArchetype.upsert({
       where: { key: a.key },
       create: {
         key: a.key,
         category: a.category,
         appliesTo: a.appliesTo,
+        tier,
         roleGate: a.roleGate ?? null,
         description: a.description,
         isActive: true,
@@ -112,6 +117,7 @@ export async function loadAchievementSeed(
       update: {
         category: a.category,
         appliesTo: a.appliesTo,
+        tier,
         roleGate: a.roleGate ?? null,
         description: a.description,
       },
