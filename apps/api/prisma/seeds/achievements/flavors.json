@@ -1644,51 +1644,6 @@
     ]
   },
   {
-    "archetype": "mixed_bag",
-    "key": "sweet_and_sour",
-    "name": "Sweet and Sour",
-    "flavorText": "At least one praise AND at least one roast. Both at once.",
-    "description": "Topped the meter and died five times. Most kicks and lowest damage. The recap reads like two different runs, both with your name on them. A polarizing performance — Discord will have opinions.",
-    "icon": "🍬",
-    "severity": "neutral",
-    "rarity": "epic",
-    "weight": 100,
-    "themeTags": [
-      "juice",
-      "composite"
-    ]
-  },
-  {
-    "archetype": "mixed_bag",
-    "key": "chunky_smoothie",
-    "name": "Chunky Smoothie",
-    "flavorText": "Praise and roast in the same blender.",
-    "description": "Some of it was great. Some of it was lumpy. The blender ran but the consistency is something you'd ask the bartender about. Mostly delicious. Mostly. The party will remember the praise OR the roast — depends on who you ask.",
-    "icon": "🥤",
-    "severity": "neutral",
-    "rarity": "epic",
-    "weight": 100,
-    "themeTags": [
-      "juice",
-      "composite"
-    ]
-  },
-  {
-    "archetype": "mixed_bag",
-    "key": "two_sided_label",
-    "name": "Two-Sided Label",
-    "flavorText": "Praise on one side, roast on the other.",
-    "description": "The bottle's front says one thing, the back says another. Front: 'Top of the meter.' Back: 'Died five times.' Both true. Both your work. Both featured prominently in the recap.",
-    "icon": "🏷",
-    "severity": "neutral",
-    "rarity": "epic",
-    "weight": 100,
-    "themeTags": [
-      "juice",
-      "composite"
-    ]
-  },
-  {
     "archetype": "damage_clean_sweep",
     "key": "triple_threat",
     "name": "Triple Threat",

@@ -627,20 +627,6 @@ const playerCompositeArchetypes: PlayerCompositeArchetype[] = [
     },
   },
   {
-    key: "mixed_bag",
-    category: "comedic",
-    roleGate: null,
-    description: "Player triggered both ≥1 positive AND ≥1 negative.",
-    match: (ctx) => {
-      const t = ctx.triggeredForPlayer;
-      if (positiveCount(t) < 1) return false;
-      if (negativeCount(t) < 1) return false;
-      return {
-        reason: `${positiveCount(t)} praise, ${negativeCount(t)} roast — both sides at once.`,
-      };
-    },
-  },
-  {
     key: "damage_clean_sweep",
     category: "performance",
     roleGate: "dps",

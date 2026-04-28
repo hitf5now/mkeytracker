@@ -312,14 +312,6 @@
     "description": "Player triggered >=3 negative base archetypes and 0 positives."
   },
   {
-    "key": "mixed_bag",
-    "category": "comedic",
-    "appliesTo": "player",
-    "tier": "composite",
-    "roleGate": null,
-    "description": "Player triggered both >=1 positive AND >=1 negative."
-  },
-  {
     "key": "damage_clean_sweep",
     "category": "performance",
     "appliesTo": "player",
