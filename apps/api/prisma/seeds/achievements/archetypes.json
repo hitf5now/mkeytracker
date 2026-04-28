@@ -229,5 +229,33 @@
     "appliesTo": "party",
     "roleGate": null,
     "description": "Every player in the party died at least once."
+  },
+  {
+    "key": "tank_any_death",
+    "category": "comedic",
+    "appliesTo": "player",
+    "roleGate": "tank",
+    "description": "Tank died at least once (any count). Lower-bar than tank_most_deaths so single-death tanks get a card too."
+  },
+  {
+    "key": "solo_interrupter",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Single player landed 75%+ of party interrupts (party total >= 8)."
+  },
+  {
+    "key": "survived_chaos",
+    "category": "performance",
+    "appliesTo": "player",
+    "roleGate": null,
+    "description": "Player took zero deaths while the party racked up 4 or more."
+  },
+  {
+    "key": "clutch_finish",
+    "category": "performance",
+    "appliesTo": "party",
+    "roleGate": null,
+    "description": "Run timed with 30 seconds or less remaining on the timer."
   }
 ]

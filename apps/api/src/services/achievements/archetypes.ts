@@ -418,6 +418,53 @@ const playerArchetypes: PlayerArchetype[] = [
         ? { reason: "You tanked the entire run without a single death." }
         : false,
   },
+
+  // ── Sprint 16 batch 1.4 — new archetypes ────────────────────────────
+  {
+    key: "tank_any_death",
+    category: "comedic",
+    roleGate: "tank",
+    description:
+      "Tank died at least once (any count). Lower-bar than tank_most_deaths " +
+      "so single-death tanks get a card too.",
+    match: (ctx) => {
+      if (ctx.player.deaths < 1) return false;
+      const word = ctx.player.deaths === 1 ? "time" : "times";
+      return {
+        reason: `You died ${ctx.player.deaths} ${word} as the tank.`,
+      };
+    },
+  },
+  {
+    key: "solo_interrupter",
+    category: "performance",
+    roleGate: null,
+    description:
+      "Single player landed 75%+ of party interrupts (party total >= 8).",
+    match: (ctx) => {
+      if (ctx.party.totalInterrupts < 8) return false;
+      const share = ctx.player.interrupts / ctx.party.totalInterrupts;
+      if (share < 0.75) return false;
+      const pct = Math.round(share * 100);
+      return {
+        reason: `${ctx.player.interrupts} interrupts — ${pct}% of the party total.`,
+      };
+    },
+  },
+  {
+    key: "survived_chaos",
+    category: "performance",
+    roleGate: null,
+    description:
+      "Player took zero deaths while the party racked up 4 or more.",
+    match: (ctx) => {
+      if (ctx.player.deaths !== 0) return false;
+      if (ctx.party.partyDeaths < 4) return false;
+      return {
+        reason: `Zero deaths while the party racked up ${ctx.party.partyDeaths}.`,
+      };
+    },
+  },
 ];
 
 // ─── Party-wide archetypes ───────────────────────────────────────────────
@@ -506,6 +553,24 @@ const partyArchetypes: PartyArchetype[] = [
       if (!ctx.players.every((p) => p.deaths >= 1)) return false;
       return {
         reason: `All ${ctx.players.length} party members died at least once.`,
+      };
+    },
+  },
+
+  // ── Sprint 16 batch 1.4 — new archetypes ────────────────────────────
+  {
+    key: "clutch_finish",
+    category: "performance",
+    description:
+      "Run timed with 30 seconds or less remaining on the timer.",
+    match: (ctx) => {
+      if (!ctx.run.onTime) return false;
+      const remainingMs = ctx.run.parMs - ctx.run.completionMs;
+      if (remainingMs > 30_000) return false;
+      if (remainingMs < 0) return false;
+      const remainingSec = Math.max(0, Math.round(remainingMs / 1000));
+      return {
+        reason: `Timed with ${remainingSec}s remaining.`,
       };
     },
   },
