@@ -411,17 +411,6 @@ const playerArchetypes: PlayerArchetype[] = [
       };
     },
   },
-  {
-    key: "tank_zero_deaths",
-    category: "performance",
-    roleGate: "tank",
-    description: "Tank survived the entire run without dying.",
-    match: (ctx) =>
-      ctx.player.deaths === 0
-        ? { reason: "You tanked the entire run without a single death." }
-        : false,
-  },
-
   // ── Sprint 16 batch 1.4 — new archetypes ────────────────────────────
   {
     key: "tank_any_death",

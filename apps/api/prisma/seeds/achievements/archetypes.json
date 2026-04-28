@@ -200,14 +200,6 @@
     "tier": "base"
   },
   {
-    "key": "tank_zero_deaths",
-    "category": "performance",
-    "appliesTo": "player",
-    "roleGate": "tank",
-    "description": "Tank survived the entire run without dying.",
-    "tier": "base"
-  },
-  {
     "key": "party_zero_deaths",
     "category": "performance",
     "appliesTo": "party",

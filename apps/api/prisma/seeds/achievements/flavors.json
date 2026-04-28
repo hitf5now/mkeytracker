@@ -84,6 +84,62 @@
     ]
   },
   {
+    "archetype": "second_lowest_dps",
+    "key": "silver_sippy_cup",
+    "name": "Silver Sippy Cup",
+    "flavorText": "Second from the bottom. Almost the worst, not quite the best.",
+    "description": "You found that comfortable middle slot — beat exactly one DPS, got beat by every other one. Silver medal in a contest nobody's showing off. The good news: you're not in last place. The bad news: nobody talks about second-from-last either.",
+    "icon": "🥈",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "second_lowest_dps",
+    "key": "one_rung_up",
+    "name": "One Rung Up",
+    "flavorText": "Beat one DPS. Got beat by One. You are the forgettable middle.",
+    "description": "There's a damage ladder and you're on the second rung from the bottom. One step above embarrassment, one step below relevance. The position perfectly designed to be skipped over when people summarize the run.",
+    "icon": "🪜",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "second_lowest_dps",
+    "key": "dollar_menu",
+    "name": "Dollar Menu",
+    "flavorText": "Second-cheapest item on the damage menu.",
+    "description": "Not the cheapest option in the party — there's still someone selling more rotten value than you — but you're definitely in the discount aisle. The kind of damage figure people glance at and then look at the leader instead.",
+    "icon": "📉",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "second_lowest_dps",
+    "key": "backup_squeezer",
+    "name": "Backup Squeezer",
+    "flavorText": "Just enough damage to not be last. Just.",
+    "description": "You squeezed out exactly enough juice to keep someone else in last place. A backup squeezer doing the bare minimum to dodge being the punchline. Every percentile point above bottom counts — even if nobody else is counting.",
+    "icon": "🎟️",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "outdamaged_by_tank",
     "key": "outjuiced_by_the_driver",
     "name": "Out-Juiced by the Driver",
@@ -118,6 +174,62 @@
     "flavorText": "Dealt less than 10% of the party's damage. Just here for the sights.",
     "description": "You queued up for the dungeon tour, took a few photos at the landmarks, and let the rest of the group handle logistics. A beautiful experience for you. A character-building experience for everyone else.",
     "icon": "📸",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "low_damage_share_dps",
+    "key": "garnish_duty",
+    "name": "Garnish Duty",
+    "flavorText": "Less than 10% of damage. You brought the umbrella, not the juice.",
+    "description": "Every drink needs a garnish — a little something on the rim, a colorful straw. That's what you brought. Sub-10% damage share is the cherry on top, not the cocktail itself. Pretty, pointless, and quickly removed.",
+    "icon": "🥄",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "low_damage_share_dps",
+    "key": "cameo_appearance",
+    "name": "Cameo Appearance",
+    "flavorText": "Sub-10% damage share. Brief on-screen, brief on the meter.",
+    "description": "You showed up, said your line, and left before the credits. The rest of the party did the heavy lifting while you played a glorified cameo role. Your name's on the bill but the audience came for someone else.",
+    "icon": "👋",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "low_damage_share_dps",
+    "key": "window_shopping",
+    "name": "Window Shopping",
+    "flavorText": "Under 10%. Looked at the menu, didn't order.",
+    "description": "Spent the whole run admiring everyone else's damage from a respectful distance. Sub-10% share is the damage equivalent of pressing your face against the glass and walking away without buying anything. Beautiful display, no purchase made.",
+    "icon": "🪞",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "low_damage_share_dps",
+    "key": "paperclip_dps",
+    "name": "Paperclip DPS",
+    "flavorText": "Holding it together at <10%. Functional, barely.",
+    "description": "You technically contributed. The numbers technically went up. A paperclip technically holds papers together. None of you are the main event. Sub-10% damage share is the office-supply tier of party performance.",
+    "icon": "📎",
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
@@ -196,12 +308,124 @@
     ]
   },
   {
+    "archetype": "carry_damage_share",
+    "key": "solo_squeeze",
+    "name": "Solo Squeeze",
+    "flavorText": "40%+ of party damage. Practically running the press alone.",
+    "description": "When the meter says 40-something percent of the run came out of one player, you're not splitting the load — you're carrying it. The rest of the party showed up to provide moral support and the occasional kick. You did everything else.",
+    "icon": "🚀",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "carry_damage_share",
+    "key": "heavy_pour",
+    "name": "Heavy Pour",
+    "flavorText": "Nobody else came close to your pour rate.",
+    "description": "Bartender's heavy hand. You poured 40%+ of the party's damage and the next-closest DPS is so far behind they're ordering a different drink entirely. Generous tipping recommended — you earned it.",
+    "icon": "🦏",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "carry_damage_share",
+    "key": "concentrate_supplier",
+    "name": "Concentrate Supplier",
+    "flavorText": "You poured 40%+ of the damage. The rest brought ice.",
+    "description": "The party's damage supply chain runs through you. You're the wholesale juice concentrate; the other DPS are the diluters. Without your pour rate, there is no party damage worth talking about. Industrial-scale carry.",
+    "icon": "🍇",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "carry_damage_share",
+    "key": "apex_bottler",
+    "name": "Apex Bottler",
+    "flavorText": "Carrying the team's juice production single-handed.",
+    "description": "Top of the food chain in the party's damage ecosystem. With 40%+ share, the run's recap math doesn't work without you. The rest of the DPS are bottlers. You're THE bottler.",
+    "icon": "💪",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "biggest_burst_in_party",
     "key": "concentrate",
     "name": "Concentrate",
     "flavorText": "The biggest burst spike in the party. Flash-pressed.",
     "description": "There is a reason people dread standing near you in Bloodlust. A full cooldown cycle from you looks like a PvP crit screenshot. Of every DPS in this party, you had the most extreme gap between your best 5-second window and your normal combat output — a true burst specialist.",
     "icon": "⚡",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "biggest_burst_in_party",
+    "key": "pressure_burst",
+    "name": "Pressure Burst",
+    "flavorText": "Your peak window dwarfed everyone else's. Pulp launched.",
+    "description": "Industrial-grade pressure release. When your cooldowns lined up, the boss saw a damage spike that made every other player's burst look like a leaky faucet. Pulp went airborne. The recap clip is mostly you.",
+    "icon": "🌋",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "biggest_burst_in_party",
+    "key": "flash_pressed",
+    "name": "Flash-Pressed",
+    "flavorText": "Loudest burst in the party. Fire-and-forget juice.",
+    "description": "Five seconds of absolute violence followed by ordinary numbers. The biggest damage gap in the party between peak and average belongs to you. Boss mods saw your name and recommended a defensive cooldown.",
+    "icon": "🎆",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "biggest_burst_in_party",
+    "key": "freight_squeezer",
+    "name": "Freight Squeezer",
+    "flavorText": "Biggest burst — 4× your active average.",
+    "description": "When you had everything stacked, you weren't pressing — you were freight-squeezing. Peak damage 4 times your active combat average is the kind of spike that breaks logs and leaderboards. The party's other DPS were on the regular line.",
+    "icon": "🚂",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "biggest_burst_in_party",
+    "key": "hot_pour",
+    "name": "Hot Pour",
+    "flavorText": "When the pressure peaked, you peaked the highest.",
+    "description": "Right at the moment the run's intensity spiked, your output spiked harder than anyone else's. Hot pour, fast pour, biggest pour. Every other DPS's burst window looks tame next to yours.",
+    "icon": "🔥",
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
@@ -350,14 +574,14 @@
     ]
   },
   {
-    "archetype": "tank_zero_deaths",
-    "key": "steel_press",
-    "name": "Steel Press",
-    "flavorText": "Tanked the whole run without dying. Cold-pressed.",
-    "description": "Every big pull, every dangerous swirly, every tank buster — you ate them and asked for seconds. The healer barely had to use their panic cooldown. A tank who doesn't die is a tank who lets the rest of the group be comfortable. Thank you for your service.",
-    "icon": "🛡️",
+    "archetype": "party_zero_deaths",
+    "key": "pasteurized",
+    "name": "Pasteurized",
+    "flavorText": "Zero deaths for the entire run. Clean batch.",
+    "description": "No Spirit Healer visits. No corpse runs. No 'sorry sorry sorry' in party chat. Every mechanic got respected, every avoidable was avoided. Rare. Beautiful. The juice came out clear.",
+    "icon": "✨",
     "severity": "positive",
-    "rarity": "common",
+    "rarity": "epic",
     "weight": 100,
     "themeTags": [
       "juice"
@@ -365,11 +589,53 @@
   },
   {
     "archetype": "party_zero_deaths",
-    "key": "pasteurized",
-    "name": "Pasteurized",
-    "flavorText": "Zero deaths for the entire run. Clean batch.",
-    "description": "No Spirit Healer visits. No corpse runs. No 'sorry sorry sorry' in party chat. Every mechanic got respected, every avoidable was avoided. Rare. Beautiful. The juice came out clear.",
-    "icon": "✨",
+    "key": "premium_vintage",
+    "name": "Premium Vintage",
+    "flavorText": "Five players, zero deaths. A premium-bottled run.",
+    "description": "The kind of run that gets aged and saved for special occasions. Five players, every mechanic respected, every defensive used, every corpse run avoided. Premium label, full price, no chips on the bottle.",
+    "icon": "🍾",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "party_zero_deaths",
+    "key": "top_shelf_pour",
+    "name": "Top-Shelf Pour",
+    "flavorText": "Every cup stayed upright. No spills.",
+    "description": "Bartender's best work. Every player kept their juice in their cup the entire run — no spills, no Spirit Healer trips, no apologies in party chat. The kind of pour you frame on the wall behind the bar.",
+    "icon": "🥂",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "party_zero_deaths",
+    "key": "ice_clear",
+    "name": "Ice-Clear",
+    "flavorText": "Crystal clear. Not a single death the whole run.",
+    "description": "Pure, transparent, no impurities. The party moved through the dungeon like the mechanics were merely suggestions. Zero deaths from start to finish — the kind of clarity you can see right through. A genuinely rare bottle.",
+    "icon": "🧊",
+    "severity": "positive",
+    "rarity": "epic",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "party_zero_deaths",
+    "key": "cold_press_champions",
+    "name": "Cold-Press Champions",
+    "flavorText": "A clean batch — every drop accounted for.",
+    "description": "Cold-pressed, hand-crafted, single-batch perfection. No deaths, no waste, no corner-cutting. The healer's mana bar still has paint on it. The run's recap reads like an instruction manual. This is what dungeons look like when everyone shows up.",
+    "icon": "🌿",
     "severity": "positive",
     "rarity": "epic",
     "weight": 100,
@@ -454,6 +720,62 @@
     "flavorText": "Every single member of the party died at least once.",
     "description": "Not a single player escaped. Tank down. Healer down. DPS down, sometimes twice. At some point in this run everyone saw the Spirit Healer's welcome screen. A bonding experience. A humbling one.",
     "icon": "💀",
+    "severity": "negative",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "everyone_died",
+    "key": "bottled_and_buried",
+    "name": "Bottled and Buried",
+    "flavorText": "Every party member died at least once. Complete-set wipe tour.",
+    "description": "Five for five — every name on the meter has a death count next to it. The Spirit Healer met the entire roster, took a roll call, and started learning everyone's main spec. A complete-set bottling run, just upside down.",
+    "icon": "⚰️",
+    "severity": "negative",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "everyone_died",
+    "key": "five_way_spill",
+    "name": "Five-Way Spill",
+    "flavorText": "Nobody escaped the floor. Every cup spilled.",
+    "description": "Picture five glasses lined up neat on the bar. Now picture all of them tipping over. That's this run. Every player ate the floor at least once — a five-way spill that even the cleaning crew is impressed by.",
+    "icon": "🧹",
+    "severity": "negative",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "everyone_died",
+    "key": "vintage_cemetery",
+    "name": "Vintage Cemetery",
+    "flavorText": "Every name on the meter has a death count.",
+    "description": "Roll call: tank, dead at some point. Healer, dead at some point. Three DPS, dead at some point. The dungeon collected a full set of corpses today. Vintage cemetery — every grave properly labeled and dated.",
+    "icon": "🪦",
+    "severity": "negative",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "everyone_died",
+    "key": "roulette_run",
+    "name": "Roulette Run",
+    "flavorText": "Every player took a turn on the floor. Lucky everyone.",
+    "description": "Spin the wheel, get a death. The dungeon dealt out a corpse to each member of the party at least once — congratulations, you all played. Roulette run: house always wins, and today the house is the dungeon.",
+    "icon": "🎲",
     "severity": "negative",
     "rarity": "rare",
     "weight": 100,
