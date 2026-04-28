@@ -234,14 +234,19 @@
     0 0 16px rgba(251, 191, 36, 0.6);
 }
 
-/* ─── Composite "lightning" frames on the player card ──────────────────
+/* ─── Composite "electric border" frames on the player card ─────────
    Applied to .player-card when a composite (legendary tier) achievement
    has fired for that member. Three colors:
      orange  — legendary positive composite
      purple  — epic positive composite
      red     — any negative composite (legendary or epic)
-   The effect combines a slow-rotating gradient ring with periodic flash
-   pulses to feel alive without being distracting. */
+
+   Implementation: two absolutely-positioned <span class="electric-arc">
+   children draw colored 1px borders that are warped by an SVG
+   `feTurbulence` + `feDisplacementMap` filter (defined in the root
+   layout). Each arc has its own filter (#electric-warp / -warp-b) so
+   the two strokes trace independent jagged paths around the card,
+   reaching slightly inside and outside the rectangle. */
 
 .player-card {
   position: relative;
@@ -251,84 +256,138 @@
 .player-card.lightning-orange,
 .player-card.lightning-purple,
 .player-card.lightning-red {
-  /* lift the card slightly so the aura reads */
   z-index: 1;
 }
 
-.player-card.lightning-orange::before,
-.player-card.lightning-purple::before,
-.player-card.lightning-red::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  padding: 2px;
-  pointer-events: none;
-  z-index: -1;
-  background: conic-gradient(
-    from var(--lightning-angle, 0deg),
-    transparent 0deg,
-    var(--lightning-color) 60deg,
-    var(--lightning-color-bright) 90deg,
-    var(--lightning-color) 120deg,
-    transparent 180deg,
-    transparent 360deg
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  animation: lightning-rotate 5s linear infinite;
-  filter: drop-shadow(0 0 6px var(--lightning-color));
-}
-
+/* Soft un-filtered halo behind the arcs so the colored aura reads even
+   when the warped strokes are momentarily on the dark side of the
+   card. Slow breathing pulse keeps it alive. */
 .player-card.lightning-orange::after,
 .player-card.lightning-purple::after,
 .player-card.lightning-red::after {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: -2px;
   border-radius: inherit;
   pointer-events: none;
-  z-index: -1;
-  box-shadow: 0 0 0 1px var(--lightning-color), 0 0 18px var(--lightning-color-bright);
-  animation: lightning-flash 4.5s ease-in-out infinite;
-  opacity: 0;
+  box-shadow:
+    0 0 0 1px var(--electric-color),
+    0 0 18px var(--electric-glow),
+    0 0 40px var(--electric-glow-soft);
+  z-index: -2;
+  animation: electric-pulse 4.2s ease-in-out infinite;
 }
 
 .player-card.lightning-orange {
-  --lightning-color: rgba(251, 146, 60, 0.85);
-  --lightning-color-bright: rgba(254, 215, 170, 1);
+  --electric-color:     rgba(251, 146, 60, 0.95);
+  --electric-glow:      rgba(251, 146, 60, 0.55);
+  --electric-glow-soft: rgba(251, 146, 60, 0.25);
 }
 .player-card.lightning-purple {
-  --lightning-color: rgba(168, 85, 247, 0.85);
-  --lightning-color-bright: rgba(216, 180, 254, 1);
+  --electric-color:     rgba(168, 85, 247, 0.95);
+  --electric-glow:      rgba(168, 85, 247, 0.55);
+  --electric-glow-soft: rgba(168, 85, 247, 0.25);
 }
 .player-card.lightning-red {
-  --lightning-color: rgba(239, 68, 68, 0.9);
-  --lightning-color-bright: rgba(254, 202, 202, 1);
+  --electric-color:     rgba(239, 68, 68, 0.95);
+  --electric-glow:      rgba(239, 68, 68, 0.6);
+  --electric-glow-soft: rgba(239, 68, 68, 0.3);
 }
 
-@keyframes lightning-rotate {
-  0%   { --lightning-angle: 0deg; }
-  100% { --lightning-angle: 360deg; }
+@keyframes electric-pulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1.0; }
 }
 
-/* Modern browsers register the custom property as an angle so it
-   tweens smoothly. Older browsers fall back to a static border. */
-@property --lightning-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
+/* Two electric arcs per card. Both start at the SAME inset (-3px) so
+   they overlap initially; independent SVG filters make them diverge
+   into two distinct wandering strokes instead of two concentric
+   tubes. Sit at z-index: 2 so the warped border can reach onto the
+   card AND outside it, with transparent interiors that don't obscure
+   content. */
+.electric-arc {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border-radius: 8px;
+  z-index: 2;
+}
+.electric-arc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--electric-color);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.electric-arc.arc-1::before { filter: url(#electric-warp); }
+.electric-arc.arc-2::before {
+  filter: url(#electric-warp-b);
+  opacity: 0.75;
 }
 
-@keyframes lightning-flash {
-  0%, 70%, 100% { opacity: 0; }
-  72%           { opacity: 0.95; }
-  74%           { opacity: 0.2; }
-  76%           { opacity: 0.85; }
-  82%           { opacity: 0; }
+/* ─── Composite (legendary-tier) badge pill colors ─────────────────
+   Composite badges get rich rarity-tinted gradients on top of their
+   base severity styling, so the player can spot the "legendary
+   moment" pill at a glance. Applied via .ach-composite-{orange,
+   purple,red} alongside the regular severity class. */
+
+.ach-badge.ach-composite-orange {
+  color: #1a1300;
+  border-color: rgba(254, 215, 170, 0.95);
+  background-image: linear-gradient(
+    110deg,
+    rgba(124, 45, 18, 0.95)  0%,
+    rgba(194, 65, 12, 0.95)  35%,
+    rgba(251, 146, 60, 1)    50%,
+    rgba(254, 215, 170, 1)   55%,
+    rgba(251, 146, 60, 1)    65%,
+    rgba(194, 65, 12, 0.95)  85%,
+    rgba(124, 45, 18, 0.95)  100%
+  );
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 0 0 1.5px rgba(251, 146, 60, 0.9),
+    0 0 14px rgba(251, 146, 60, 0.6);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.ach-badge.ach-composite-purple {
+  color: #faf5ff;
+  border-color: rgba(216, 180, 254, 0.9);
+  background-image: linear-gradient(
+    110deg,
+    rgba(59, 7, 100, 0.95)   0%,
+    rgba(107, 33, 168, 0.95) 35%,
+    rgba(168, 85, 247, 1)    50%,
+    rgba(216, 180, 254, 1)   55%,
+    rgba(168, 85, 247, 1)    65%,
+    rgba(107, 33, 168, 0.95) 85%,
+    rgba(59, 7, 100, 0.95)   100%
+  );
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 0 0 1.5px rgba(168, 85, 247, 0.9),
+    0 0 14px rgba(168, 85, 247, 0.6);
+}
+
+.ach-badge.ach-composite-red {
+  color: #fef2f2;
+  border-color: rgba(254, 202, 202, 0.9);
+  background-image: linear-gradient(
+    110deg,
+    rgba(69, 10, 10, 0.95)   0%,
+    rgba(153, 27, 27, 0.95)  35%,
+    rgba(239, 68, 68, 1)     50%,
+    rgba(254, 202, 202, 1)   55%,
+    rgba(239, 68, 68, 1)     65%,
+    rgba(153, 27, 27, 0.95)  85%,
+    rgba(69, 10, 10, 0.95)   100%
+  );
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 0 0 1.5px rgba(239, 68, 68, 0.9),
+    0 0 14px rgba(239, 68, 68, 0.6);
 }
 
 /* ─── Achievement detail modal ──────────────────────────────────────────── */

@@ -179,6 +179,15 @@ export default async function RunDetailPage({ params }: Props) {
                 className={`player-card flex flex-col rounded border border-border bg-card p-3 ${lightningClass}`}
                 style={{ borderTopColor: color, borderTopWidth: 3 }}
               >
+                {/* Electric border arcs — only rendered when this member
+                    earned a composite achievement. Two arcs at the same
+                    inset, each driven by an independent SVG filter. */}
+                {lightningClass && (
+                  <>
+                    <span className="electric-arc arc-1" aria-hidden />
+                    <span className="electric-arc arc-2" aria-hidden />
+                  </>
+                )}
                 {/* Section 1: Role + identity */}
                 <SectionHeader>{roleLabel}</SectionHeader>
                 <div className="mt-1.5 flex items-start gap-2.5">

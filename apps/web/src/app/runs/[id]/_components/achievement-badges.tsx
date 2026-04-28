@@ -24,12 +24,25 @@ export function AchievementBadge({
         ? "ach-positive"
         : "ach-neutral";
   const rarityClass = `ach-rarity-${achievement.rarity}`;
+  // Composite-tier badges get a rarity-tinted "legendary moment" pill
+  // overlay matching the player-card lightning color: orange (legendary
+  // positive), purple (epic positive/neutral), red (any negative).
+  const compositeClass =
+    achievement.archetypeTier === "composite"
+      ? achievement.severity === "negative"
+        ? "ach-composite-red"
+        : achievement.rarity === "legendary"
+          ? "ach-composite-orange"
+          : achievement.rarity === "epic"
+            ? "ach-composite-purple"
+            : ""
+      : "";
 
   return (
     <>
       <button
         type="button"
-        className={cn("ach-badge", severityClass, rarityClass)}
+        className={cn("ach-badge", severityClass, rarityClass, compositeClass)}
         style={{ animationDelay: `${delayMs}ms` }}
         title={achievement.flavorText}
         onClick={() => setOpen(true)}
