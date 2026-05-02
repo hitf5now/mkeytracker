@@ -533,18 +533,39 @@ function TimelineSection({
   const segmentStartMs = new Date(segmentStartedAt).getTime();
   const runDurationSec = Math.max(1, runDurationMs / 1000);
 
-  const colorFor = (specId: number | null): string => {
-    const spec = specId ? getSpecById(specId) : undefined;
-    return spec
-      ? `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`
-      : "#999999";
+  // Build a fallback map: enrichment players carry specId only when the
+  // combat log included COMBATANT_INFO events for them. When it didn't
+  // (partial logs, joining mid-key, log started after combat began), we
+  // fall back to the matched run member's class. Two match keys:
+  //  1. characterId — preferred, set when the parser was able to resolve
+  //     the player to a known character.
+  //  2. lowercased bare name — fallback for unclaimed/unmatched players.
+  const classByCharacterId = new Map<number, string>();
+  const classByBareName = new Map<string, string>();
+  for (const m of run.members) {
+    const classSlug = m.character?.class ?? m.classSnapshot;
+    if (!classSlug) continue;
+    if (m.character?.id != null) classByCharacterId.set(m.character.id, classSlug);
+    if (m.character?.name) classByBareName.set(m.character.name.toLowerCase(), classSlug);
+  }
+
+  const colorFor = (p: { specId: number | null; characterId: number | null; playerName: string }): string => {
+    // Best: spec gives us exact class color via wow-constants.
+    const spec = p.specId ? getSpecById(p.specId) : undefined;
+    if (spec) return `#${spec.classColor.toString(16).padStart(6, "0").toUpperCase()}`;
+    // Fallback: look up the matched member's class.
+    const fromCharId = p.characterId != null ? classByCharacterId.get(p.characterId) : undefined;
+    const bare = p.playerName.split("-")[0]?.toLowerCase();
+    const classSlug = fromCharId ?? (bare ? classByBareName.get(bare) : undefined);
+    if (classSlug) return getClassColor(classSlug);
+    return "#999999";
   };
 
   const damagePlayers: TimelinePlayer[] = enrichment.players
     .filter((p) => Array.isArray(p.damageBuckets) && p.damageBuckets.length > 0)
     .map((p) => ({
       shortName: p.playerName.split("-")[0] ?? p.playerName,
-      colorHex: colorFor(p.specId),
+      colorHex: colorFor(p),
       buckets: p.damageBuckets ?? [],
     }));
 
@@ -556,7 +577,7 @@ function TimelineSection({
     .filter((p) => (p.healingBuckets ?? []).some((v) => v > 0))
     .map((p) => ({
       shortName: p.playerName.split("-")[0] ?? p.playerName,
-      colorHex: colorFor(p.specId),
+      colorHex: colorFor(p),
       buckets: p.healingBuckets ?? [],
     }));
 
@@ -596,7 +617,7 @@ function TimelineSection({
   const tankShortName = tankEnrichment
     ? tankEnrichment.playerName.split("-")[0] ?? tankEnrichment.playerName
     : "";
-  const tankColorHex = tankEnrichment ? colorFor(tankEnrichment.specId) : "#999";
+  const tankColorHex = tankEnrichment ? colorFor(tankEnrichment) : "#999";
 
   const tankingAvailable = multipleTanks || tankHasData;
 
