@@ -92,6 +92,13 @@ function createMainWindow(): BrowserWindow {
 
   win.once("ready-to-show", () => win.show());
 
+  // Re-scan SavedVariables whenever the user brings the window forward.
+  // Catches runs that the watcher missed (Windows FS event drops, AV
+  // locks, etc.) without making them wait for the fallback poll.
+  win.on("focus", () => {
+    void processTick("window-focus");
+  });
+
   // Decide which page to load: wizard if first-run, dashboard otherwise.
   const cfg = loadConfig();
   const page =

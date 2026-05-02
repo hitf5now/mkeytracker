@@ -37,7 +37,7 @@ export class SavedVariablesWatcher extends EventEmitter {
   constructor(
     private readonly filePath: string,
     private readonly debounceMs: number = 500,
-    private readonly pollIntervalMs: number = 30_000,
+    private readonly pollIntervalMs: number = 5_000,
   ) {
     super();
   }
@@ -52,13 +52,18 @@ export class SavedVariablesWatcher extends EventEmitter {
       this.lastMtime = 0;
     }
 
-    // Chokidar for real-time FS event detection
+    // usePolling sidesteps Windows single-file watch drops (AV locks,
+    // OneDrive paths, atomic rename rewrites). Stat-based polling is
+    // slower than native FS events but reliable across hosts.
     this.watcher = chokidar.watch(this.filePath, {
       persistent: true,
       ignoreInitial: true,
+      usePolling: true,
+      interval: 1000,
+      binaryInterval: 1000,
       awaitWriteFinish: {
         stabilityThreshold: this.debounceMs,
-        pollInterval: 100,
+        pollInterval: 200,
       },
     });
 
