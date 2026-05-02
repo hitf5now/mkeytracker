@@ -59,3 +59,12 @@ playwright-report/
 Wow Combat Log/
 samples/combatlog/*.txt
 WoWCombatLog*.txt
+
+# Local dev/POC artifacts — kept on disk for the author, not part of the build
+# AI recap exploration scripts (Ollama POC) and their outputs
+apps/api/src/scripts/
+mockups/
+# One-shot combat-log inventory CLI used during Sprint 15 parser work
+packages/combat-log-parser/inventory.ts
+# Reference addon snapshot for development; documented as not part of release
+Sample_MKeyTracker.lua
