@@ -56,6 +56,62 @@
     ]
   },
   {
+    "archetype": "zero_interrupts_offensive",
+    "key": "library_voice_kick",
+    "name": "Library Voice",
+    "flavorText": "Zero kicks while the rest of the party did the work.",
+    "description": "Shhh. The kick button is sleeping. The party did the kicking, the casts kept going off, and you maintained a respectful library volume the entire run. A polite performance — too polite, frankly, for Mythic+.",
+    "icon": "🤫",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_interrupts_offensive",
+    "key": "statue_mode_dps",
+    "name": "Statue Mode",
+    "flavorText": "Stood there. Didn't kick. Beautiful pose.",
+    "description": "Marble form, rotation perfect, kick keybind untouched. Cast bars filled, casts went off, party scrambled to handle them. You held the pose admirably. Sculpture-quality stillness from a player whose entire job involves pressing buttons.",
+    "icon": "🪨",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_interrupts_offensive",
+    "key": "disengaged_dps",
+    "name": "Disengaged DPS",
+    "flavorText": "Zero interrupts. The kick rotation forgot you existed.",
+    "description": "There's a thing called the kick rotation. You weren't on it. Either by choice or by oversight, your kick button cooled down to room temperature while the rest of the group bounced casts back and forth. Disengaged from the side of the gameplay that doesn't show up on the meter.",
+    "icon": "🥱",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_interrupts_offensive",
+    "key": "no_kick_zone",
+    "name": "No-Kick Zone",
+    "flavorText": "Cast bars walked past you completely unbothered.",
+    "description": "Casts approached, casts arrived, casts departed — and you, somehow, did not interrupt a single one. A no-kick zone surrounded you the entire run. The mobs noticed. Your party noticed. You apparently did not.",
+    "icon": "🚷",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "top_interrupts_in_party",
     "key": "kick_commissioner",
     "name": "Kick Commissioner",
@@ -252,6 +308,62 @@
     ]
   },
   {
+    "archetype": "flat_burst_profile",
+    "key": "the_flatline",
+    "name": "The Flatline",
+    "flavorText": "Peak barely cleared average. EKG-flat damage profile.",
+    "description": "The damage chart for your run looks like an EKG that called it a day early. No spikes, no surges, no moments where the boss should panic. Just a long, steady, perfectly horizontal line. Medically concerning if it were a heart. Competitively concerning since it's a damage meter.",
+    "icon": "📏",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "flat_burst_profile",
+    "key": "highway_mile",
+    "name": "Highway Mile",
+    "flavorText": "Same speed all run. No accelerating, no braking.",
+    "description": "Cruise control, set and forgotten. Your damage output held a perfectly even pace from pull one to the final boss. No bursts, no slowdowns. The kind of consistent that's only impressive on a long road trip.",
+    "icon": "🛣️",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "flat_burst_profile",
+    "key": "ruler_edge_output",
+    "name": "Ruler-Edge Output",
+    "flavorText": "Straight line damage. Boss never felt threatened.",
+    "description": "Drew your damage line with a ruler today. Peak and average are basically the same number. The boss saw the same DPS in the opener as in the execute phase. No need to use any defensives — your output didn't scare anyone.",
+    "icon": "📐",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "flat_burst_profile",
+    "key": "steady_state",
+    "name": "Steady-State",
+    "flavorText": "Zero burst. Zero spikes. Zero excitement.",
+    "description": "Pure equilibrium. Whatever number you hit on the first pull was the number you hit on the last pull. Steady as a metronome, exciting as a metronome. Burst windows passed quietly while you continued at your single trusted pace.",
+    "icon": "⏸️",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "single_burst_majority",
     "key": "one_trick_spigot",
     "name": "One Trick Spigot",
@@ -266,12 +378,124 @@
     ]
   },
   {
+    "archetype": "single_burst_majority",
+    "key": "one_pop_wonder",
+    "name": "One Pop Wonder",
+    "flavorText": "One big window had >25% of your run damage. Crickets after.",
+    "description": "Five seconds of glorious output, followed by twenty-five minutes of being merely present. A quarter of your entire run damage came from a single peak window. You popped, the spotlight moved, and you stayed in the dark.",
+    "icon": "💥",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "single_burst_majority",
+    "key": "jackpot_then_quiet",
+    "name": "Jackpot, Then Quiet",
+    "flavorText": "Hit the jackpot in 5 seconds. Then nothing.",
+    "description": "Slot machine paid out in your opening burst. Big numbers, sirens, the whole show. Then you wandered off to find a vending machine and never came back to the meter. 25%+ of your damage in one window means the rest of the run was the casino's hourly free coffee.",
+    "icon": "🎰",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "single_burst_majority",
+    "key": "solo_firework",
+    "name": "Solo Firework",
+    "flavorText": "One burst, full sky. Then back to flashlight mode.",
+    "description": "You launched a single beautiful firework and the sky lit up — for five seconds. The rest of the run you were holding a flashlight. 25%+ of damage in one peak window is a heck of a show, but the audience came expecting more than one rocket.",
+    "icon": "🎆",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "single_burst_majority",
+    "key": "trap_door_burst",
+    "name": "Trap-Door Burst",
+    "flavorText": "Big peak, then dropped through the floor for the rest of the run.",
+    "description": "Top of the stage one moment, gone through the trap door the next. A single burst window held 25%+ of your run damage; the rest of the timeline you were below decks doing whatever you were doing. Spectacular entry. Mysterious exit.",
+    "icon": "🪤",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "narrowly_outdpsed",
     "key": "almost_taste_it",
     "name": "Almost Taste It",
     "flavorText": "Another DPS was just barely ahead. You could taste it.",
     "description": "You and another DPS traded blows for the entire run. Your Details bars were practically kissing. Five hundred DPS separated an average run from a bragging-rights screenshot. Maybe next time skip the trinket swap. Maybe this time, enjoy how close it was.",
     "icon": "👅",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "narrowly_outdpsed",
+    "key": "photo_finish_dps",
+    "name": "Photo Finish",
+    "flavorText": "Within 500 DPS of another. The difference fits on a coaster.",
+    "description": "The kind of finish where you need slow-motion replay to see who was ahead. Sub-500 DPS gap, both of you sprinting for the line. The other DPS happened to land first by a whisker. The recap will not zoom in enough for anyone to feel good about it.",
+    "icon": "🩻",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "narrowly_outdpsed",
+    "key": "threaded_the_needle",
+    "name": "Threaded the Needle",
+    "flavorText": "Lost by a hair. Sub-500 DPS gap.",
+    "description": "Threaded a needle and somebody else threaded it slightly faster. The damage gap between you and the next DPS is so thin you could fit it through a sewing eye. Tiny in absolute terms. Annoyingly real on the meter.",
+    "icon": "🪡",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "narrowly_outdpsed",
+    "key": "runner_up_pour",
+    "name": "Runner-Up Pour",
+    "flavorText": "Second by a sip. The other DPS edged you by 500.",
+    "description": "Almost the heaviest pour in the party. Almost. Another DPS came in 500 DPS ahead — the tasting flight equivalent of losing by one swallow. Beautiful technique on your end; their hand was just a hair steadier.",
+    "icon": "🎟️",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "narrowly_outdpsed",
+    "key": "chopstick_margin",
+    "name": "Chopstick Margin",
+    "flavorText": "500 DPS short. The thinnest possible loss.",
+    "description": "The damage gap is the width of a chopstick. The other DPS edged you out by a margin so thin you could measure it with takeout utensils. Frustratingly close, exhaustingly preventable. One more cooldown press would have flipped the result.",
+    "icon": "🥢",
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
@@ -448,12 +672,124 @@
     ]
   },
   {
+    "archetype": "many_party_deaths_as_healer",
+    "key": "dripping_faucet",
+    "name": "Dripping Faucet",
+    "flavorText": "Four+ deaths happened on your watch. The faucet was loose.",
+    "description": "Drip. Drip. Drip. Four party deaths over the course of the run, each one a little leak in the seal. Maybe the DPS made it hard. Maybe the timing didn't line up. Either way, the bar floor is wet and the customers keep ending up on it.",
+    "icon": "🚰",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "many_party_deaths_as_healer",
+    "key": "floor_soup",
+    "name": "Floor Soup",
+    "flavorText": "Bodies kept hitting the floor. The floor is now soup.",
+    "description": "Player one drops, player two drops, repeat. By the end of the run the floor is more party member than it is dungeon tile. Four+ deaths across the group means the recipe got real watery — and somebody has to clean up.",
+    "icon": "🛁",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "many_party_deaths_as_healer",
+    "key": "slow_drip",
+    "name": "Slow Drip",
+    "flavorText": "Deaths kept happening, slowly, all run long.",
+    "description": "It wasn't one big wipe — that would be exciting. It was a steady stream of corpses, one every couple of pulls, all run long. Four+ deaths spread out like a slow drip into a bucket. Annoying. Persistent. Mostly your problem to solve.",
+    "icon": "⏳",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "many_party_deaths_as_healer",
+    "key": "funeral_director",
+    "name": "Funeral Director",
+    "flavorText": "You presided over four+ farewells today. RIP.",
+    "description": "Four party deaths is enough to qualify as 'organized event.' You hosted, you officiated, you watched the procession from the back. Whether you fired a heal in time or not, the Spirit Healer's guest book has multiple signatures with your run on it.",
+    "icon": "🪦",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "high_overheal_ratio",
     "key": "overflow_pour",
     "name": "Overflow Pour",
     "flavorText": "More than half of your healing was overheal. Wasted casts.",
     "description": "You had the biggest heals, the fanciest cooldowns, and a trinket proc to rival a raid boss. And half of it went into people who were already at full HP. Every wasted crit was a GCD you could have spent on damage, mana, or just not clicking at all. The juice flowed freely — right past them.",
     "icon": "🚿",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "high_overheal_ratio",
+    "key": "splash_damage",
+    "name": "Splash Damage",
+    "flavorText": "More than half your healing was overheal. Mostly missed the cup.",
+    "description": "Big heals, dramatic numbers, very little of it actually landing where it needed to. Splash damage in the literal sense — your output mostly hit air, full health bars, and the bartender's apron. The mana spent was real. The value delivered, less so.",
+    "icon": "💦",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "high_overheal_ratio",
+    "key": "flooded_counter",
+    "name": "Flooded Counter",
+    "flavorText": "Overflow > effective. The bar is wet, the customers are full.",
+    "description": "The cups were already full and you kept pouring. By the end of the run, the counter is soaked, the towels are saturated, and the customers have not been thirstier for a single second. Half-plus of your healing went straight into puddles.",
+    "icon": "🌊",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "high_overheal_ratio",
+    "key": "bucket_overrun",
+    "name": "Bucket Overrun",
+    "flavorText": "Half your output went straight to the floor.",
+    "description": "Imagine pouring water into a bucket that was already at the brim. Now imagine doing it 50%+ of the time, all run long. Overheal ratio above 50% means most of your throughput hit a target that didn't need it. Mana go in, value not come out.",
+    "icon": "🪣",
+    "severity": "negative",
+    "rarity": "common",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "high_overheal_ratio",
+    "key": "water_wasted",
+    "name": "Water Wasted",
+    "flavorText": "Overheal city. Mana spent, value not delivered.",
+    "description": "Your healing output is gigantic on paper. The actual people in your party didn't feel most of it because they were already topped. More than half of every heal you cast vanished into the void of full HP bars. Conserve some — there's a drought somewhere.",
+    "icon": "🚱",
     "severity": "negative",
     "rarity": "common",
     "weight": 100,
@@ -476,12 +812,124 @@
     ]
   },
   {
+    "archetype": "zero_dispels_as_healer",
+    "key": "off_duty_cleaner",
+    "name": "Off-Duty Cleaner",
+    "flavorText": "Zero dispels while debuffs piled up. Closed for the day.",
+    "description": "Somebody else cleaned the bar today, because it wasn't you. Debuffs stacked, the party endured, and your dispel rotation took a personal day. Healing is on the menu. Sanitizing is apparently not.",
+    "icon": "😴",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_dispels_as_healer",
+    "key": "locked_cabinet",
+    "name": "Locked Cabinet",
+    "flavorText": "The dispel button apparently had a padlock on it this run.",
+    "description": "Dispel is right there in the keybind list. Right there. And yet the entire run went by without it firing once, while the rest of the party scrambled to clean themselves. The cabinet is locked, the key is missing, and nobody's calling a locksmith.",
+    "icon": "🔒",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_dispels_as_healer",
+    "key": "statue_mode",
+    "name": "Statue Mode",
+    "flavorText": "You stood there and watched. The dispel timer never moved.",
+    "description": "Marble pose, healing kit at your feet, eyes forward. The dispel cooldown sat at full availability the entire run while everyone else cleansed themselves. Beautiful pose. Practically pointless.",
+    "icon": "🗿",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_dispels_as_healer",
+    "key": "out_to_lunch",
+    "name": "Out to Lunch",
+    "flavorText": "Dispel rotation: closed. Try again next dungeon.",
+    "description": "Sign on the door says 'Out to lunch — back at next dungeon.' The party walked up with their debuffs in hand, found the dispel desk unattended, and managed it themselves. Hope your sandwich was worth it.",
+    "icon": "🪧",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "healer_outdamages_dps",
     "key": "the_juicer",
     "name": "The Juicer",
     "flavorText": "A healer who out-damaged a DPS. Multitasker of the month.",
     "description": "Healing is hard. Damage is hard. Doing both while the tank pretends to understand threat is very hard. Yet here you are, on the DPS meter, above an actual DPS. Someone's M+ review this week is going to be a painful conversation.",
     "icon": "🍹",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "healer_outdamages_dps",
+    "key": "side_hustle_healer",
+    "name": "Side-Hustle Healer",
+    "flavorText": "Healed the party AND outdamaged a DPS. Gig economy.",
+    "description": "Day job: keep five players alive. Side gig: outdamage one of the people who got hired specifically to deal damage. You did both. The hustle is real. The DPS who finished below you is updating their resume tonight.",
+    "icon": "🃏",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "healer_outdamages_dps",
+    "key": "stealth_bottler",
+    "name": "Stealth Bottler",
+    "flavorText": "Quietly did more damage than someone whose job it was.",
+    "description": "Nobody asked you to top the meter. You just did. Quiet, professional, consistent — while one of the actual damage dealers found themselves looking up at a healer's name on Details. The bottling line ran smoothly. Even when nobody was watching.",
+    "icon": "🥷",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "healer_outdamages_dps",
+    "key": "two_hat_tuesday",
+    "name": "Two-Hat Tuesday",
+    "flavorText": "Healed and DPS'd at once. The other DPS is updating their resume.",
+    "description": "Wore the healer hat. Wore the DPS hat. Both at the same time, somehow. The party survived because of you, AND a DPS got out-damaged by you. There's a meeting in their future. You're not invited — you're busy doing two jobs.",
+    "icon": "🎩",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "healer_outdamages_dps",
+    "key": "multi_tool",
+    "name": "Multi-Tool",
+    "flavorText": "A healer who out-damaged a DPS. The Swiss Army knife of the party.",
+    "description": "Healing scissors? Got 'em. Damage corkscrew? Right there. Mana-efficiency tweezers? Of course. You unfolded the whole multi-tool this run and handed the party every blade at once — including the one that left a DPS sitting below you on the damage meter.",
+    "icon": "🔧",
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
@@ -518,12 +966,124 @@
     ]
   },
   {
+    "archetype": "top_dispels_in_party",
+    "key": "sweeping_pour",
+    "name": "Sweeping Pour",
+    "flavorText": "Most dispels in the party. Cleaning crew on shift.",
+    "description": "Every debuff in the dungeon got swept off the floor before it could settle. You out-cleansed everyone, on shift the whole run, broom in hand. The party walked through pristine — courtesy of you and the sweeping pour.",
+    "icon": "🧹",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "top_dispels_in_party",
+    "key": "bottle_brush",
+    "name": "Bottle Brush",
+    "flavorText": "You scrubbed every debuff off the party. Squeaky.",
+    "description": "Top dispels. Every curse, magic effect, and disease got the bottle-brush treatment until the party was squeaky. The kind of thorough cleaning that you can hear. Tooltip glow not included — just the satisfaction of a clean run.",
+    "icon": "🪥",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "top_dispels_in_party",
+    "key": "rinse_cycle",
+    "name": "Rinse Cycle",
+    "flavorText": "Top dispels. Every nasty buff went down the drain.",
+    "description": "Whatever the dungeon tried to slap on a player, you rinsed it off and sent it down the drain. The most dispels in the party, distributed efficiently across whoever needed them. The party stayed clean. You stayed busy.",
+    "icon": "🚿",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "top_dispels_in_party",
+    "key": "sponge_specialist",
+    "name": "Sponge Specialist",
+    "flavorText": "Soaked up every dispellable affix. Wrung out clean.",
+    "description": "There's an art to dispelling — knowing what to remove, when, and on whom. You aced it. The most dispels in the group, wrung out clean every time. The party's debuff bars looked emptier than a bar at closing time.",
+    "icon": "🧽",
+    "severity": "positive",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "zero_party_deaths_as_healer",
     "key": "keeper_of_the_pour",
     "name": "Keeper of the Pour",
     "flavorText": "Zero party deaths on your watch. Every cup stayed full.",
     "description": "The DPS stood in some bad things. The tank forgot some defensives. And somehow none of it mattered, because you were a healing machine. Every dip in health was a blip. Every close call a story nobody else noticed. Not one Spirit Healer visit, on any member, the entire run.",
     "icon": "⚱️",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_party_deaths_as_healer",
+    "key": "bartenders_guarantee",
+    "name": "Bartender's Guarantee",
+    "flavorText": "Zero deaths on your watch. The bar never lost a customer.",
+    "description": "Open to close, no incidents. No corpse runs, no Spirit Healer detours, no awkward 'sorry sorry' messages in chat. The bartender's guarantee: every customer leaves the way they came in — vertical and breathing. Five for five.",
+    "icon": "🛟",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_party_deaths_as_healer",
+    "key": "no_refills_needed",
+    "name": "No Refills Needed",
+    "flavorText": "Nobody hit the floor. Every cup stayed full from open to close.",
+    "description": "No refills on the death counter. No top-ups from the Spirit Healer. The party walked into the dungeon, walked out of the dungeon, and at no point in between did a tombstone appear. A perfectly poured shift.",
+    "icon": "🩹",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_party_deaths_as_healer",
+    "key": "daylight_shift",
+    "name": "Daylight Shift",
+    "flavorText": "Your shift ended with everyone walking out alive. Clean log.",
+    "description": "Punched in at the start, punched out at the end, zero incidents in between. No accident reports, no bandages handed out at the door. Daylight shift, clean log, every party member accounted for and upright at the finish line.",
+    "icon": "🌅",
+    "severity": "positive",
+    "rarity": "rare",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "zero_party_deaths_as_healer",
+    "key": "sealed_lid",
+    "name": "Sealed Lid",
+    "flavorText": "Five players in, five players out. Sealed all the way through.",
+    "description": "Lid screwed on tight from the start, no leaks, no spills, no replacement bottles needed. Five players at the start, five at the end, no Spirit Healer breaks for anyone. The seal held perfectly the whole run.",
+    "icon": "🔒",
     "severity": "positive",
     "rarity": "rare",
     "weight": 100,
@@ -546,12 +1106,124 @@
     ]
   },
   {
+    "archetype": "tank_overheals_self",
+    "key": "bubble_wrap",
+    "name": "Bubble Wrap",
+    "flavorText": "Self-shielded at full HP. Every cooldown popped on a green bar.",
+    "description": "Bubble wrap on a package that doesn't need it. Your defensives went off while your health bar was already comfortably padded — overheal galore. Safe? Sure. Necessary? Not even a little. Every wasted cooldown is one less for the moment that actually mattered.",
+    "icon": "🫧",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_overheals_self",
+    "key": "helmet_at_the_pool",
+    "name": "Helmet at the Pool",
+    "flavorText": "Defensives used while perfectly healthy. Overprotective to a fault.",
+    "description": "Wearing a helmet to the kiddie pool. Heavy self-mitigation while the threat level was 'mildly inconvenient.' Your gear is bulletproof, your timing is bulletproof, but the situations you were defending against were largely imaginary. The juice splashed onto already-sealed armor.",
+    "icon": "🪖",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_overheals_self",
+    "key": "spf_two_hundred",
+    "name": "SPF 200",
+    "flavorText": "Heavy self-mitigation, no sun. Mostly sunblock on a cloudy day.",
+    "description": "Lathered up with the strongest sunblock on the shelf and then walked outside on an overcast afternoon. Every defensive went off while the actual threat level was a balmy gray. Beautifully prepared for damage that never showed up.",
+    "icon": "🧴",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_overheals_self",
+    "key": "pillow_fort",
+    "name": "Pillow Fort",
+    "flavorText": "Built defensives around a full health bar. Cozy. Wasteful.",
+    "description": "Stacked every cooldown into a pillow fort and then sat inside it at full health. Cozy in there. Comfortable. Also completely unrelated to the actual incoming damage profile. Defensives spent on a green bar are defensives missing the next time it matters.",
+    "icon": "🛏️",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
     "archetype": "tank_zero_interrupts",
     "key": "free_juice_for_the_boss",
     "name": "Free Juice for the Boss",
     "flavorText": "A tank with zero interrupts. Every cast got a free pour.",
     "description": "You hold aggro. You take hits. You pull big. Respected. You also have a kick, a stun, and probably a silence macro somewhere. Every single one of them sat on the bar while the raid leader typed 'KICK' in party chat for the seventh time.",
     "icon": "🎁",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_zero_interrupts",
+    "key": "front_row_seat",
+    "name": "Front Row Seat",
+    "flavorText": "Tank with zero kicks. Got the best view of every cast.",
+    "description": "Front row, dead center, popcorn ready. From your spot at the boss's feet you had the absolute best view of every cast going off cleanly. The kick button on your bar was a polite garnish — never used, beautifully shaped.",
+    "icon": "🪑",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_zero_interrupts",
+    "key": "open_mic_night",
+    "name": "Open Mic Night",
+    "flavorText": "Zero interrupts. The boss had the floor all run long.",
+    "description": "Every caster got their full set. You held the audience, the boss held the microphone, and the kick button held its position on cooldown — zero presses. A truly inclusive open mic. The DPS in the back are still trying to shout over it.",
+    "icon": "🎤",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_zero_interrupts",
+    "key": "spectator_mode",
+    "name": "Spectator Mode",
+    "flavorText": "A tank who watched the casts go off. Popcorn included.",
+    "description": "Switched to spectator mode somewhere around the first pull and never switched back. Every cast bar filled, every spell landed, and you observed each one with the calm of a player who has accepted that interrupting is somebody else's problem.",
+    "icon": "📺",
+    "severity": "negative",
+    "rarity": "uncommon",
+    "weight": 100,
+    "themeTags": [
+      "juice"
+    ]
+  },
+  {
+    "archetype": "tank_zero_interrupts",
+    "key": "doorman_no_bouncing",
+    "name": "Doorman, No Bouncing",
+    "flavorText": "Held the threat door open. Forgot to bounce any casts.",
+    "description": "Doorman duty: hold aggro, keep the line moving. You did that. The bouncing portion of the job description — kicking the rowdy casts — slipped your mind entirely. The boss's spells walked right past the velvet rope all run long.",
+    "icon": "🚪",
     "severity": "negative",
     "rarity": "uncommon",
     "weight": 100,
