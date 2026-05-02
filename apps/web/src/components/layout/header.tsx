@@ -8,6 +8,7 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { cn } from "@/lib/utils";
 
 const PUBLIC_NAV = [
+  { href: "/runs", label: "Runs" },
   { href: "/leaderboards", label: "Leaderboards" },
   { href: "/juice", label: "Juice" },
   { href: "/download", label: "Download" },
