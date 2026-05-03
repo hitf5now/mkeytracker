@@ -277,7 +277,19 @@ async function handleSignupButton(interaction: ButtonInteraction, _client: Clien
   // characters path can no longer open the modal directly. Instead we
   // editReply with a button ("event-manual") whose own fresh handler
   // opens the modal — see eventManualHandler at the bottom of the file.
-  await interaction.deferReply({ ephemeral: true });
+  const t0 = Date.now();
+  const ageBefore = t0 - interaction.createdTimestamp;
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    console.log(
+      `[signup] deferReply ok id=${interaction.id} ageBefore=${ageBefore}ms deferTook=${Date.now() - t0}ms`,
+    );
+  } catch (err) {
+    console.error(
+      `[signup] deferReply FAILED id=${interaction.id} ageBefore=${ageBefore}ms deferTook=${Date.now() - t0}ms err=${err instanceof Error ? err.message : err}`,
+    );
+    throw err;
+  }
 
   const scopeError = await verifyGuildScope(eventId, interaction.guildId);
   if (scopeError) {

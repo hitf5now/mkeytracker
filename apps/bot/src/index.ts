@@ -189,6 +189,19 @@ function isStaleInteraction(interaction: Interaction): boolean {
 }
 
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+  // Diagnostic: log every interaction with its arrival age. Lets us see
+  // whether 10062s are stale-replay (high age at entry) or slow-response
+  // (low age at entry, but defer/reply still throws). Trimmed to the
+  // signup flow so we don't spam under normal load.
+  const idForLog =
+    "customId" in interaction && typeof interaction.customId === "string"
+      ? interaction.customId
+      : interaction.type;
+  const arrivalAgeMs = Date.now() - interaction.createdTimestamp;
+  console.log(
+    `[interaction] received id=${interaction.id} kind=${idForLog} arrivalAge=${arrivalAgeMs}ms`,
+  );
+
   if (isStaleInteraction(interaction)) return;
 
   // ── Slash commands ──────────────────────────────────────────
