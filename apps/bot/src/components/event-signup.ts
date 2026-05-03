@@ -267,15 +267,21 @@ async function verifyGuildScope(eventId: number, guildId: string | null): Promis
 async function handleSignupButton(interaction: ButtonInteraction, _client: Client): Promise<void> {
   const eventId = parseEventId(interaction.customId);
 
-  // IMPORTANT: do NOT deferReply yet. If the user has no linked characters
-  // we need to fall through to showManualModal(), and showModal() must be
-  // the FIRST response to an interaction — it can't follow a deferReply.
-  // Run the cheap pre-checks first and only defer once we know we're
-  // committing to an editReply / reply path.
+  // Defer FIRST, before any API call. Discord interaction tokens are
+  // valid for 3 seconds — the prior implementation called up to three
+  // serial APIs (verifyGuildScope, signupCheck, getUserCharacters)
+  // before its first response, which timed out reliably whenever the
+  // api container was cold (e.g. immediately after a deploy).
+  //
+  // Tradeoff: showModal() is illegal after a defer, so the no-linked-
+  // characters path can no longer open the modal directly. Instead we
+  // editReply with a button ("event-manual") whose own fresh handler
+  // opens the modal — see eventManualHandler at the bottom of the file.
+  await interaction.deferReply({ ephemeral: true });
 
   const scopeError = await verifyGuildScope(eventId, interaction.guildId);
   if (scopeError) {
-    await interaction.reply({ content: `❌ ${scopeError}`, ephemeral: true });
+    await interaction.editReply({ content: `❌ ${scopeError}` });
     return;
   }
 
@@ -306,24 +312,35 @@ async function handleSignupButton(interaction: ButtonInteraction, _client: Clien
         .setStyle(ButtonStyle.Danger),
     );
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `You're already signed up as **${specLabel}** (${s.rolePreference.toUpperCase()}) with **${s.characterName}**${statusLabel}. What would you like to do?`,
       components: [row],
-      ephemeral: true,
     });
     return;
   }
 
-  // No existing signup — peek at character list to decide reply-vs-modal.
+  // No existing signup — peek at character list to decide what to render.
   const { characters } = await apiClient.getUserCharacters(interaction.user.id);
 
   if (characters.length === 0) {
-    // No linked characters → manual entry modal. Must be the first response.
-    await showManualModal(interaction, eventId);
+    // No linked characters. We're already deferred so we can't showModal
+    // directly — render a button that the user clicks to open the modal
+    // (that button gets a fresh interaction token).
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`event-manual:${eventId}`)
+        .setLabel("Enter character details manually")
+        .setStyle(ButtonStyle.Primary),
+    );
+    await interaction.editReply({
+      content:
+        "You don't have any characters linked to your account yet. Click below to enter them manually for this event.",
+      components: [row],
+    });
     return;
   }
 
-  // Has characters — show the picker via reply (no defer needed).
+  // Has characters — show the picker.
   const options = characters.map((c: UserCharacter) => ({
     label: `${c.name} - ${c.realm} (${CLASSES[c.class]?.name ?? c.class})`,
     description: `${c.rioScore} RIO${c.hasCompanionApp ? " · ⚡ Companion" : ""}`,
@@ -338,10 +355,9 @@ async function handleSignupButton(interaction: ButtonInteraction, _client: Clien
       .addOptions(options),
   );
 
-  await interaction.reply({
+  await interaction.editReply({
     content: "Which character are you signing up with?",
     components: [row],
-    ephemeral: true,
   });
 }
 
@@ -940,6 +956,16 @@ export const eventFlexHandler: ComponentHandler = {
 
 export const eventManualHandler: ComponentHandler = {
   prefix: "event-manual",
+  // Two surfaces share this prefix:
+  //   - Button click ("event-manual:{eventId}") opens the manual-entry modal.
+  //     Used by handleSignupButton's no-linked-characters branch — that path
+  //     is already deferred so it can't showModal itself, and a fresh button
+  //     click gives us a fresh 3s token clean of prior responses.
+  //   - Modal submit (same prefix) is processed by handleManualModal.
+  handleButton: async (interaction, _client) => {
+    const eventId = parseEventId(interaction.customId);
+    await showManualModal(interaction, eventId);
+  },
   handleModal: handleManualModal,
 };
 

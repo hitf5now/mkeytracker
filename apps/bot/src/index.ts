@@ -137,6 +137,34 @@ client.on(Events.GuildDelete, (guild) => {
     .catch((err: unknown) => console.error(`Failed to uninstall server ${guild.id}:`, err));
 });
 
+/**
+ * Best-effort error reply. Wrapped in its own try/catch because the
+ * interaction's token may already be expired (Discord 10062), in which
+ * case any reply attempt will throw — and an unhandled throw inside an
+ * async event listener crashes the process.
+ *
+ * Worst case: the user sees Discord's generic "interaction failed"
+ * toast instead of our friendlier message. Acceptable; a crash is not.
+ */
+async function safeErrorReply(
+  interaction:
+    | import("discord.js").ChatInputCommandInteraction
+    | import("discord.js").ButtonInteraction
+    | import("discord.js").StringSelectMenuInteraction
+    | import("discord.js").ModalSubmitInteraction,
+  msg: string,
+): Promise<void> {
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: msg, ephemeral: true });
+    } else {
+      await interaction.reply({ content: msg, ephemeral: true });
+    }
+  } catch (err) {
+    console.error("Failed to deliver error reply (token likely expired):", err);
+  }
+}
+
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   // ── Slash commands ──────────────────────────────────────────
   if (interaction.isChatInputCommand()) {
@@ -149,12 +177,7 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await command.execute(interaction);
     } catch (err) {
       console.error(`Error executing /${interaction.commandName}:`, err);
-      const errorMessage = "❌ An error occurred while running that command.";
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, ephemeral: true });
-      } else {
-        await interaction.reply({ content: errorMessage, ephemeral: true });
-      }
+      await safeErrorReply(interaction, "❌ An error occurred while running that command.");
     }
     return;
   }
@@ -167,12 +190,7 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await handler.handleButton(interaction, client);
     } catch (err) {
       console.error(`Error handling button ${interaction.customId}:`, err);
-      const msg = "❌ Something went wrong. Please try again.";
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: msg, ephemeral: true });
-      } else {
-        await interaction.reply({ content: msg, ephemeral: true });
-      }
+      await safeErrorReply(interaction, "❌ Something went wrong. Please try again.");
     }
     return;
   }
@@ -185,12 +203,7 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await handler.handleSelectMenu(interaction, client);
     } catch (err) {
       console.error(`Error handling select ${interaction.customId}:`, err);
-      const msg = "❌ Something went wrong. Please try again.";
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: msg, ephemeral: true });
-      } else {
-        await interaction.reply({ content: msg, ephemeral: true });
-      }
+      await safeErrorReply(interaction, "❌ Something went wrong. Please try again.");
     }
     return;
   }
@@ -203,15 +216,18 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       await handler.handleModal(interaction, client);
     } catch (err) {
       console.error(`Error handling modal ${interaction.customId}:`, err);
-      const msg = "❌ Something went wrong. Please try again.";
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: msg, ephemeral: true });
-      } else {
-        await interaction.reply({ content: msg, ephemeral: true });
-      }
+      await safeErrorReply(interaction, "❌ Something went wrong. Please try again.");
     }
     return;
   }
+});
+
+// Last-resort safety net: any unhandled rejection from a misbehaving
+// listener path should be logged, not silently take down the whole
+// process. Interaction tokens regenerate; crashes lose every in-flight
+// session.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (kept process alive):", reason);
 });
 
 const shutdown = (signal: string): void => {
