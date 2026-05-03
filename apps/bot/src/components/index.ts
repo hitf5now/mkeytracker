@@ -43,6 +43,7 @@ import {
 import {
   eventReadyCheckHandler,
   readyCheckCancelHandler,
+  readyCheckCloseHandler,
   groupDisbandHandler,
 } from "./ready-check.js";
 
@@ -63,6 +64,7 @@ const handlers: ComponentHandler[] = [
   eventRoleHandler,
   eventReadyCheckHandler,
   readyCheckCancelHandler,
+  readyCheckCloseHandler,
   groupDisbandHandler,
 ];
 

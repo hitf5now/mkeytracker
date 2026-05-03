@@ -468,6 +468,45 @@ export const apiClient = {
   ): Promise<{ cancelled: boolean }> =>
     apiPost(`/api/v1/events/${eventId}/ready-check/${readyCheckId}/cancel`, { discordId }),
 
+  readyCheckClose: (
+    eventId: number,
+    readyCheckId: number,
+    discordId: string,
+  ): Promise<{
+    closed: boolean;
+    groupsFormed: number;
+    bouncedSignupIds: number[];
+  }> =>
+    apiPost(`/api/v1/events/${eventId}/ready-check/${readyCheckId}/close`, { discordId }),
+
+  storeGroupDiscordMessage: (
+    groupId: number,
+    messageId: string,
+    channelId: string,
+  ): Promise<{ stored: boolean }> =>
+    apiPost(`/api/v1/event-groups/${groupId}/discord-message`, { messageId, channelId }),
+
+  getEventGroup: (
+    groupId: number,
+  ): Promise<{
+    group: {
+      id: number;
+      eventId: number;
+      name: string;
+      state: string;
+      discordMessageId: string | null;
+      discordChannelId: string | null;
+      members: Array<{
+        slotPosition: "tank" | "healer" | "dps1" | "dps2" | "dps3" | null;
+        rolePreference: "tank" | "healer" | "dps";
+        characterName: string;
+        realm: string;
+        classSlug: string;
+      }>;
+    };
+  }> =>
+    apiGet(`/api/v1/event-groups/${groupId}`),
+
   getActiveReadyCheck: (
     eventId: number,
   ): Promise<{

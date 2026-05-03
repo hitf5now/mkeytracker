@@ -64,15 +64,40 @@ export interface MatchmakingResult {
   };
 }
 
+/**
+ * Pair-history map for the rotation tiebreaker. Key is `${a}:${b}` with
+ * a < b (canonical ordering). Value is the number of times that pair was
+ * grouped together in the lookback window. Higher = stronger penalty
+ * against pairing them again.
+ *
+ * Soft preference, not a hard constraint: if a high-penalty pairing is
+ * the only one possible (e.g. only 5 people show up), it still happens.
+ */
+export type PairHistory = Map<string, number>;
+
+export interface FormSkeletonsOptions {
+  pairHistory?: PairHistory;
+}
+
+/** Canonical key for a pair of signups (order-independent). */
+export function pairKey(a: number, b: number): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
 /** Primary entry point. */
-export function formSkeletons(participants: RCParticipant[]): MatchmakingResult {
+export function formSkeletons(
+  participants: RCParticipant[],
+  options: FormSkeletonsOptions = {},
+): MatchmakingResult {
   const bestPlan = chooseBestFlexAssignment(participants);
+  const pairHistory = options.pairHistory ?? new Map();
 
   const skeletons = drawSkeletons(
     bestPlan.tanks,
     bestPlan.healers,
     bestPlan.dps,
     bestPlan.flexedIds,
+    pairHistory,
   );
 
   const assignedIds = new Set<number>();
@@ -201,7 +226,7 @@ function applyFlex(plan: FlexPlan, candidate: RCParticipant): FlexPlan {
 }
 
 function skeletonCount(plan: FlexPlan): number {
-  return drawSkeletons(plan.tanks, plan.healers, plan.dps, plan.flexedIds).length;
+  return drawSkeletons(plan.tanks, plan.healers, plan.dps, plan.flexedIds, new Map()).length;
 }
 
 /**
@@ -218,6 +243,7 @@ function drawSkeletons(
   healersIn: RCParticipant[],
   dpsIn: RCParticipant[],
   flexedIds: Set<number>,
+  pairHistory: PairHistory,
 ): Skeleton[] {
   const tanks = [...tanksIn];
   const healers = [...healersIn];
@@ -225,11 +251,26 @@ function drawSkeletons(
   const skeletons: Skeleton[] = [];
 
   while (true) {
+    // Tank goes first in priority order — there's only one tank slot per
+    // skeleton, so rotation among tanks is naturally handled by the
+    // multi-skeleton iteration.
     const t = tanks.shift() ?? null;
-    const h = healers.shift() ?? null;
-    const d1 = dps.shift() ?? null;
-    const d2 = dps.shift() ?? null;
-    const d3 = dps.shift() ?? null;
+
+    // Healer: prefer the candidate with the lowest pair-history score
+    // against the tank we just placed. Soft penalty — we still pick
+    // *someone* as long as the bucket has any healer left.
+    const h = pickByPairScore(healers, t ? [t] : [], pairHistory);
+
+    // DPS: place three, each chosen to minimize the pair-history score
+    // against everyone already in this skeleton (tank + healer + prior DPS).
+    const placed: RCParticipant[] = [];
+    if (t) placed.push(t);
+    if (h) placed.push(h);
+    const d1 = pickByPairScore(dps, placed, pairHistory);
+    if (d1) placed.push(d1);
+    const d2 = pickByPairScore(dps, placed, pairHistory);
+    if (d2) placed.push(d2);
+    const d3 = pickByPairScore(dps, placed, pairHistory);
 
     const draw = [t, h, d1, d2, d3].filter((p): p is RCParticipant => p !== null);
     if (draw.length === 0) break;
@@ -254,6 +295,62 @@ function drawSkeletons(
   }
 
   return skeletons;
+}
+
+/**
+ * Pull one candidate from `bucket` (mutating: removes the chosen one)
+ * preferring the lowest cumulative pair-history score against
+ * `placedSoFar`. Ties fall back to the bucket's existing order, which is
+ * already priority-flag-then-signupId from sortForSlotting — so the
+ * priority semantics from §6.3 are preserved unchanged when history is
+ * empty (test compatibility).
+ */
+function pickByPairScore(
+  bucket: RCParticipant[],
+  placedSoFar: RCParticipant[],
+  pairHistory: PairHistory,
+): RCParticipant | null {
+  if (bucket.length === 0) return null;
+
+  // No history or nobody to compare against → preserve original behavior.
+  if (pairHistory.size === 0 || placedSoFar.length === 0) {
+    return bucket.shift() ?? null;
+  }
+
+  // Hard rule: priority-flagged players are always placed before
+  // non-flagged of the same role. Within each priority tier, history
+  // picks the freshest pairing. This keeps the "you got bounced last RC,
+  // we owe you a slot" guarantee while still rotating compositions.
+  const hasFlagged = bucket.some((c) => c.priorityFlag);
+  const tier = hasFlagged ? bucket.filter((c) => c.priorityFlag) : bucket;
+
+  let bestIdx = 0;
+  let bestScore = scorePair(tier[0]!, placedSoFar, pairHistory);
+  for (let i = 1; i < tier.length; i++) {
+    const score = scorePair(tier[i]!, placedSoFar, pairHistory);
+    if (score < bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+    // On ties, keep bestIdx (earlier in the priority/id-sorted order).
+  }
+
+  const chosen = tier[bestIdx]!;
+  const removeAt = bucket.indexOf(chosen);
+  bucket.splice(removeAt, 1);
+  return chosen;
+}
+
+function scorePair(
+  candidate: RCParticipant,
+  placed: RCParticipant[],
+  pairHistory: PairHistory,
+): number {
+  let total = 0;
+  for (const p of placed) {
+    total += pairHistory.get(pairKey(candidate.signupId, p.signupId)) ?? 0;
+  }
+  return total;
 }
 
 function makeSlot(

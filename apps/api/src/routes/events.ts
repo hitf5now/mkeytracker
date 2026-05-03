@@ -16,6 +16,7 @@
  * Ready Check (group formation):
  *   POST   /events/:id/ready-check           — start-or-join the active RC
  *   POST   /events/:id/ready-check/:rcId/cancel — cancel my participation
+ *   POST   /events/:id/ready-check/:rcId/close  — RC starter ends the window early
  *   POST   /ready-checks/:rcId/expire        — force expire (scheduler/testing)
  *   GET    /events/:id/ready-check           — current active RC, if any
  *
@@ -36,6 +37,7 @@ import {
   sweepExpiredReadyChecks,
   autoDisbandTimedOutGroups,
   recordDisbandVote,
+  assertCanCloseReadyCheck,
   ReadyCheckError,
 } from "../services/ready-check.js";
 import { computeEventResults } from "../services/event-results.js";
@@ -388,6 +390,50 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       },
     );
 
+    // ── Ready Check: close early (starter only) ─────────────────
+    // The starter clicks "Close & form groups now" inside the RC
+    // window when everyone they expected has already checked in,
+    // skipping the remaining timer. Forms groups immediately and
+    // notifies the bot the same way a natural expiry does.
+    scope.post<{ Params: { id: string; rcId: string } }>(
+      "/events/:id/ready-check/:rcId/close",
+      async (req, reply) => {
+        const eventId = parseInt(req.params.id, 10);
+        const rcId = parseInt(req.params.rcId, 10);
+        if (isNaN(eventId) || isNaN(rcId))
+          return reply.code(400).send({ error: "invalid_ids" });
+
+        const signupId = await resolveSignupId(req.body, eventId);
+        if (!signupId) {
+          return reply.code(400).send({
+            error: "signup_not_found",
+            message: "Supply either `signupId` or `discordId`",
+          });
+        }
+
+        try {
+          await assertCanCloseReadyCheck(rcId, signupId);
+          const result = await expireReadyCheck(rcId);
+          req.log.info(
+            { eventId, rcId, signupId, groupsFormed: result.groupsFormed, bounced: result.bouncedSignupIds.length },
+            "Ready Check closed early by starter",
+          );
+
+          await redis.publish(
+            "mplus:bot-notifications",
+            JSON.stringify({ type: "ready_check_expired", ...result }),
+          );
+
+          return reply.code(200).send({ closed: true, ...result });
+        } catch (err) {
+          if (err instanceof ReadyCheckError) {
+            return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+          }
+          throw err;
+        }
+      },
+    );
+
     // ── Ready Check: force expire (scheduler / testing) ──────────
     // Returns the formed group summary. Idempotent.
     scope.post<{ Params: { rcId: string } }>(
@@ -416,6 +462,31 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           }
           throw err;
         }
+      },
+    );
+
+    // ── Bot callback: persist the formed-group card's message id ─
+    // Bot calls this immediately after posting the formed-group card so
+    // we can edit/delete that exact message when the group leaves the
+    // `forming` state (matched, disbanded, or timed-out).
+    scope.post<{ Params: { id: string } }>(
+      "/event-groups/:id/discord-message",
+      async (req, reply) => {
+        const groupId = parseInt(req.params.id, 10);
+        if (isNaN(groupId)) return reply.code(400).send({ error: "invalid_group_id" });
+
+        const body = (req.body ?? {}) as { messageId?: string; channelId?: string };
+        if (typeof body.messageId !== "string" || typeof body.channelId !== "string") {
+          return reply.code(400).send({ error: "missing_message_or_channel" });
+        }
+
+        const updated = await prisma.eventGroup.updateMany({
+          where: { id: groupId },
+          data: { discordMessageId: body.messageId, discordChannelId: body.channelId },
+        });
+        if (updated.count === 0) return reply.code(404).send({ error: "group_not_found" });
+
+        return reply.code(200).send({ stored: true });
       },
     );
 
@@ -769,6 +840,48 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── Public read routes ──────────────────────────────────────
+
+  // Single group lookup for the bot's run-matched flow. Returns enough
+  // for the bot to find its previously-posted card (channel/message id)
+  // and render a replacement summary (name + member roster).
+  app.get<{ Params: { id: string } }>("/event-groups/:id", async (req, reply) => {
+    const groupId = parseInt(req.params.id, 10);
+    if (isNaN(groupId)) return reply.code(400).send({ error: "invalid_group_id" });
+
+    const group = await prisma.eventGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          select: {
+            slotPosition: true,
+            rolePreference: true,
+            character: { select: { name: true, realm: true, class: true } },
+          },
+        },
+      },
+    });
+    if (!group) return reply.code(404).send({ error: "group_not_found" });
+
+    return reply.code(200).send({
+      group: {
+        id: group.id,
+        eventId: group.eventId,
+        name: group.name,
+        state: group.state,
+        discordMessageId: group.discordMessageId,
+        discordChannelId: group.discordChannelId,
+        members: group.members
+          .filter((m) => m.slotPosition !== null)
+          .map((m) => ({
+            slotPosition: m.slotPosition,
+            rolePreference: m.rolePreference,
+            characterName: m.character.name,
+            realm: m.character.realm,
+            classSlug: m.character.class,
+          })),
+      },
+    });
+  });
 
   // Active Ready Check for an event, if any. Returns null when none active.
   app.get<{ Params: { id: string } }>("/events/:id/ready-check", async (req, reply) => {

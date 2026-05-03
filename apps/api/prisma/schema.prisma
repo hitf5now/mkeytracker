@@ -514,10 +514,19 @@ model EventGroup {
   members   EventSignup[]
   runs      Run[]
   runEvents RunEvent[]
+  /// Pair-history rows (see EventGroupPairing). Cascades on group delete.
+  pairings  EventGroupPairing[]
 
   assignedAt DateTime @default(now()) @map("assigned_at")
   /// Set when state transitions out of `forming`.
   resolvedAt DateTime? @map("resolved_at")
+
+  /// Discord message id of the formed-group card the bot posted, so we
+  /// can edit/delete it when the group transitions out of `forming`
+  /// (matched, disbanded, or timed-out). Null for groups formed before
+  /// this column landed or when the bot couldn't post (no channel, etc).
+  discordMessageId String? @map("discord_message_id")
+  discordChannelId String? @map("discord_channel_id")
 
   @@index([eventId])
   @@index([state])
@@ -546,6 +555,8 @@ model ReadyCheck {
   participants ReadyCheckParticipant[]
   /// Groups produced when this RC expired. Zero if formation found no valid skeleton.
   groups       EventGroup[]
+  /// Pair-history rows produced when this RC expired (see EventGroupPairing).
+  pairings     EventGroupPairing[]
 
   @@index([eventId, state])
   @@map("ready_checks")
@@ -566,6 +577,37 @@ model ReadyCheckParticipant {
   @@unique([readyCheckId, signupId])
   @@index([signupId])
   @@map("ready_check_participants")
+}
+
+/// Pair-history record for the matchmaker's "don't reform identical groups
+/// back-to-back" tiebreaker. One row per unordered pair of signups that
+/// landed in the same EventGroup. The matcher loads pairs from the last N
+/// ready checks for the event and uses the pair frequency as a soft penalty.
+///
+/// Per-event scope only: signups belong to a specific event, so pairings
+/// reset naturally when a new event starts. Rows cascade with the parent
+/// EventGroup via groupId.
+///
+/// Canonical ordering: signupIdA < signupIdB. Enforced by the writer, not
+/// the database (a CHECK constraint is overkill for the call site).
+model EventGroupPairing {
+  id            Int        @id @default(autoincrement())
+  eventId       Int        @map("event_id")
+  groupId       Int        @map("group_id")
+  group         EventGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  readyCheckId  Int        @map("ready_check_id")
+  readyCheck    ReadyCheck @relation(fields: [readyCheckId], references: [id], onDelete: Cascade)
+  signupIdA     Int        @map("signup_id_a")
+  signupIdB     Int        @map("signup_id_b")
+
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  /// Lookup hot path: given an event + a candidate participant, find prior
+  /// pairings involving them (filtered to recent RCs application-side).
+  @@index([eventId, signupIdA])
+  @@index([eventId, signupIdB])
+  @@index([readyCheckId])
+  @@map("event_group_pairings")
 }
 
 // ─────────────────────────────────────────────────────────────

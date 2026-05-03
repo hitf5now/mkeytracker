@@ -7,6 +7,8 @@
 import { describe, it, expect } from "vitest";
 import {
   formSkeletons,
+  pairKey,
+  type PairHistory,
   type RCParticipant,
   type Role,
   type FlexRole,
@@ -223,6 +225,127 @@ describe("formSkeletons — priority flag", () => {
     expect(tankSlot!.participant!.signupId).toBe(2); // priority wins
     expect(r.bounced).toHaveLength(1);
     expect(r.bounced[0]!.signupId).toBe(1);
+  });
+});
+
+describe("formSkeletons — pair-history rotation", () => {
+  // Helper: build pair-history map from a list of groups (each group is
+  // a list of signupIds that landed together in a prior RC).
+  function historyOf(...priorGroups: number[][]): PairHistory {
+    const h: PairHistory = new Map();
+    for (const group of priorGroups) {
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          const k = pairKey(group[i]!, group[j]!);
+          h.set(k, (h.get(k) ?? 0) + 1);
+        }
+      }
+    }
+    return h;
+  }
+
+  it("with no history, behaves identically to the old matcher (back-compat)", () => {
+    const pool: RCParticipant[] = [
+      p("tank", { id: 10 }),
+      p("tank", { id: 11 }),
+      p("healer", { id: 20 }),
+      p("healer", { id: 21 }),
+      p("dps", { id: 30 }),
+      p("dps", { id: 31 }),
+      p("dps", { id: 32 }),
+      p("dps", { id: 33 }),
+    ];
+
+    const a = formSkeletons(pool);
+    const b = formSkeletons(pool, { pairHistory: new Map() });
+
+    const memberIds = (r: ReturnType<typeof formSkeletons>): number[][] =>
+      r.skeletons.map((s) =>
+        s.slots
+          .filter((sl) => sl.participant)
+          .map((sl) => sl.participant!.signupId)
+          .sort((x, y) => x - y),
+      );
+
+    expect(memberIds(a)).toEqual(memberIds(b));
+  });
+
+  it("8-person pool (2T/2H/4D): RC1 and RC2 do NOT produce identical groups", () => {
+    // The reported bug: with the same pool back-to-back, RC2 should
+    // rotate the composition rather than reform the exact group.
+    const pool: RCParticipant[] = [
+      p("tank", { id: 10 }),
+      p("tank", { id: 11 }),
+      p("healer", { id: 20 }),
+      p("healer", { id: 21 }),
+      p("dps", { id: 30 }),
+      p("dps", { id: 31 }),
+      p("dps", { id: 32 }),
+      p("dps", { id: 33 }),
+    ];
+
+    const rc1 = formSkeletons(pool);
+    expect(rc1.skeletons.length).toBeGreaterThanOrEqual(1);
+    const firstGroupOfRc1 = rc1.skeletons[0]!.slots
+      .filter((s) => s.participant)
+      .map((s) => s.participant!.signupId)
+      .sort((a, b) => a - b);
+
+    // Feed RC1's groups back as history.
+    const history = historyOf(
+      ...rc1.skeletons.map((s) =>
+        s.slots.filter((sl) => sl.participant).map((sl) => sl.participant!.signupId),
+      ),
+    );
+
+    const rc2 = formSkeletons(pool, { pairHistory: history });
+    const firstGroupOfRc2 = rc2.skeletons[0]!.slots
+      .filter((s) => s.participant)
+      .map((s) => s.participant!.signupId)
+      .sort((a, b) => a - b);
+
+    expect(firstGroupOfRc2).not.toEqual(firstGroupOfRc1);
+  });
+
+  it("falls back to the same group when there's literally only one option (5 people)", () => {
+    // Only 5 people show up. There's no rotation possible. The matcher
+    // must still form the group (soft preference, not hard constraint).
+    const pool: RCParticipant[] = [
+      p("tank", { id: 10 }),
+      p("healer", { id: 20 }),
+      p("dps", { id: 30 }),
+      p("dps", { id: 31 }),
+      p("dps", { id: 32 }),
+    ];
+
+    const history = historyOf([10, 20, 30, 31, 32]); // these 5 were just paired
+    const r = formSkeletons(pool, { pairHistory: history });
+
+    expect(r.skeletons).toHaveLength(1);
+    expect(r.skeletons[0]!.realMemberCount).toBe(5);
+  });
+
+  it("priority flag still wins over history (priority > rotation)", () => {
+    // Priority is a "we owe you" guarantee from the spec — the rotation
+    // tiebreaker must not let a non-flagged player jump a flagged one.
+    const pool: RCParticipant[] = [
+      p("tank", { id: 10 }),
+      p("healer", { id: 20, priority: true }), // owed a slot
+      p("healer", { id: 21, priority: false }),
+      p("dps", { id: 30 }),
+      p("dps", { id: 31 }),
+      p("dps", { id: 32 }),
+    ];
+
+    // Pretend healer 20 was just paired with this exact tank in the
+    // last RC. Rotation alone would prefer healer 21, but priority
+    // outranks it.
+    const history = historyOf([10, 20, 30, 31, 32]);
+    const r = formSkeletons(pool, { pairHistory: history });
+
+    expect(r.skeletons).toHaveLength(1);
+    const healerSlot = r.skeletons[0]!.slots.find((s) => s.position === "healer");
+    expect(healerSlot!.participant!.signupId).toBe(20);
   });
 });
 

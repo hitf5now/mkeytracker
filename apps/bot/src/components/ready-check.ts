@@ -2,9 +2,10 @@
  * Ready Check component handlers — button + message rendering for the
  * RC flow described in docs/EVENT_READY_CHECK_SYSTEM.md §5, §7.
  *
- * Handles three custom IDs:
+ * Handles four custom IDs:
  *   event-ready-check:{eventId}         — "Ready Check" button on event embed
  *   rc-cancel:{eventId}:{readyCheckId}  — "Cancel my participation" button on RC message
+ *   rc-close:{eventId}:{readyCheckId}   — "Close & form groups now" (RC starter only)
  *   group-disband:{groupId}             — "Vote to disband" button on formed-group post
  *
  * Also exports helpers used by the Redis notification subscriber to
@@ -102,6 +103,42 @@ async function handleCancelButton(
   }
 }
 
+// ── Close-early button on the RC message (starter only) ─────────
+
+async function handleCloseButton(
+  interaction: ButtonInteraction,
+  _client: Client,
+): Promise<void> {
+  const parts = interaction.customId.split(":");
+  const eventId = parseInt(parts[1] ?? "0", 10);
+  const readyCheckId = parseInt(parts[2] ?? "0", 10);
+  if (!eventId || !readyCheckId) {
+    await interaction.reply({ content: "❌ Invalid Ready Check.", ephemeral: true });
+    return;
+  }
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const result = await apiClient.readyCheckClose(eventId, readyCheckId, interaction.user.id);
+    const summary =
+      result.groupsFormed === 0
+        ? "no full groups could be formed"
+        : `${result.groupsFormed} group${result.groupsFormed === 1 ? "" : "s"} formed`;
+    const bounced =
+      result.bouncedSignupIds.length > 0
+        ? ` · ${result.bouncedSignupIds.length} bounced with priority`
+        : "";
+    await interaction.editReply(`✅ Ready Check closed — ${summary}${bounced}.`);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      await interaction.editReply(`❌ ${err.message}`);
+      return;
+    }
+    console.error("ready-check close error:", err);
+    await interaction.editReply("❌ Something went wrong closing the Ready Check.");
+  }
+}
+
 // ── Vote-to-disband button on the formed-group post ──────────────
 
 async function handleDisbandVoteButton(
@@ -185,7 +222,15 @@ function buildRCButtons(
   eventId: number,
   readyCheckId: number,
 ): ActionRowBuilder<ButtonBuilder> {
+  // Close-early button is shown to everyone — server-side gate rejects
+  // non-participants so we don't need per-user component rendering. Discord
+  // doesn't support per-viewer button visibility on a public message.
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rc-close:${eventId}:${readyCheckId}`)
+      .setLabel("Close & form groups now")
+      .setEmoji("✅")
+      .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`rc-cancel:${eventId}:${readyCheckId}`)
       .setLabel("Cancel my participation")
@@ -339,6 +384,11 @@ export const eventReadyCheckHandler: ComponentHandler = {
 export const readyCheckCancelHandler: ComponentHandler = {
   prefix: "rc-cancel",
   handleButton: handleCancelButton,
+};
+
+export const readyCheckCloseHandler: ComponentHandler = {
+  prefix: "rc-close",
+  handleButton: handleCloseButton,
 };
 
 export const groupDisbandHandler: ComponentHandler = {

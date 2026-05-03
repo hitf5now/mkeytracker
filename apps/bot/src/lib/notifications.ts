@@ -136,7 +136,7 @@ interface BotNotification {
   reason?: string;
   groupIds?: number[];
   bouncedSignupIds?: number[];
-  // event_group_disbanded payload
+  // event_group_disbanded / event_group_matched payload
   groupId?: number;
 }
 
@@ -170,6 +170,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleReadyCheckExpired(client, notification);
       } else if (notification.type === "event_group_disbanded" && notification.groupId && notification.eventId) {
         await handleGroupDisbanded(client, notification.groupId, notification.eventId);
+      } else if (notification.type === "event_group_matched" && notification.groupId && notification.runId) {
+        await handleEventGroupMatched(client, notification);
       } else if (notification.type === "event_completed" && notification.eventId) {
         await handleEventCompleted(client, notification);
       } else if (notification.type === "run_completed" && notification.runId) {
@@ -375,10 +377,23 @@ async function handleReadyCheckExpired(
       });
 
       const view: FormedGroupView = { groupId: group.id, name: group.name, slots };
-      await channel.send({
+      const sent = await channel.send({
         embeds: [buildGroupEmbed(event.name, view)],
         components: [buildGroupButtons(group.id)],
       });
+
+      // Persist channel/message ids so we can later replace this card
+      // with a "run logged" message when the group matches a run, or
+      // delete it on disband / timeout. Failure is non-fatal — the
+      // worst case is an orphan card we can't auto-clean.
+      try {
+        await apiClient.storeGroupDiscordMessage(group.id, sent.id, channel.id);
+      } catch (err) {
+        console.error(
+          `Failed to persist Discord message id for group #${group.id}:`,
+          err,
+        );
+      }
     }
 
     console.log(
@@ -389,9 +404,126 @@ async function handleReadyCheckExpired(
   }
 }
 
+/**
+ * A run was matched to a forming group. Replace the standing group-card
+ * post in Discord with a "run logged" message so members aren't left
+ * staring at the original group assignment after the run has happened.
+ *
+ * Best-effort throughout: a missing message id, a deleted card, or a
+ * channel we can't fetch all degrade to a single fresh "run logged"
+ * post in the events channel rather than a hard failure.
+ */
+async function handleEventGroupMatched(
+  client: Client,
+  notification: BotNotification,
+): Promise<void> {
+  const {
+    groupId,
+    eventId,
+    runId,
+    dungeonName,
+    keystoneLevel,
+    onTime,
+    upgrades,
+    completionMs,
+    parMs,
+    juice,
+  } = notification;
+  if (!groupId || !runId) return;
+
+  try {
+    const { group } = await apiClient.getEventGroup(groupId);
+
+    const resultLabel = onTime
+      ? upgrades && upgrades > 0
+        ? `✅ Timed **+${upgrades}**`
+        : "✅ Timed"
+      : "❌ Depleted";
+    const timeDiff =
+      completionMs != null && parMs != null
+        ? onTime
+          ? `${formatRunDuration(parMs - completionMs)} under par`
+          : `${formatRunDuration(completionMs - parMs)} over par`
+        : "";
+    const memberLine = group.members
+      .map((m) => `**${m.characterName}**-${m.realm}`)
+      .join(", ");
+
+    const runUrl = `${WEB_BASE}/runs/${runId}`;
+    const embed = new EmbedBuilder()
+      .setTitle(`🏁 ${group.name} — ${dungeonName ?? "run"} +${keystoneLevel ?? "?"}`)
+      .setURL(runUrl)
+      .setColor(onTime ? TIMED_COLOR : DEPLETED_COLOR)
+      .setDescription(
+        `${resultLabel}${timeDiff ? ` — ${timeDiff}` : ""}\nLogged toward **${eventId ? `event #${eventId}` : "the event"}**.`,
+      )
+      .addFields(
+        { name: "Party", value: memberLine || "_unknown_", inline: false },
+        ...(completionMs != null
+          ? [{ name: "Time", value: formatRunDuration(completionMs), inline: true }]
+          : []),
+        ...(juice != null
+          ? [{ name: "Event Juice", value: juice.toLocaleString(), inline: true }]
+          : []),
+        { name: "Full stats", value: `[View on the website](${runUrl})`, inline: false },
+      )
+      .setFooter({ text: `Group #${group.id} · run logged` })
+      .setTimestamp();
+
+    // Try to edit the original group card in place — keeps the message
+    // pinned to the same scroll position members already have context
+    // for. Fall back to delete-and-repost (or just-post) if the original
+    // can't be edited.
+    if (group.discordChannelId && group.discordMessageId) {
+      try {
+        const channel = (await client.channels.fetch(
+          group.discordChannelId,
+        )) as TextChannel | null;
+        if (channel) {
+          try {
+            const msg = await channel.messages.fetch(group.discordMessageId);
+            await msg.edit({ embeds: [embed], components: [] });
+            console.log(
+              `Replaced group card #${group.id} with run-logged summary (run #${runId})`,
+            );
+            return;
+          } catch {
+            // Original message was deleted or otherwise unreachable —
+            // fall through to a fresh send in the same channel.
+          }
+          await channel.send({ embeds: [embed] });
+          return;
+        }
+      } catch (err) {
+        console.error(
+          `Failed editing/sending run-logged message for group #${group.id}:`,
+          err,
+        );
+      }
+    }
+
+    // No stored message id at all (e.g. group predates this column).
+    // Post a standalone summary in the events channel so members at
+    // least see the result.
+    if (eventId) {
+      const { event } = await apiClient.getEvent(eventId);
+      const channelId = await resolveEventsChannel(event.discordGuildId);
+      if (channelId) {
+        const channel = (await client.channels.fetch(channelId)) as TextChannel | null;
+        if (channel) await channel.send({ embeds: [embed] });
+      }
+    }
+  } catch (err) {
+    console.error(
+      `Failed to handle event_group_matched for group #${groupId}:`,
+      err,
+    );
+  }
+}
+
 async function handleGroupDisbanded(
   client: Client,
-  _groupId: number,
+  groupId: number,
   eventId: number,
 ): Promise<void> {
   try {
@@ -400,6 +532,37 @@ async function handleGroupDisbanded(
     if (!channelId) return;
     const channel = (await client.channels.fetch(channelId)) as TextChannel | null;
     if (!channel) return;
+
+    // Replace the original group card with a disband notice so members
+    // see why the assignment vanished, instead of leaving a stale card.
+    try {
+      const { group } = await apiClient.getEventGroup(groupId);
+      if (group.discordChannelId && group.discordMessageId) {
+        const cardChannel =
+          group.discordChannelId === channelId
+            ? channel
+            : ((await client.channels.fetch(group.discordChannelId)) as TextChannel | null);
+        if (cardChannel) {
+          try {
+            const msg = await cardChannel.messages.fetch(group.discordMessageId);
+            const disbandEmbed = new EmbedBuilder()
+              .setTitle(`🛑 ${group.name} disbanded`)
+              .setColor(0x888888)
+              .setDescription(
+                `Members voted to disband. Those players are free to Ready Check again.`,
+              )
+              .setFooter({ text: `Group #${group.id} · disbanded` });
+            await msg.edit({ embeds: [disbandEmbed], components: [] });
+            return;
+          } catch {
+            // Card unreachable — fall through to channel-level notice.
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to update disbanded group card #${groupId}:`, err);
+    }
+
     await channel.send(
       `🛑 A group for **${event.name}** was disbanded by its members. Those players are free to Ready Check again.`,
     );

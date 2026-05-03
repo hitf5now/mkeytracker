@@ -891,6 +891,29 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
               },
               "Run matched to events",
             );
+
+            // Tell the bot to replace each matched group's standing
+            // "forming" card with a "run logged" message so members
+            // don't keep staring at stale group assignments after the
+            // run has actually happened.
+            for (const match of winningMatches) {
+              void redis.publish(
+                "mplus:bot-notifications",
+                JSON.stringify({
+                  type: "event_group_matched",
+                  groupId: match.groupId,
+                  eventId: match.eventId,
+                  runId: run.id,
+                  dungeonName: dungeon.name,
+                  keystoneLevel: body.keystoneLevel,
+                  onTime: body.onTime,
+                  upgrades: body.upgrades,
+                  completionMs: body.completionMs,
+                  parMs: dungeon.parTimeSec * 1000,
+                  juice: eventBreakdown.total,
+                }),
+              ).catch((err) => req.log.warn({ err }, "Failed to publish event_group_matched"));
+            }
           }
         }
 

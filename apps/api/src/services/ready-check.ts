@@ -35,7 +35,13 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
-import { formSkeletons, type RCParticipant, type SlotPosition } from "./matchmaking.js";
+import {
+  formSkeletons,
+  pairKey,
+  type PairHistory,
+  type RCParticipant,
+  type SlotPosition,
+} from "./matchmaking.js";
 
 const BOT_CHANNEL = "mplus:bot-notifications";
 
@@ -54,6 +60,14 @@ function publishBotEvent(type: string, payload: Record<string, unknown>): void {
 
 const READY_CHECK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const FORMING_GROUP_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+/**
+ * How many of the most-recent prior ready checks contribute to the
+ * matchmaker's anti-repeat tiebreaker. Two RCs is enough to break the
+ * "exact same group two RCs in a row" pattern reported in testing
+ * without fossilizing the rotation across an entire long event.
+ */
+const PAIR_HISTORY_LOOKBACK_RCS = 2;
 
 // ─────────────────────────────────────────────────────────────
 // Errors
@@ -254,6 +268,43 @@ export async function cancelParticipation(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Close early (RC starter only — form groups now)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Permission check for early close: any non-cancelled participant in the
+ * RC can end the window early. In testing, queues filled in well under
+ * a minute, so anyone in the queue waiting on the 5-minute timer should
+ * be able to skip ahead — the only thing closing early changes is "form
+ * groups now" instead of "form groups when the timer hits zero," and
+ * everyone in the queue already opted in.
+ */
+export async function assertCanCloseReadyCheck(
+  readyCheckId: number,
+  signupId: number,
+): Promise<void> {
+  const rc = await prisma.readyCheck.findUnique({
+    where: { id: readyCheckId },
+    select: { state: true },
+  });
+  if (!rc) throw new ReadyCheckError("ready_check_not_found", "Ready Check not found", 404);
+  if (rc.state !== "active")
+    throw new ReadyCheckError("ready_check_not_active", "Ready Check is no longer active");
+
+  const participant = await prisma.readyCheckParticipant.findUnique({
+    where: { readyCheckId_signupId: { readyCheckId, signupId } },
+    select: { cancelledAt: true },
+  });
+  if (!participant || participant.cancelledAt !== null) {
+    throw new ReadyCheckError(
+      "not_in_ready_check",
+      "Only players currently in this Ready Check can close it",
+      403,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Expire (form groups)
 // ─────────────────────────────────────────────────────────────
 
@@ -320,7 +371,17 @@ export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResu
       hasCompanionApp: part.signup.character.hasCompanionApp,
     }));
 
-    const result = formSkeletons(pool);
+    // Load pair history from the last N ready checks for this event.
+    // Used as a soft tiebreaker so the matcher rotates compositions
+    // instead of regenerating identical groups RC-after-RC.
+    const pairHistory = await loadRecentPairHistory(
+      tx,
+      rc.eventId,
+      rc.id,
+      PAIR_HISTORY_LOOKBACK_RCS,
+    );
+
+    const result = formSkeletons(pool, { pairHistory });
 
     // Create groups + assign slotPosition on signups
     const groupIds: number[] = [];
@@ -353,6 +414,36 @@ export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResu
             priorityFlag: false, // clears on assignment
           },
         });
+      }
+
+      // Record pair history for the matchmaker's anti-repeat tiebreaker.
+      // One row per unordered pair of real (non-PUG) members. C(5,2)=10
+      // rows max per group; cheap.
+      const realSignupIds = skel.slots
+        .map((s) => s.participant?.signupId)
+        .filter((id): id is number => id !== undefined)
+        .sort((a, b) => a - b);
+
+      const pairRows: Array<{
+        eventId: number;
+        groupId: number;
+        readyCheckId: number;
+        signupIdA: number;
+        signupIdB: number;
+      }> = [];
+      for (let i = 0; i < realSignupIds.length; i++) {
+        for (let j = i + 1; j < realSignupIds.length; j++) {
+          pairRows.push({
+            eventId: rc.eventId,
+            groupId: group.id,
+            readyCheckId: rc.id,
+            signupIdA: realSignupIds[i]!,
+            signupIdB: realSignupIds[j]!,
+          });
+        }
+      }
+      if (pairRows.length > 0) {
+        await tx.eventGroupPairing.createMany({ data: pairRows });
       }
     }
 
@@ -399,6 +490,46 @@ export async function expireReadyCheck(readyCheckId: number): Promise<ExpireResu
     bouncedSignupIds: result.bouncedSignupIds,
     stats: result.stats,
   };
+}
+
+/**
+ * Build a pair-history map from the most recent N completed (non-current)
+ * ready checks for an event. The map's value is the number of times each
+ * unordered signup pair was grouped together in the lookback window.
+ *
+ * Recency, not weight: every pairing in the window counts as 1. Two RCs
+ * is short enough that linear weighting wouldn't add useful signal.
+ */
+async function loadRecentPairHistory(
+  tx: Prisma.TransactionClient,
+  eventId: number,
+  currentReadyCheckId: number,
+  lookback: number,
+): Promise<PairHistory> {
+  const recentRCs = await tx.readyCheck.findMany({
+    where: {
+      eventId,
+      id: { not: currentReadyCheckId },
+      state: { in: ["expired", "active"] }, // 'active' is the current one we excluded; safe to include other states if added later
+    },
+    orderBy: { startedAt: "desc" },
+    take: lookback,
+    select: { id: true },
+  });
+
+  if (recentRCs.length === 0) return new Map();
+
+  const rows = await tx.eventGroupPairing.findMany({
+    where: { readyCheckId: { in: recentRCs.map((r) => r.id) } },
+    select: { signupIdA: true, signupIdB: true },
+  });
+
+  const history: PairHistory = new Map();
+  for (const row of rows) {
+    const key = pairKey(row.signupIdA, row.signupIdB);
+    history.set(key, (history.get(key) ?? 0) + 1);
+  }
+  return history;
 }
 
 // ─────────────────────────────────────────────────────────────
