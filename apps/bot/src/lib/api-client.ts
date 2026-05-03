@@ -542,6 +542,25 @@ export const apiClient = {
   repostEvent: (eventId: number): Promise<{ reposted: boolean }> =>
     apiPost(`/api/v1/events/${eventId}/repost`, {}),
 
+  storeEventRepost: (
+    eventId: number,
+    messageId: string,
+    channelId: string,
+  ): Promise<{ repostId: number }> =>
+    apiPost(`/api/v1/events/${eventId}/reposts`, { messageId, channelId }),
+
+  listEventReposts: (
+    eventId: number,
+  ): Promise<{
+    reposts: Array<{
+      id: number;
+      discordChannelId: string;
+      discordMessageId: string;
+      createdAt: string;
+    }>;
+  }> =>
+    apiGet(`/api/v1/events/${eventId}/reposts`),
+
   // ── Phase 2: Bot interaction endpoints ─────────────────────────
   getUserCharacters: (discordId: string): Promise<UserCharactersResponse> =>
     apiGetInternal(`/api/v1/users/by-discord/${encodeURIComponent(discordId)}/characters`),

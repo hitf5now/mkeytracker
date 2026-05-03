@@ -60,10 +60,21 @@ const TYPE_SUMMARIES: Record<string, string> = {
 
 const CHANNEL = "mplus:bot-notifications";
 
+/**
+ * Build the action row for a non-team-mode event embed. Returns null
+ * for completed/cancelled events so the embed renders with no buttons
+ * at all (call sites pass `components: []` in that case).
+ *
+ * Without this gate, the Sign Up / Tentative buttons stay visible on
+ * old event embeds even after the event ends, inviting people to
+ * "sign up" for something that's already over.
+ */
 function buildGroupEventButtons(
   eventId: number,
   eventStatus: string,
-): ActionRowBuilder<ButtonBuilder> {
+): ActionRowBuilder<ButtonBuilder> | null {
+  if (eventStatus === "completed" || eventStatus === "cancelled") return null;
+
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`event-signup:${eventId}`)
@@ -84,6 +95,20 @@ function buildGroupEventButtons(
     );
   }
   return row;
+}
+
+/** Same gate for team-mode events — no team-signup button after the event ends. */
+function buildTeamEventButtons(
+  eventId: number,
+  eventStatus: string,
+): ActionRowBuilder<ButtonBuilder> | null {
+  if (eventStatus === "completed" || eventStatus === "cancelled") return null;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`team-signup:${eventId}`)
+      .setLabel("Sign Up Team")
+      .setStyle(ButtonStyle.Success),
+  );
 }
 
 /** Public base URL for the website — used to deep-link run detail pages. */
@@ -244,12 +269,7 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
     }
 
     const buttons = isTeamMode
-      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`team-signup:${event.id}`)
-            .setLabel("Sign Up Team")
-            .setStyle(ButtonStyle.Success),
-        )
+      ? buildTeamEventButtons(event.id, event.status)
       : buildGroupEventButtons(event.id, event.status);
 
     const channel = await client.channels.fetch(channelId) as TextChannel | null;
@@ -261,7 +281,7 @@ async function handleEventCreated(client: Client, eventId: number): Promise<void
     const message = await channel.send({
       content: "🆕 A new event has been created! Click a button to sign up.",
       embeds: [embed],
-      components: [buttons],
+      components: buttons ? [buttons] : [],
     });
 
     // Store the message/channel IDs so the embed can be updated on signups
@@ -587,7 +607,16 @@ async function handleEventReposted(client: Client, eventId: number): Promise<voi
       ? `📌 **${event.name}** is still accepting signups — [jump to event](${link})`
       : `📌 **${event.name}** is still accepting signups.`;
 
-    await channel.send(body);
+    const sent = await channel.send(body);
+
+    // Persist the message id so we can edit this repost when the event
+    // ends. Failure is non-fatal — worst case is one repost stays stale.
+    try {
+      await apiClient.storeEventRepost(eventId, sent.id, channel.id);
+    } catch (err) {
+      console.error(`Failed to persist repost id for event #${eventId}:`, err);
+    }
+
     console.log(`Posted repost pointer for event #${eventId}`);
   } catch (err) {
     console.error(`Failed to repost event #${eventId}:`, err);
@@ -680,24 +709,67 @@ async function handleEventUpdated(client: Client, eventId: number): Promise<void
     }
 
     const buttons = isTeamMode
-      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`team-signup:${event.id}`)
-            .setLabel("Sign Up Team")
-            .setStyle(ButtonStyle.Success),
-        )
+      ? buildTeamEventButtons(event.id, event.status)
       : buildGroupEventButtons(event.id, event.status);
 
     const channel = await client.channels.fetch(event.discordChannelId) as TextChannel | null;
     if (!channel) return;
 
     const message = await channel.messages.fetch(event.discordMessageId);
-    await message.edit({ embeds: [embed], components: [buttons] });
+    await message.edit({ embeds: [embed], components: buttons ? [buttons] : [] });
 
-    console.log(`Updated Discord embed for event #${eventId}`);
+    console.log(`Updated Discord embed for event #${eventId} (status=${event.status})`);
+
+    // Once the event ends, also update every repost pointer so they
+    // don't keep advertising "still accepting signups" indefinitely.
+    if (event.status === "completed" || event.status === "cancelled") {
+      await updateRepostsForEndedEvent(client, event);
+    }
   } catch (err) {
     console.error(`Failed to update event #${eventId} embed:`, err);
   }
+}
+
+/**
+ * Edit every tracked repost pointer for an event that just ended.
+ * Best-effort: a missing channel, deleted message, or insufficient
+ * perms degrades to a logged warning rather than aborting the whole
+ * update — at worst, individual reposts stay stale.
+ */
+async function updateRepostsForEndedEvent(
+  client: Client,
+  event: { id: number; name: string; status: string },
+): Promise<void> {
+  let reposts: Awaited<ReturnType<typeof apiClient.listEventReposts>>["reposts"];
+  try {
+    ({ reposts } = await apiClient.listEventReposts(event.id));
+  } catch (err) {
+    console.error(`Failed to list reposts for event #${event.id}:`, err);
+    return;
+  }
+  if (reposts.length === 0) return;
+
+  const endedLabel = event.status === "cancelled" ? "cancelled" : "ended";
+  const newBody = `✅ **${event.name}** has ${endedLabel}.`;
+
+  let updated = 0;
+  for (const repost of reposts) {
+    try {
+      const ch = (await client.channels.fetch(repost.discordChannelId)) as
+        | TextChannel
+        | null;
+      if (!ch) continue;
+      const msg = await ch.messages.fetch(repost.discordMessageId);
+      await msg.edit({ content: newBody });
+      updated++;
+    } catch (err) {
+      console.warn(
+        `Couldn't update repost ${repost.id} for event #${event.id}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  console.log(`Updated ${updated}/${reposts.length} repost(s) for event #${event.id}`);
 }
 
 async function handleEventCompleted(client: Client, notification: BotNotification): Promise<void> {

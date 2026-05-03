@@ -559,6 +559,36 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
       },
     );
 
+    // ── Bot callback: persist a repost pointer's message id ──────
+    // Bot calls this immediately after sending a repost pointer
+    // message, so we can iterate and edit them when the event ends.
+    scope.post<{ Params: { id: string } }>(
+      "/events/:id/reposts",
+      async (req, reply) => {
+        const eventId = parseInt(req.params.id, 10);
+        if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+        const body = (req.body ?? {}) as { messageId?: string; channelId?: string };
+        if (typeof body.messageId !== "string" || typeof body.channelId !== "string") {
+          return reply.code(400).send({ error: "missing_message_or_channel" });
+        }
+
+        const event = await prisma.event.findUnique({ where: { id: eventId } });
+        if (!event) return reply.code(404).send({ error: "event_not_found" });
+
+        const created = await prisma.eventDiscordRepost.create({
+          data: {
+            eventId,
+            discordChannelId: body.channelId,
+            discordMessageId: body.messageId,
+          },
+          select: { id: true },
+        });
+
+        return reply.code(201).send({ repostId: created.id });
+      },
+    );
+
     // ── Repost event (§3 — append pointer message, don't replace) ─
     scope.post<{ Params: { id: string } }>(
       "/events/:id/repost",
@@ -881,6 +911,23 @@ export async function eventsRoutes(app: FastifyInstance): Promise<void> {
           })),
       },
     });
+  });
+
+  // List repost pointer messages for an event. The bot reads this on
+  // event completion to edit each repost into an "event has ended"
+  // notice in place, so users don't see stale "still accepting signups"
+  // messages after the event is over.
+  app.get<{ Params: { id: string } }>("/events/:id/reposts", async (req, reply) => {
+    const eventId = parseInt(req.params.id, 10);
+    if (isNaN(eventId)) return reply.code(400).send({ error: "invalid_event_id" });
+
+    const reposts = await prisma.eventDiscordRepost.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, discordChannelId: true, discordMessageId: true, createdAt: true },
+    });
+
+    return reply.code(200).send({ reposts });
   });
 
   // Active Ready Check for an event, if any. Returns null when none active.

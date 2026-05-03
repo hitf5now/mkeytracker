@@ -422,6 +422,10 @@ model Event {
   runs         Run[]
   runEvents    RunEvent[]        @relation("eventRuns")
   readyChecks  ReadyCheck[]
+  /// Repost pointer messages (📌 still accepting signups) tracked so the
+  /// bot can edit them when the event completes/cancels — otherwise users
+  /// see stale "still accepting signups" text after the event ended.
+  reposts      EventDiscordRepost[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -431,6 +435,21 @@ model Event {
   @@index([startsAt])
   @@index([discordGuildId])
   @@map("events")
+}
+
+/// Tracks repost pointer messages so the bot can update them when the
+/// parent event ends. One row per `/repost` invocation (an event can be
+/// reposted multiple times across long signup windows).
+model EventDiscordRepost {
+  id               Int      @id @default(autoincrement())
+  eventId          Int      @map("event_id")
+  event            Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  discordChannelId String   @map("discord_channel_id")
+  discordMessageId String   @map("discord_message_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([eventId])
+  @@map("event_discord_reposts")
 }
 
 model EventSignup {
