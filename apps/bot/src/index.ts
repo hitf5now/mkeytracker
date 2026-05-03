@@ -165,7 +165,32 @@ async function safeErrorReply(
   }
 }
 
+/**
+ * Discord interaction tokens are valid for 3 seconds from creation.
+ * If we receive an interaction event that's already older than that —
+ * almost always a gateway RESUME replaying events from before a bot
+ * restart — there's no point even attempting deferReply: it will 404
+ * with code 10062. Bail early and log loud enough to spot in tail.
+ *
+ * Threshold is 2500ms (slightly under the 3s ceiling) to leave headroom
+ * for the deferReply HTTPS round-trip itself.
+ */
+const STALE_INTERACTION_THRESHOLD_MS = 2500;
+
+function isStaleInteraction(interaction: Interaction): boolean {
+  const ageMs = Date.now() - interaction.createdTimestamp;
+  if (ageMs > STALE_INTERACTION_THRESHOLD_MS) {
+    console.warn(
+      `Skipping stale interaction (${ageMs}ms old, type=${interaction.type}, id=${interaction.id}) — likely a gateway RESUME replay across a restart. User will see Discord's "interaction failed" toast; click again to retry.`,
+    );
+    return true;
+  }
+  return false;
+}
+
 client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+  if (isStaleInteraction(interaction)) return;
+
   // ── Slash commands ──────────────────────────────────────────
   if (interaction.isChatInputCommand()) {
     const command = commands.get(interaction.commandName);
