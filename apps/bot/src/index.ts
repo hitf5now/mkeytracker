@@ -5,6 +5,19 @@
  * the command handlers registered in commands/index.ts.
  */
 
+import { setDefaultResultOrder } from "node:dns";
+
+// Prefer IPv4 in DNS resolution. Without this, Node's "happy eyeballs"
+// dual-stack logic tries the AAAA (IPv6) record first; if the host has
+// no working IPv6 route to Cloudflare (Discord's edge), every HTTPS
+// call to discord.com waits ~4s for the v6 SYN to time out before
+// falling back to IPv4. That blows past Discord's 3-second interaction
+// token TTL and produces 10062 "Unknown interaction" on every defer/
+// reply call. Diagnosed 2026-05-03 — `wget https://discord.com/...`
+// from inside the bot container reproducibly took 4.2s, while DNS
+// resolution itself was instant.
+setDefaultResultOrder("ipv4first");
+
 import { Client, EmbedBuilder, Events, GatewayIntentBits, type Interaction, type TextChannel } from "discord.js";
 import { Redis } from "ioredis";
 import { env } from "./config/env.js";
