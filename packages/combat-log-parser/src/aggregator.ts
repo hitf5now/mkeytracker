@@ -249,13 +249,31 @@ export class RunAggregator {
         }
         return;
 
-      case 'SPELL_INTERRUPT':
-        this.getOrCreatePlayer(event.source.guid, event.source.name).interrupts++;
+      case 'SPELL_INTERRUPT': {
+        // Pet/guardian interrupts (Felhunter Spell Lock, Felguard Axe Toss,
+        // etc.) carry the pet's GUID as source. Roll them up to the owner via
+        // petOwners, the same way pet damage/healing is attributed. SPELL_INTERRUPT
+        // has no advanced-logging block, so there's no ownerGUID on the line
+        // itself — but the pet's earlier damage events backfill petOwners, so
+        // the mapping is in place by the time it interrupts.
+        const credited = this.resolveCreditedPlayer(event.source.guid);
+        if (credited) {
+          // Don't poison the owner's display name with the pet's name; only
+          // pass a name through for self-sourced (player) interrupts.
+          const name = credited === event.source.guid ? event.source.name : '';
+          this.getOrCreatePlayer(credited, name).interrupts++;
+        }
         return;
+      }
 
-      case 'SPELL_DISPEL':
-        this.getOrCreatePlayer(event.source.guid, event.source.name).dispels++;
+      case 'SPELL_DISPEL': {
+        const credited = this.resolveCreditedPlayer(event.source.guid);
+        if (credited) {
+          const name = credited === event.source.guid ? event.source.name : '';
+          this.getOrCreatePlayer(credited, name).dispels++;
+        }
         return;
+      }
 
       case 'UNIT_DIED':
         if (event.dest.guid.startsWith('Player-')) {
@@ -544,6 +562,22 @@ export class RunAggregator {
       while (owner.damageBuckets.length <= bucketIndex) owner.damageBuckets.push(0);
       owner.damageBuckets[bucketIndex]! += amount;
     }
+  }
+
+  /**
+   * Resolve a combat-event source GUID to the player GUID that should receive
+   * credit. Players credit themselves; pets/guardians/totems credit their
+   * owner via `petOwners` (populated from SPELL_SUMMON, backfilled from the
+   * advanced-logging ownerGUID on damage events). Returns null for an unowned
+   * non-player source (an enemy mob, or a pet we never saw summoned and that
+   * never dealt damage). Used by count-based events (interrupts, dispels) that
+   * have no advanced-logging block of their own to read an ownerGUID from.
+   */
+  private resolveCreditedPlayer(sourceGuid: string): string | null {
+    if (!sourceGuid) return null;
+    if (sourceGuid.startsWith('Player-')) return sourceGuid;
+    const owner = this.petOwners.get(sourceGuid);
+    return owner && owner.startsWith('Player-') ? owner : null;
   }
 
   private addPetHealing(sourceGuid: string, amount: number): void {

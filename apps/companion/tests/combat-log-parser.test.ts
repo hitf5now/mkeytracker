@@ -369,3 +369,99 @@ describe("expanded _SUPPORT event coverage (Augmentation Evoker)", () => {
     expect(aug!.healingDoneSupport).toBe(300);
   });
 });
+
+describe("pet interrupt / dispel attribution", () => {
+  // A pet's TRUE interrupt (one that emits SPELL_INTERRUPT — Felhunter Spell
+  // Lock, Felguard Axe Toss, etc.) carries the pet's GUID as source, not the
+  // player's. These must roll up to the owning player like pet damage does.
+  // SPELL_INTERRUPT has no advanced-logging block, so attribution relies on
+  // petOwners (from SPELL_SUMMON, or backfilled from the pet's damage events).
+  const FELGUARD = `Creature-0-3019-2526-352014-17252-0000111111,"Felguard",0xa28,0x80000000`;
+  const FELGUARD_GUID = `Creature-0-3019-2526-352014-17252-0000111111`;
+  // SPELL_INTERRUPT layout: prefix(8) + spellId,name,school + interruptedId,name,school
+  const interruptLine = (petPrefix: string) =>
+    `SPELL_INTERRUPT,${petPrefix},${BOSS},89766,"Axe Toss",0x1,388862,"Surge",64`;
+
+  it("credits a pet interrupt to the owner via SPELL_SUMMON", () => {
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      // Alpha summons the Felguard, establishing pet→owner ownership.
+      T(
+        "11:00:02",
+        `SPELL_SUMMON,${PLAYER_A},${FELGUARD},30146,"Summon Felguard",0x20`,
+      ),
+      T("11:00:05", interruptLine(FELGUARD)),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    expect(summary).not.toBeNull();
+    const alpha = summary!.players.find((p) => p.guid === "Player-1-AAAAAA00");
+    expect(alpha).toBeDefined();
+    expect(alpha!.interrupts).toBe(1);
+    // The interrupt must NOT survive as a standalone pet "player" entry.
+    expect(
+      summary!.players.some((p) => p.guid === FELGUARD_GUID),
+    ).toBe(false);
+    // Run total reflects the rolled-up interrupt.
+    expect(summary!.totals.interrupts).toBe(1);
+  });
+
+  it("credits an orphan pet interrupt via damage-backfilled petOwners (no summon)", () => {
+    // Pet existed before /combatlog — no SPELL_SUMMON. Its first damage event
+    // carries ownerGUID, which backfills petOwners; the later interrupt then
+    // resolves to the owner. (Real pets always deal damage before interrupting.)
+    const advFromOwner = `${FELGUARD_GUID},Player-1-AAAAAA00,1000,1000,0,0,0,0,0,0,0,0,0,0,0.0,0.0,0,0.0,90`;
+    const dmgSuffix = `5000,0,1,0,0,0,false,false,false,false`;
+
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:04",
+        `SPELL_DAMAGE,${FELGUARD},${BOSS},6360,"Felstorm",0x1,${advFromOwner},${dmgSuffix},ST`,
+      ),
+      T("11:00:05", interruptLine(FELGUARD)),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    const alpha = summary!.players.find((p) => p.guid === "Player-1-AAAAAA00");
+    expect(alpha).toBeDefined();
+    expect(alpha!.interrupts).toBe(1);
+    // Owner's display name must not be poisoned with the pet's name.
+    expect(alpha!.name).not.toBe("Felguard");
+  });
+
+  it("still credits a player's own (non-pet) interrupt", () => {
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:05",
+        `SPELL_INTERRUPT,${PLAYER_A},${BOSS},6552,"Pummel",0x1,388862,"Surge",64`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    const alpha = summary!.players.find((p) => p.guid === "Player-1-AAAAAA00");
+    expect(alpha).toBeDefined();
+    expect(alpha!.interrupts).toBe(1);
+  });
+
+  it("does NOT credit an enemy mob interrupting a player", () => {
+    // Crawth-style: a Creature interrupts a player's cast. No player owns the
+    // mob, so resolveCreditedPlayer returns null and nobody is credited.
+    const ENEMY = `Creature-0-3019-2526-352014-191736-0000637A9A,"Crawth",0x10a48,0x80000000`;
+    const summary = run([
+      T("11:00:00", "CHALLENGE_MODE_START,Maisara Caverns,2874,560,7,[162]"),
+      T(
+        "11:00:05",
+        `SPELL_INTERRUPT,${ENEMY},${PLAYER_A},377004,"Deafening Screech",0x8,361469,"Living Flame",4`,
+      ),
+      T("11:05:01", "CHALLENGE_MODE_END,2874,1,7,1383573,100.0,300.0"),
+    ]);
+
+    expect(summary).not.toBeNull();
+    for (const p of summary!.players) {
+      expect(p.interrupts).toBe(0);
+    }
+    expect(summary!.totals.interrupts).toBe(0);
+  });
+});
