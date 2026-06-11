@@ -43,11 +43,22 @@ export interface RunSubmissionResponse {
   };
 }
 
+/**
+ * The JWT can be a plain string or a getter. Pass a getter (e.g.
+ * `() => loadConfig().jwt`) in long-lived contexts so a token renewed
+ * by the auto-refresh flow is picked up without rebuilding the client.
+ */
+export type JwtSource = string | null | (() => string | null);
+
 export class CompanionApiClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly jwt: string | null,
+    private readonly jwtSource: JwtSource,
   ) {}
+
+  private get jwt(): string | null {
+    return typeof this.jwtSource === "function" ? this.jwtSource() : this.jwtSource;
+  }
 
   /**
    * Swap a 6-digit pairing code for a long-lived JWT.
@@ -57,6 +68,23 @@ export class CompanionApiClient {
     return this.requestJson<LinkExchangeResponse>("POST", "/api/v1/auth/link-exchange", {
       body: { code },
       authenticated: false,
+    });
+  }
+
+  /**
+   * Swap the current (possibly recently-expired) JWT for a fresh one.
+   * The API accepts tokens expired up to its grace window; beyond that
+   * it responds 401 `token_too_old` and the user must re-pair.
+   */
+  async refreshToken(): Promise<LinkExchangeResponse> {
+    if (!this.jwt) {
+      throw new CompanionApiError("No JWT configured — pair the companion first.", 401, "not_paired");
+    }
+    // Fastify rejects an empty body when Content-Type is application/json,
+    // so send an empty object even though the route reads nothing from it.
+    return this.requestJson<LinkExchangeResponse>("POST", "/api/v1/auth/refresh", {
+      body: {},
+      authenticated: true,
     });
   }
 

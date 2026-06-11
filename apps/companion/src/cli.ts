@@ -25,12 +25,14 @@ import { CompanionApiClient, CompanionApiError } from "./core/api-client.js";
 import { configPath, loadConfig, updateConfig } from "./core/config.js";
 import { RunQueue } from "./core/queue.js";
 import { parseSavedVariablesFile } from "./core/sv-parser.js";
+import { maybeRefreshToken } from "./core/token-refresh.js";
 import { SavedVariablesWatcher } from "./core/watcher.js";
 
 function makeApiClient(): CompanionApiClient {
   const cfg = loadConfig();
   const baseUrl = process.env.COMPANION_API_BASE_URL ?? cfg.apiBaseUrl;
-  return new CompanionApiClient(baseUrl, cfg.jwt);
+  // Lazy getter so a token renewed mid-session is picked up.
+  return new CompanionApiClient(baseUrl, () => loadConfig().jwt);
 }
 
 async function cmdPair(code: string): Promise<void> {
@@ -82,6 +84,7 @@ async function cmdParse(path: string): Promise<void> {
 
 async function cmdWatch(path: string): Promise<void> {
   const client = makeApiClient();
+  await maybeRefreshToken(console);
   const cfg = loadConfig();
   if (!cfg.jwt) {
     console.error("❌ Not paired. Run `pair <code>` first.");

@@ -27,6 +27,7 @@ import {
 } from "../core/config.js";
 import { fileLogger, getLogFilePath, initFileLogger } from "../core/file-logger.js";
 import { RunQueue } from "../core/queue.js";
+import { maybeRefreshToken } from "../core/token-refresh.js";
 import { recordEvent, startTelemetry, stopTelemetry } from "../core/telemetry.js";
 import { SavedVariablesWatcher } from "../core/watcher.js";
 
@@ -134,7 +135,10 @@ function startWatcherIfReady(): void {
     );
   }
 
-  const apiClient = new CompanionApiClient(cfg.apiBaseUrl, cfg.jwt);
+  // Lazy JWT getter: when the auto-refresh flow renews the token in
+  // config, in-flight and future submissions pick it up without
+  // rebuilding the queue.
+  const apiClient = new CompanionApiClient(cfg.apiBaseUrl, () => loadConfig().jwt);
   queue = new RunQueue(apiClient, fileLogger);
 
   watcher = new SavedVariablesWatcher(cfg.savedVariablesPath, 500);
@@ -153,6 +157,10 @@ function startWatcherIfReady(): void {
 }
 
 async function processTick(trigger: string): Promise<ResyncResult> {
+  // Just-in-time token renewal so submissions never go out with a
+  // token that's expired (or about to). No-op unless renewal is due.
+  await maybeRefreshToken(fileLogger);
+
   const cfg = loadConfig();
   if (!queue || !cfg.savedVariablesPath) {
     return { newRuns: 0, submitted: 0, deduplicated: 0, skipped: 0, errors: 0, enrichedComplete: 0, enrichedUnavailable: 0 };
@@ -656,6 +664,13 @@ app.whenReady().then(() => {
   refreshTrayMenu();
   syncAddonOnStartup();
   startWatcherIfReady();
+
+  // Token auto-renewal: once at startup, then every 6 hours for
+  // companions that idle in the tray between play sessions. Queue
+  // ticks also renew just-in-time before submitting.
+  void maybeRefreshToken(fileLogger);
+  setInterval(() => void maybeRefreshToken(fileLogger), 6 * 60 * 60 * 1000);
+
   startTelemetry();
   recordEvent("app_started");
   void initAutoUpdater(mainWindow);

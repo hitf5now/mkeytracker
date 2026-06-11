@@ -47,7 +47,9 @@ function renderStatus(cfg, status) {
             const exp = new Date(cfg.jwtExpiresAt);
             const days = Math.round((exp - Date.now()) / (1000 * 60 * 60 * 24));
             pairingDetailEl.textContent =
-                days > 0 ? `Token expires in ${days} day${days === 1 ? "" : "s"}` : "Token expired — re-pair via /link";
+                days > 0
+                    ? `Token auto-renews (expires in ${days} day${days === 1 ? "" : "s"})`
+                    : "Token expired — renewing automatically; if this persists, re-pair via /link";
         }
     } else {
         pairingEl.innerHTML =

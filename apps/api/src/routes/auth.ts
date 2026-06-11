@@ -25,6 +25,7 @@ import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { signUserToken, JWT_EXPIRY_SECONDS } from "../plugins/jwt-auth.js";
+import { isRefreshEligible } from "../plugins/refresh-eligibility.js";
 import {
   grantStarterCompanion,
   grantStarterDiscord,
@@ -145,6 +146,68 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       avatar: discordUser.avatar
         ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
         : null,
+    });
+  });
+
+  // ── /auth/refresh — companion token renewal ────────────────────
+  //
+  // Accepts the companion's current JWT and issues a fresh 30-day one.
+  // The token's signature must verify, but `exp` may be in the past by
+  // up to REFRESH_GRACE_SECONDS — so a companion that was offline past
+  // expiry (or shipped before auto-renew existed) can still recover
+  // without re-pairing. Beyond the grace window the response is 401
+  // `token_too_old` and the companion must run the /link flow again.
+  //
+  app.post("/auth/refresh", async (req, reply) => {
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return reply.code(401).send({ error: "missing_token" });
+    }
+    const token = auth.slice("Bearer ".length).trim();
+
+    let payload: { sub: string; exp?: number };
+    try {
+      payload = app.jwt.verify<{ sub: string; exp?: number }>(token, {
+        ignoreExpiration: true,
+      });
+    } catch (err) {
+      req.log.debug({ err }, "Refresh rejected: signature/format invalid");
+      return reply.code(401).send({ error: "invalid_token" });
+    }
+
+    const userId = Number.parseInt(payload.sub, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return reply.code(401).send({ error: "invalid_jwt_subject" });
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (!isRefreshEligible(payload.exp, nowSeconds)) {
+      return reply.code(401).send({
+        error: "token_too_old",
+        message:
+          "This token expired too long ago to renew. Pair again with /link.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return reply.code(401).send({ error: "user_not_found" });
+    }
+
+    const newToken = signUserToken(app, user.id);
+    const expiresAt = new Date(
+      Date.now() + JWT_EXPIRY_SECONDS * 1000,
+    ).toISOString();
+
+    req.log.info({ userId: user.id }, "Refreshed companion JWT");
+
+    return reply.code(200).send({
+      token: newToken,
+      expiresAt,
+      user: {
+        id: user.id,
+        discordId: user.discordId,
+      },
     });
   });
 
