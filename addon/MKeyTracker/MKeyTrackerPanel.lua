@@ -44,6 +44,7 @@ local CHECKBOX_H = 26
 local GAP = 10
 local FOOTER_H = 44
 local MAX_BEST_ROWS = 8
+local MAX_PARTY_ROWS = 4
 
 local panel = nil
 
@@ -202,6 +203,24 @@ local function CreatePanel()
     panel.deaths:SetJustifyV("TOP")
     y = y + ROW_H + GAP
 
+    -- ── Party ──
+    -- Sits above personal bests because when you are grouped, who you are
+    -- grouped with is the more urgent question.
+    panel.partyHeading = Heading(panel, "YOUR GROUP", y)
+    y = y + HEADING_H + 2
+
+    panel.partyEmpty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    panel.partyEmpty:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD + 4, -y)
+    panel.partyEmpty:SetSize(CONTENT_WIDTH - 8, ROW_H)
+    panel.partyEmpty:SetJustifyH("LEFT")
+    panel.partyEmpty:SetJustifyV("TOP")
+
+    panel.partyRows = {}
+    for i = 1, MAX_PARTY_ROWS do
+        panel.partyRows[i] = Row(panel, y + ((i - 1) * ROW_H))
+    end
+    y = y + (MAX_PARTY_ROWS * ROW_H) + GAP
+
     -- ── Personal bests ──
     panel.bestsHeading = Heading(panel, "YOUR BEST PER DUNGEON", y)
     y = y + HEADING_H + 2
@@ -226,6 +245,20 @@ local function CreatePanel()
         panel, "Show minimap button",
         "Hide it if you keep your minimap clear. /mkt minimap brings it back.",
         y, function(checked) ns.Minimap.SetShown(checked) end
+    )
+    y = y + CHECKBOX_H
+
+    panel.cbTooltips = Checkbox(
+        panel, "Show group history on tooltips",
+        "Adds how many keys you have run with a player, and how many were timed, when you hover them.",
+        y, function(checked) ns.Scout.SetTooltipsEnabled(checked) end
+    )
+    y = y + CHECKBOX_H
+
+    panel.cbAnnounce = Checkbox(
+        panel, "Announce group in chat",
+        "Prints one summary when a group forms. Nothing is sent to anyone else — it is local to you.",
+        y, function(checked) ns.Scout.SetAnnounceEnabled(checked) end
     )
     y = y + CHECKBOX_H
 
@@ -372,12 +405,60 @@ local function RefreshBests()
     end
 end
 
+--- The current group and what we know about each member.
+local function RefreshParty()
+    for _, row in ipairs(panel.partyRows) do
+        row.label:SetText("")
+        row.value:SetText("")
+    end
+
+    local units = ns.Scout and ns.Scout.GetPartyUnits and ns.Scout.GetPartyUnits() or {}
+    if #units == 0 then
+        panel.partyEmpty:SetText("Not in a group.")
+        panel.partyEmpty:Show()
+        return
+    end
+    panel.partyEmpty:Hide()
+
+    for i, unit in ipairs(units) do
+        local row = panel.partyRows[i]
+        if not row then break end
+
+        local name = UnitName(unit) or "?"
+        local _, classFile = UnitClass(unit)
+        local colour = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+        if colour then
+            row.label:SetText(string.format("|c%s%s|r", colour.colorStr or "ffffffff", name))
+        else
+            row.label:SetText(name)
+        end
+
+        local data = ns.Scout.GetUnitData(unit)
+        if not data then
+            row.value:SetText("|cff808080not on the platform|r")
+        elseif (data.togetherRuns or 0) > 0 then
+            row.value:SetText(string.format(
+                "|cff40ff40%d together, %d timed|r   +%d",
+                data.togetherRuns, data.togetherTimed or 0, data.bestKey or 0
+            ))
+        else
+            row.value:SetText(string.format(
+                "|cff808080first time|r   +%d · %d%%",
+                data.bestKey or 0, data.timedPct or 0
+            ))
+        end
+    end
+end
+
 local function Refresh()
     if not panel then return end
     RefreshStatus()
     RefreshSeason()
+    RefreshParty()
     RefreshBests()
     panel.cbMinimap:SetChecked(ns.Minimap and ns.Minimap.IsShown())
+    panel.cbTooltips:SetChecked(ns.Scout and ns.Scout.TooltipsEnabled())
+    panel.cbAnnounce:SetChecked(ns.Scout and ns.Scout.AnnounceEnabled())
     panel.cbDebug:SetChecked(
         (MKeyTrackerDB and MKeyTrackerDB.settings and MKeyTrackerDB.settings.debugMode) or false
     )

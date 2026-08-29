@@ -92,6 +92,14 @@ local function CmdMinimap()
     ns.Utils.Print(shown and "Minimap button shown." or "Minimap button hidden. /mkt minimap to bring it back.")
 end
 
+local function CmdParty()
+    if ns.Scout and ns.Scout.PrintParty then
+        ns.Scout.PrintParty()
+    else
+        ns.Utils.PrintError("Scout unavailable — try /reload.")
+    end
+end
+
 local function CmdInbound()
     if not ns.Inbound or not ns.Inbound.IsAvailable() then
         ns.Utils.Print("No companion data yet. Run the companion app with WoW closed, then log back in.")
@@ -175,6 +183,7 @@ local function CmdHelp()
     ns.Utils.Print("Commands:")
     ns.Utils.Print("  /mkt              — open the tracker window")
     ns.Utils.Print("  /mkt minimap      — show/hide the minimap button")
+    ns.Utils.Print("  /mkt party        — what we know about your group")
     ns.Utils.Print("  /mkt dump         — list pending runs")
     ns.Utils.Print("  /mkt dump <n>     — show full detail for run #n")
     ns.Utils.Print("  /mkt clear        — wipe pending queue")
@@ -212,6 +221,8 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
         CmdPanel()
     elseif msg == "minimap" then
         CmdMinimap()
+    elseif msg == "party" then
+        CmdParty()
     elseif msg == "debug on" then
         CmdDebug(true)
     elseif msg == "debug off" then

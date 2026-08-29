@@ -31,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.4.18"
+ns.version = "0.4.19"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -70,6 +70,9 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
         -- Minimap only exists by PLAYER_LOGIN, not at ADDON_LOADED.
         if ns.Minimap and ns.Minimap.Init then
             ns.Minimap.Init()
+        end
+        if ns.Scout and ns.Scout.Init then
+            ns.Scout.Init()
         end
         if ns.Logging and ns.Logging.CheckAndWarn then
             ns.Logging.CheckAndWarn(false)

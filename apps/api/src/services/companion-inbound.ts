@@ -55,6 +55,28 @@ export interface InboundPayload {
   roster: Record<string, InboundRosterEntry>;
 }
 
+/**
+ * Key a character for the addon's lookup table.
+ *
+ * Deliberately more aggressive than `toRealmSlug`: it also removes dashes,
+ * so "Area 52", "area-52" and "Area52" all collapse to `area52`. Two
+ * reasons. The stored realm column is not consistently slugged (there are
+ * rows reading `Trollbane` and `aeriepeak` alongside proper slugs), and the
+ * addon has to rebuild this key in Lua from whatever `UnitName()` returns.
+ * Collapsing every separator is the one form both sides can agree on
+ * without shipping a slug library to the game client.
+ */
+function normalizeKeyPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[\s_-]+/g, "");
+}
+
+export function rosterKey(name: string, realm: string): string {
+  return `${normalizeKeyPart(name)}-${normalizeKeyPart(realm)}`;
+}
+
 function pct(part: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((part / total) * 100);
@@ -167,7 +189,7 @@ export async function buildInboundPayload(
   for (const row of roster) {
     const runs = Number(row.runs);
     const shared = togetherById.get(row.characterId);
-    rosterOut[`${row.name}-${row.realm}`.toLowerCase()] = {
+    rosterOut[rosterKey(row.name, row.realm)] = {
       class: row.class,
       juice: Number(row.juice),
       bestKey: row.bestKey ?? 0,

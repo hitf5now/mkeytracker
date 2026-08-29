@@ -73,8 +73,27 @@ function ns.Inbound.GetRecord(challengeModeId)
     return type(entry) == "table" and entry or nil
 end
 
+--- Collapse a name or realm to its lookup form.
+---
+--- Must match `normalizeKeyPart` in services/companion-inbound.ts exactly,
+--- or every lookup silently misses and the addon reports that nobody is on
+--- the platform. Every separator is removed rather than converted to a
+--- dash: the platform's stored realms are not consistently slugged, and
+--- `UnitName()` hands back the display form ("Area 52"), so collapsing to
+--- `area52` is the one representation both sides can reach.
+local function NormalizeKeyPart(value)
+    if type(value) ~= "string" then return "" end
+    value = value:lower()
+    value = value:gsub("'", "")
+    -- U+2019 (right single quote) built from its UTF-8 bytes, so this file
+    -- stays plain ASCII and survives any encoding round-trip.
+    value = value:gsub(string.char(226, 128, 153), "")
+    value = value:gsub("[%s_%-]+", "")
+    return value
+end
+
+
 --- What we know about a character, by name and realm.
---- Realm is normalised the way the platform stores it: lowercase, no spaces.
 function ns.Inbound.GetCharacter(name, realm)
     if not ns.Inbound.IsAvailable() or not name then return nil end
     local roster = raw().roster
@@ -84,11 +103,13 @@ function ns.Inbound.GetCharacter(name, realm)
     -- suffix at all, so fall back to the player's own realm.
     local resolvedRealm = realm
     if not resolvedRealm or resolvedRealm == "" then
-        resolvedRealm = GetNormalizedRealmName and GetNormalizedRealmName() or nil
+        resolvedRealm = GetNormalizedRealmName and GetNormalizedRealmName()
+            or (GetRealmName and GetRealmName())
+            or nil
     end
     if not resolvedRealm then return nil end
 
-    local key = string.lower(name .. "-" .. resolvedRealm:gsub("%s+", ""):gsub("'", ""))
+    local key = NormalizeKeyPart(name) .. "-" .. NormalizeKeyPart(resolvedRealm)
     local entry = roster[key]
     return type(entry) == "table" and entry or nil
 end
