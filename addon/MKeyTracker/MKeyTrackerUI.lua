@@ -17,6 +17,9 @@ ns.UI = {}
 local TOAST_DURATION_SEC = 15
 local TOAST_WIDTH = 380
 local TOAST_HEIGHT = 108
+-- Vertical room per scorecard line. The frame only grows when there is
+-- something to say, so a run with no history still gets the compact toast.
+local SCORECARD_LINE_HEIGHT = 16
 
 -- Frame state
 local toast = nil
@@ -89,6 +92,15 @@ local function CreateToastFrame()
     toast.info:SetWidth(TOAST_WIDTH - 24)
     toast.info:SetJustifyH("CENTER")
 
+    -- Scorecard — how this run compares to the player's own history. Empty
+    -- for a dungeon we have no record of, in which case the frame stays at
+    -- its compact height.
+    toast.scorecard = toast:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    toast.scorecard:SetPoint("TOP", toast.info, "BOTTOM", 0, -6)
+    toast.scorecard:SetWidth(TOAST_WIDTH - 32)
+    toast.scorecard:SetJustifyH("CENTER")
+    toast.scorecard:SetSpacing(2)
+
     -- Sync button (primary action)
     toast.syncBtn = CreateFrame("Button", "MKeyTrackerSyncBtn", toast, "UIPanelButtonTemplate")
     toast.syncBtn:SetSize(170, 24)
@@ -136,7 +148,10 @@ end
 
 -- Show the capture toast with this run's info.
 -- onTime / upgrades drive the border color (green vs red) and the result text.
-function ns.UI.ShowCaptureToast(dungeonName, level, onTime, upgrades)
+-- @param context Optional { challengeModeId, completionMs, deaths } used to
+--        compare this run against the player's records. Omitted by callers
+--        that have no run context, which just yields the compact toast.
+function ns.UI.ShowCaptureToast(dungeonName, level, onTime, upgrades, context)
     local frame = CreateToastFrame()
 
     local resultStr
@@ -159,6 +174,28 @@ function ns.UI.ShowCaptureToast(dungeonName, level, onTime, upgrades)
         frame:SetBackdropBorderColor(0.2, 0.8, 0.2, 1)
     else
         frame:SetBackdropBorderColor(0.9, 0.3, 0.2, 1)
+    end
+
+    -- Scorecard lines, when the companion has given us anything to compare
+    -- against. Guarded because the Inbound module is optional at runtime —
+    -- an addon updated ahead of its companion must still show the toast.
+    local lines = {}
+    if context and ns.Inbound and ns.Inbound.BuildScorecard then
+        local ok, built = pcall(
+            ns.Inbound.BuildScorecard,
+            context.challengeModeId, level, onTime, context.completionMs, context.deaths
+        )
+        if ok and type(built) == "table" then lines = built end
+    end
+
+    if #lines > 0 then
+        frame.scorecard:SetText(table.concat(lines, "\n"))
+        frame.scorecard:Show()
+        frame:SetHeight(TOAST_HEIGHT + (#lines * SCORECARD_LINE_HEIGHT) + 6)
+    else
+        frame.scorecard:SetText("")
+        frame.scorecard:Hide()
+        frame:SetHeight(TOAST_HEIGHT)
     end
 
     remainingSec = TOAST_DURATION_SEC

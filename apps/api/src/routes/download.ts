@@ -4,9 +4,14 @@
  * Two routes (registered OUTSIDE the /api/v1 prefix so the URLs stay
  * short and user-facing):
  *
- *   GET /download        — 302 redirect to the latest .exe on GitHub
- *   GET /download/info   — JSON metadata for clients that want to display
- *                          "Download v0.1.2 (95 MB)" before linking
+ *   GET /download            — 302 redirect to the latest .exe on GitHub
+ *   GET /download/info       — JSON metadata for clients that want to display
+ *                              "Download v0.1.2 (95 MB)" before linking
+ *   GET /download/addon      — the WoW addon's files as JSON
+ *   GET /download/addon/info — addon version metadata
+ *
+ * The addon endpoints exist so a Lua fix doesn't require republishing a
+ * 97 MB Electron installer: the companion pulls the addon on demand.
  *
  * Implementation:
  *   - Queries GitHub's Releases API for the latest release
@@ -23,6 +28,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { redis } from "../lib/redis.js";
+import { getAddonBundle, getAddonBundleInfo } from "../services/addon-bundle.js";
 
 const GITHUB_REPO = "hitf5now/mkeytracker";
 const GITHUB_LATEST_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -109,6 +115,31 @@ async function getLatestRelease(): Promise<ReleaseInfo | null> {
 }
 
 export async function downloadRoutes(app: FastifyInstance): Promise<void> {
+  // ─── WoW addon ────────────────────────────────────────────────
+  // Served as JSON text, not an archive: the addon is eight Lua files and a
+  // TOC, so a zip would add a dependency and a binary path for nothing.
+  app.get("/download/addon/info", async (_req, reply) => {
+    const info = getAddonBundleInfo();
+    if (!info) {
+      return reply.code(503).send({
+        error: "addon_unavailable",
+        message: "The addon files are missing from this build.",
+      });
+    }
+    return reply.code(200).send(info);
+  });
+
+  app.get("/download/addon", async (_req, reply) => {
+    const bundle = getAddonBundle();
+    if (!bundle) {
+      return reply.code(503).send({
+        error: "addon_unavailable",
+        message: "The addon files are missing from this build.",
+      });
+    }
+    return reply.code(200).send(bundle);
+  });
+
   // ─── Redirect endpoint — the hot path ──────────────────────────
   app.get("/download", async (req, reply) => {
     const release = await getLatestRelease();

@@ -93,6 +93,21 @@ const api = {
   getStartMinimized: (): Promise<{ enabled: boolean }> =>
     ipcRenderer.invoke(IPC.APP_GET_START_MINIMIZED),
 
+  // WoW addon — pulled from the API so a Lua fix needs no new installer
+  checkAddonVersion: (): Promise<{
+    installed: string | null;
+    available: string | null;
+    interfaceVersion: string | null;
+    updateAvailable: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC.ADDON_CHECK_VERSION),
+  updateAddon: (): Promise<{
+    success: boolean;
+    version?: string;
+    filesWritten?: number;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC.ADDON_UPDATE),
+
   // Manual update check
   updateCheck: (): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.UPDATE_CHECK),

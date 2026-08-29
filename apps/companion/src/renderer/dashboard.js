@@ -164,6 +164,71 @@ startMinimizedCheck?.addEventListener("change", async () => {
 });
 void loadStartMinimizedState();
 
+// ─── WoW addon updater ──────────────────────────────────────────
+// The addon also ships in the installer, but pulling it from the API means
+// a Lua fix reaches players without a 97 MB Electron release.
+const addonVersionLine = document.getElementById("addon-version-line");
+const updateAddonBtn = document.getElementById("update-addon-btn");
+
+function renderAddonVersion(status) {
+    if (!addonVersionLine) return;
+    if (status.error) {
+        addonVersionLine.textContent = status.installed
+            ? `Addon v${status.installed} — can't reach the server`
+            : "Addon: can't reach the server";
+        return;
+    }
+    if (!status.installed) {
+        addonVersionLine.textContent = `Addon not installed — v${status.available} available`;
+    } else if (status.updateAvailable) {
+        addonVersionLine.textContent = `Addon v${status.installed} → v${status.available} available`;
+    } else {
+        addonVersionLine.textContent = `Addon v${status.installed} — up to date`;
+    }
+    if (updateAddonBtn) {
+        // Keep it clickable when up to date so a broken install can be repaired.
+        updateAddonBtn.textContent = status.updateAvailable ? "Update addon" : "Reinstall addon";
+    }
+}
+
+async function refreshAddonVersion() {
+    try {
+        renderAddonVersion(await window.mplus.checkAddonVersion());
+    } catch {
+        if (addonVersionLine) addonVersionLine.textContent = "Addon: version check failed";
+    }
+}
+
+updateAddonBtn?.addEventListener("click", async () => {
+    updateAddonBtn.disabled = true;
+    const previous = updateAddonBtn.textContent;
+    updateAddonBtn.textContent = "Updating…";
+    try {
+        const result = await window.mplus.updateAddon();
+        if (result.success) {
+            // The addon's Lua is only read at load, so the player has to
+            // reload before the new code runs. Say so rather than implying
+            // it took effect immediately.
+            if (addonVersionLine) {
+                addonVersionLine.textContent =
+                    `Addon updated to v${result.version} — /reload in WoW to apply`;
+            }
+            updateAddonBtn.textContent = "Updated";
+            setTimeout(() => void refreshAddonVersion(), 4000);
+        } else {
+            if (addonVersionLine) addonVersionLine.textContent = result.error ?? "Update failed";
+            updateAddonBtn.textContent = previous;
+        }
+    } catch (err) {
+        if (addonVersionLine) addonVersionLine.textContent = "Update failed";
+        updateAddonBtn.textContent = previous;
+    } finally {
+        updateAddonBtn.disabled = false;
+    }
+});
+
+void refreshAddonVersion();
+
 // ─── Combat-log diagnostics ─────────────────────────────────────
 function formatDiagnose(result) {
     const lines = [];

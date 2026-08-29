@@ -51,6 +51,10 @@ export const IPC = {
   APP_SET_START_MINIMIZED: "mplus:app:setStartMinimized",
   /** Get current "start hidden in the tray" state */
   APP_GET_START_MINIMIZED: "mplus:app:getStartMinimized",
+  /** Installed vs available WoW addon version */
+  ADDON_CHECK_VERSION: "mplus:addon:checkVersion",
+  /** Pull the current addon from the API into the WoW folder */
+  ADDON_UPDATE: "mplus:addon:update",
   /** Manually trigger an update check */
   UPDATE_CHECK: "mplus:update:check",
   /** Open a URL in the default browser */

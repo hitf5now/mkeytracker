@@ -111,3 +111,68 @@ function ns.Inbound.CountRecords()
     for _ in pairs(records) do n = n + 1 end
     return n
 end
+
+-- ─── Post-run scorecard ───────────────────────────────────────────────────
+
+local function FormatTime(ms)
+    if not ms or ms <= 0 then return "--:--" end
+    local total = math.floor(ms / 1000)
+    return string.format("%d:%02d", math.floor(total / 60), total % 60)
+end
+
+--[[
+    Lines comparing a just-finished run to what the platform knows.
+
+    This is the moment the whole loop exists for — the seconds after a key
+    ends — and it used to spend itself on a bare "Sync & Reload". Everything
+    here is derived from the cached inbound payload, so it renders instantly
+    with no network round trip.
+
+    Returns an empty list when there is nothing honest to say: no companion
+    data, or a dungeon with no history yet. Better a short toast than a
+    padded one.
+]]--
+function ns.Inbound.BuildScorecard(challengeModeId, level, onTime, completionMs, deaths)
+    local lines = {}
+    local record = ns.Inbound.GetRecord(challengeModeId)
+    local player = ns.Inbound.GetPlayer()
+
+    if record and onTime and completionMs and completionMs > 0 then
+        local best = record.bestTimeMs
+        if not best or best <= 0 then
+            table.insert(lines, "|cff33ff99First timed clear here|r")
+        elseif completionMs < best then
+            table.insert(lines, string.format(
+                "|cffffd100New best time|r — %s, beating %s by %s",
+                FormatTime(completionMs), FormatTime(best), FormatTime(best - completionMs)
+            ))
+        else
+            table.insert(lines, string.format(
+                "%s — %s off your best of %s",
+                FormatTime(completionMs), FormatTime(completionMs - best), FormatTime(best)
+            ))
+        end
+    end
+
+    if record and level and onTime then
+        local bestLevel = record.bestLevel or 0
+        if level > bestLevel then
+            table.insert(lines, string.format("|cffffd100Highest key timed here|r (was +%d)", bestLevel))
+        end
+    end
+
+    -- Deaths only earn a line when they say something. Matching your average
+    -- exactly is not worth the reader's attention.
+    if player and deaths and player.avgDeaths and player.avgDeaths > 0 then
+        local avg = player.avgDeaths
+        if deaths == 0 then
+            table.insert(lines, "|cff33ff99No deaths|r")
+        elseif deaths < avg - 0.5 then
+            table.insert(lines, string.format("%d deaths — under your %.1f average", deaths, avg))
+        elseif deaths > avg + 0.5 then
+            table.insert(lines, string.format("|cffff8800%d deaths|r — over your %.1f average", deaths, avg))
+        end
+    end
+
+    return lines
+end

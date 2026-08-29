@@ -423,6 +423,10 @@ function ns.Capture.OnCompleted(overrideInfo)
 
     -- Primary UX: show the sync toast
     if ns.UI and ns.UI.ShowCaptureToast then
-        ns.UI.ShowCaptureToast(mapName, level, onTime, keystoneUpgradeLevels)
+        ns.UI.ShowCaptureToast(mapName, level, onTime, keystoneUpgradeLevels, {
+            challengeModeId = payload.challengeModeId,
+            completionMs = payload.completionMs,
+            deaths = payload.deaths,
+        })
     end
 end

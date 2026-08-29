@@ -34,6 +34,7 @@ import { recordEvent, startTelemetry, stopTelemetry } from "../core/telemetry.js
 import { SavedVariablesWatcher } from "../core/watcher.js";
 
 import { installAddon } from "./addon-install.js";
+import { checkAddonVersion, updateAddonFromApi } from "./addon-update.js";
 import {
   destroyTray,
   setupTray,
@@ -439,6 +440,27 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.APP_GET_START_MINIMIZED, async () => ({
     enabled: loadConfig().startMinimized,
   }));
+
+  ipcMain.handle(IPC.ADDON_CHECK_VERSION, async () => {
+    const cfg = loadConfig();
+    return checkAddonVersion(cfg.apiBaseUrl, cfg.wowInstallPath);
+  });
+
+  ipcMain.handle(IPC.ADDON_UPDATE, async () => {
+    const cfg = loadConfig();
+    if (!cfg.wowInstallPath) {
+      return { success: false, error: "Set your WoW folder in the setup wizard first." };
+    }
+    const result = await updateAddonFromApi(cfg.apiBaseUrl, cfg.wowInstallPath);
+    if (result.success) {
+      fileLogger.log(
+        `[addon] updated to v${result.version} (${result.filesWritten} files) from the API`,
+      );
+    } else {
+      fileLogger.warn(`[addon] update failed: ${result.error}`);
+    }
+    return result;
+  });
 
   ipcMain.handle(IPC.UPDATE_CHECK, async () => {
     await checkForUpdatesManually();
