@@ -149,7 +149,16 @@ export async function buildInboundPayload(
       GROUP BY other.character_id
     `,
 
-    // Everyone worth knowing about: season regulars, capped.
+    // Everyone worth knowing about, in two groups:
+    //   - everyone the player has *ever* grouped with, regardless of season
+    //   - this season's regulars, to cover pugs they have not met
+    //
+    // The first half was missing originally, and it is the more important
+    // one: scouting is mostly about people you have played with before, and
+    // most of those had not played the current season yet. Season stats stay
+    // scoped to the requested season, so a partner who has not played it
+    // comes back with runs = 0 and the addon says so rather than reporting a
+    // misleading "+0".
     prisma.$queryRaw<
       Array<{
         characterId: number;
@@ -162,19 +171,39 @@ export async function buildInboundPayload(
         bestKey: number | null;
       }>
     >`
+      WITH partners AS (
+        SELECT DISTINCT other.character_id AS id
+        FROM run_members mine
+        JOIN runs r ON r.id = mine.run_id
+        JOIN run_members other ON other.run_id = r.id
+                              AND other.character_id <> mine.character_id
+        WHERE mine.character_id = ANY(${ownIds})
+      ),
+      regulars AS (
+        SELECT rm.character_id AS id
+        FROM run_members rm
+        JOIN runs r ON r.id = rm.run_id
+        WHERE r.season_id = ${season.id}
+        GROUP BY rm.character_id
+        ORDER BY COALESCE(SUM(r.personal_juice), 0) DESC
+        LIMIT ${ROSTER_LIMIT}
+      ),
+      ids AS (
+        SELECT id FROM partners
+        UNION
+        SELECT id FROM regulars
+      )
       SELECT c.id                                          AS "characterId",
              c.name, c.realm, c.class,
              COALESCE(SUM(r.personal_juice), 0)            AS juice,
              COUNT(DISTINCT r.id)                          AS runs,
              COUNT(DISTINCT r.id) FILTER (WHERE r.on_time) AS timed,
              MAX(r.keystone_level) FILTER (WHERE r.on_time) AS "bestKey"
-      FROM run_members rm
-      JOIN runs r ON r.id = rm.run_id
-      JOIN characters c ON c.id = rm.character_id
-      WHERE r.season_id = ${season.id}
+      FROM ids
+      JOIN characters c ON c.id = ids.id
+      LEFT JOIN run_members rm ON rm.character_id = c.id
+      LEFT JOIN runs r ON r.id = rm.run_id AND r.season_id = ${season.id}
       GROUP BY c.id, c.name, c.realm, c.class
-      ORDER BY juice DESC
-      LIMIT ${ROSTER_LIMIT}
     `,
   ]);
 

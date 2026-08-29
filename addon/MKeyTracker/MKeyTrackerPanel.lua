@@ -436,16 +436,19 @@ local function RefreshParty()
         local data = ns.Scout.GetUnitData(unit)
         if not data then
             row.value:SetText("|cff808080not on the platform|r")
-        elseif (data.togetherRuns or 0) > 0 then
-            row.value:SetText(string.format(
-                "|cff40ff40%d together, %d timed|r   +%d",
-                data.togetherRuns, data.togetherTimed or 0, data.bestKey or 0
-            ))
         else
-            row.value:SetText(string.format(
-                "|cff808080first time|r   +%d · %d%%",
-                data.bestKey or 0, data.timedPct or 0
-            ))
+            -- No runs this season is different from a bad season; say which.
+            local season = ((data.runs or 0) == 0)
+                and "|cff808080no runs yet|r"
+                or string.format("+%d · %d%%", data.bestKey or 0, data.timedPct or 0)
+            if (data.togetherRuns or 0) > 0 then
+                row.value:SetText(string.format(
+                    "|cff40ff40%d together, %d timed|r   %s",
+                    data.togetherRuns, data.togetherTimed or 0, season
+                ))
+            else
+                row.value:SetText(string.format("|cff808080first time|r   %s", season))
+            end
         end
     end
 end

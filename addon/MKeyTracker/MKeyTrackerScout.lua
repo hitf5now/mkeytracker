@@ -87,12 +87,19 @@ local function AddTooltipLines(tooltip, unit)
         tooltip:AddLine("First time with this player", 0.6, 0.6, 0.6)
     end
 
-    tooltip:AddDoubleLine("Best key", "+" .. (data.bestKey or 0), 0.8, 0.8, 0.8, 1, 1, 1)
-    tooltip:AddDoubleLine(
-        "Timed",
-        string.format("%d%% of %d", data.timedPct or 0, data.runs or 0),
-        0.8, 0.8, 0.8, 1, 1, 1
-    )
+    -- A partner who hasn't played this season is in the roster for their
+    -- shared history alone. Reporting "+0 · 0% timed" for them would read as
+    -- "this player is terrible" rather than "no runs yet".
+    if (data.runs or 0) == 0 then
+        tooltip:AddLine("No runs this season", 0.5, 0.5, 0.5)
+    else
+        tooltip:AddDoubleLine("Best key", "+" .. (data.bestKey or 0), 0.8, 0.8, 0.8, 1, 1, 1)
+        tooltip:AddDoubleLine(
+            "Timed",
+            string.format("%d%% of %d", data.timedPct or 0, data.runs or 0),
+            0.8, 0.8, 0.8, 1, 1, 1
+        )
+    end
 end
 
 local function HookTooltips()
@@ -147,15 +154,17 @@ local function AnnounceGroup()
         local name = UnitName(unit)
         if data then
             known = known + 1
+            local season = ((data.runs or 0) == 0)
+                and "no runs this season"
+                or string.format("best +%d, %d%% timed", data.bestKey or 0, data.timedPct or 0)
             if (data.togetherRuns or 0) > 0 then
                 table.insert(lines, string.format(
-                    "  %s — |cff40ff40%d key(s) together, %d timed|r · best +%d",
-                    name, data.togetherRuns, data.togetherTimed or 0, data.bestKey or 0
+                    "  %s — |cff40ff40%d key(s) together, %d timed|r · %s",
+                    name, data.togetherRuns, data.togetherTimed or 0, season
                 ))
             else
                 table.insert(lines, string.format(
-                    "  %s — first time together · best +%d, %d%% timed",
-                    name, data.bestKey or 0, data.timedPct or 0
+                    "  %s — first time together · %s", name, season
                 ))
             end
         end
