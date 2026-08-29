@@ -12,6 +12,16 @@
       2. Settings. Everything the slash commands already did, without
          needing to remember them.
 
+    ## Layout
+
+    Every element sits at an explicit Y offset from the top of the frame,
+    tracked by a running cursor, and the frame's height is whatever that
+    cursor ends at. The first version chained each row off the previous
+    row's FontString, so the layout depended on text height — one long
+    dungeon name wrapped, every row below it shifted, and the bottom of the
+    window ran off the frame. Fixed offsets make the height knowable, which
+    is the only way to size the window correctly.
+
     Built with plain frames rather than a config library for the same reason
     the minimap button is: the addon ships no dependencies, and this is a
     handful of rows.
@@ -20,8 +30,20 @@
 local addonName, ns = ...
 ns.Panel = {}
 
-local PANEL_WIDTH = 440
-local PANEL_HEIGHT = 520
+local PANEL_WIDTH = 420
+local PAD = 18
+local CONTENT_WIDTH = PANEL_WIDTH - (PAD * 2)
+
+-- Fixed metrics. The window height derives from these, so changing one
+-- resizes the frame instead of overflowing it.
+local TOP_INSET = 32
+local HEADING_H = 20
+local ROW_H = 17
+local TILE_H = 38
+local CHECKBOX_H = 26
+local GAP = 10
+local FOOTER_H = 44
+local MAX_BEST_ROWS = 8
 
 local panel = nil
 
@@ -36,44 +58,78 @@ local function Comma(n)
     return tostring(n or 0)
 end
 
--- ─── Small builders ───────────────────────────────────────────────────────
+-- ─── Builders ─────────────────────────────────────────────────────────────
 
-local function AddHeading(parent, text, anchor, yOffset)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, yOffset or -12)
+local function Heading(parent, text, y)
+    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, -y)
+    fs:SetSize(CONTENT_WIDTH, HEADING_H)
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
     fs:SetText(text)
     fs:SetTextColor(1, 0.82, 0)
+
+    local rule = parent:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(1, 0.82, 0, 0.20)
+    rule:SetHeight(1)
+    rule:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, -(y + HEADING_H - 4))
+    rule:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -PAD, -(y + HEADING_H - 4))
     return fs
 end
 
---- A label on the left, a value on the right, on one line.
+--- A label and a value on one line.
 ---
---- Both halves occupy the same full-width box and are separated by
---- justification. Anchoring the value to the panel's right edge *and* to the
---- label's top would give it two competing Y coordinates.
-local ROW_TEXT_WIDTH = PANEL_WIDTH - 48
-
-local function AddStatRow(parent, anchor, yOffset)
+--- Both occupy the same full-width box and are separated by justification.
+--- Anchoring the value to the frame's right edge *and* to the label would
+--- give it two competing Y coordinates.
+local function Row(parent, y)
     local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 8, yOffset or -6)
-    label:SetWidth(ROW_TEXT_WIDTH)
+    label:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD + 4, -y)
+    label:SetSize(CONTENT_WIDTH - 8, ROW_H)
     label:SetJustifyH("LEFT")
+    label:SetJustifyV("TOP")
+    -- Rows are single-line by contract. Without this a long dungeon name
+    -- wraps and silently pushes the fixed layout out of alignment.
+    label:SetWordWrap(false)
 
     local value = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     value:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 0)
-    value:SetWidth(ROW_TEXT_WIDTH)
+    value:SetSize(CONTENT_WIDTH - 8, ROW_H)
     value:SetJustifyH("RIGHT")
+    value:SetJustifyV("TOP")
+    value:SetWordWrap(false)
 
     return { label = label, value = value }
 end
 
-local function AddCheckbox(parent, text, tooltip, anchor, yOffset, onClick)
+--- One of N stat tiles across the width: a big number over a small caption.
+--- Far more compact than the same figures as stacked label/value rows, and
+--- quicker to scan.
+local function Tile(parent, index, count, y)
+    local width = CONTENT_WIDTH / count
+    local x = PAD + (width * (index - 1))
+
+    local value = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    value:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
+    value:SetSize(width, 22)
+    value:SetJustifyH("CENTER")
+    value:SetWordWrap(false)
+
+    local caption = parent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    caption:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -(y + 22))
+    caption:SetSize(width, 14)
+    caption:SetJustifyH("CENTER")
+
+    return { value = value, caption = caption }
+end
+
+local function Checkbox(parent, text, tooltip, y, onClick)
     local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, yOffset or -6)
-    cb:SetSize(24, 24)
+    cb:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, -y)
+    cb:SetSize(22, 22)
 
     local label = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+    label:SetPoint("LEFT", cb, "RIGHT", 4, 0)
     label:SetText(text)
 
     cb:SetScript("OnClick", function(self) onClick(self:GetChecked() and true or false) end)
@@ -86,17 +142,16 @@ local function AddCheckbox(parent, text, tooltip, anchor, yOffset, onClick)
         end)
         cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
-    cb.labelText = label
     return cb
 end
 
--- ─── Panel construction ───────────────────────────────────────────────────
+-- ─── Construction ─────────────────────────────────────────────────────────
 
 local function CreatePanel()
     if panel then return panel end
 
     panel = CreateFrame("Frame", "MKeyTrackerPanel", UIParent, "BasicFrameTemplateWithInset")
-    panel:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
+    panel:SetWidth(PANEL_WIDTH)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("HIGH")
     panel:SetMovable(true)
@@ -105,76 +160,89 @@ local function CreatePanel()
     panel:SetScript("OnDragStart", panel.StartMoving)
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
     panel:SetClampedToScreen(true)
-    -- Escape should close it, like every other WoW window.
-    tinsert(UISpecialFrames, "MKeyTrackerPanel")
+    tinsert(UISpecialFrames, "MKeyTrackerPanel") -- Escape closes it
     panel:Hide()
 
-    panel.TitleText:SetText("MKey Tracker")
+    -- Blizzard moved the title into a TitleContainer on some frame templates
+    -- and left it at .TitleText on others. Getting this wrong is a nil call
+    -- that takes the whole panel down, so try both and shrug if neither.
+    local title = panel.TitleText
+        or (panel.TitleContainer and panel.TitleContainer.TitleText)
+    if title then title:SetText("MKey Tracker") end
 
-    local anchor = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    anchor:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -32)
-    anchor:SetText(" ")
+    -- Running layout cursor, absolute from the top of the frame. Its final
+    -- value is exactly the content height.
+    local y = TOP_INSET
 
-    -- ── Status ──
-    panel.statusHeading = AddHeading(panel, "Status", anchor, -2)
-    panel.rowVersion = AddStatRow(panel, panel.statusHeading, -8)
-    panel.rowVersion.label:SetText("Addon version")
-    panel.rowPending = AddStatRow(panel, panel.rowVersion.label, -6)
-    panel.rowPending.label:SetText("Runs waiting to sync")
-    panel.rowData = AddStatRow(panel, panel.rowPending.label, -6)
-    panel.rowData.label:SetText("Companion data")
+    -- ── Status: one compact line rather than three rows ──
+    panel.status = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    panel.status:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -y)
+    panel.status:SetSize(CONTENT_WIDTH, ROW_H)
+    panel.status:SetJustifyH("LEFT")
+    panel.status:SetJustifyV("TOP")
+    panel.status:SetWordWrap(false)
+    y = y + ROW_H + GAP
 
     -- ── Season ──
-    panel.seasonHeading = AddHeading(panel, "This season", panel.rowData.label, -14)
-    panel.rowJuice = AddStatRow(panel, panel.seasonHeading, -8)
-    panel.rowJuice.label:SetText("Juice")
-    panel.rowRuns = AddStatRow(panel, panel.rowJuice.label, -6)
-    panel.rowRuns.label:SetText("Runs")
-    panel.rowTimed = AddStatRow(panel, panel.rowRuns.label, -6)
-    panel.rowTimed.label:SetText("Timed")
-    panel.rowBest = AddStatRow(panel, panel.rowTimed.label, -6)
-    panel.rowBest.label:SetText("Highest key timed")
-    panel.rowDeaths = AddStatRow(panel, panel.rowBest.label, -6)
-    panel.rowDeaths.label:SetText("Deaths per run")
+    panel.seasonHeading = Heading(panel, "THIS SEASON", y)
+    y = y + HEADING_H + 4
+
+    panel.tiles = {}
+    local captions = { "Juice", "Runs", "Timed", "Best key" }
+    for i = 1, 4 do
+        panel.tiles[i] = Tile(panel, i, 4, y)
+        panel.tiles[i].caption:SetText(captions[i])
+    end
+    y = y + TILE_H + 4
+
+    panel.deaths = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    panel.deaths:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -y)
+    panel.deaths:SetSize(CONTENT_WIDTH, ROW_H)
+    panel.deaths:SetJustifyH("CENTER")
+    panel.deaths:SetJustifyV("TOP")
+    y = y + ROW_H + GAP
 
     -- ── Personal bests ──
-    panel.bestsHeading = AddHeading(panel, "Your best per dungeon", panel.rowDeaths.label, -14)
-    panel.bestRows = {}
-    local previous = panel.bestsHeading
-    for i = 1, 8 do
-        local row = AddStatRow(panel, previous, i == 1 and -8 or -4)
-        row.label:SetTextColor(0.9, 0.9, 0.9)
-        panel.bestRows[i] = row
-        previous = row.label
-    end
+    panel.bestsHeading = Heading(panel, "YOUR BEST PER DUNGEON", y)
+    y = y + HEADING_H + 2
+
     panel.bestsEmpty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    panel.bestsEmpty:SetPoint("TOPLEFT", panel.bestsHeading, "BOTTOMLEFT", 8, -8)
-    panel.bestsEmpty:SetWidth(PANEL_WIDTH - 48)
+    panel.bestsEmpty:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD + 4, -y)
+    panel.bestsEmpty:SetSize(CONTENT_WIDTH - 8, ROW_H * 3)
     panel.bestsEmpty:SetJustifyH("LEFT")
+    panel.bestsEmpty:SetJustifyV("TOP")
+
+    panel.bestRows = {}
+    for i = 1, MAX_BEST_ROWS do
+        panel.bestRows[i] = Row(panel, y + ((i - 1) * ROW_H))
+    end
+    y = y + (MAX_BEST_ROWS * ROW_H) + GAP
 
     -- ── Settings ──
-    panel.settingsHeading = AddHeading(panel, "Settings", previous, -14)
+    panel.settingsHeading = Heading(panel, "SETTINGS", y)
+    y = y + HEADING_H + 2
 
-    panel.cbMinimap = AddCheckbox(
+    panel.cbMinimap = Checkbox(
         panel, "Show minimap button",
         "Hide it if you keep your minimap clear. /mkt minimap brings it back.",
-        panel.settingsHeading, -6,
-        function(checked) ns.Minimap.SetShown(checked) end
+        y, function(checked) ns.Minimap.SetShown(checked) end
     )
-    panel.cbDebug = AddCheckbox(
+    y = y + CHECKBOX_H
+
+    panel.cbDebug = Checkbox(
         panel, "Verbose logging",
         "Prints detailed capture information to chat. Useful when reporting a problem.",
-        panel.cbMinimap, -2,
-        function(checked)
+        y, function(checked)
             MKeyTrackerDB.settings = MKeyTrackerDB.settings or {}
             MKeyTrackerDB.settings.debugMode = checked
         end
     )
+    y = y + CHECKBOX_H + GAP
 
     -- ── Footer ──
     panel.syncBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     panel.syncBtn:SetSize(150, 22)
-    panel.syncBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 16, 14)
+    panel.syncBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -y)
     panel.syncBtn:SetText("Sync & Reload")
     panel.syncBtn:SetScript("OnClick", function()
         -- Direct call: deferring ReloadUI loses the hardware-event context.
@@ -183,7 +251,7 @@ local function CreatePanel()
 
     panel.resetBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     panel.resetBtn:SetSize(150, 22)
-    panel.resetBtn:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -16, 14)
+    panel.resetBtn:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD, -y)
     panel.resetBtn:SetText("Reset positions")
     panel.resetBtn:SetScript("OnClick", function()
         if ns.UI and ns.UI.ResetPosition then ns.UI.ResetPosition() end
@@ -191,54 +259,63 @@ local function CreatePanel()
         ns.Utils.Print("Toast and minimap button moved back to their defaults.")
     end)
 
+    -- The window is exactly as tall as its content — the point of the
+    -- fixed-offset layout is that there is no guessed constant to drift.
+    panel:SetHeight(y + FOOTER_H)
     return panel
 end
 
 -- ─── Refresh ──────────────────────────────────────────────────────────────
 
 local function RefreshStatus()
-    local pending = (MKeyTrackerDB and MKeyTrackerDB.pendingRuns) or {}
-    panel.rowVersion.value:SetText("v" .. (ns.version or "?"))
-    panel.rowPending.value:SetText(tostring(#pending))
+    local pending = #((MKeyTrackerDB and MKeyTrackerDB.pendingRuns) or {})
+    local parts = {
+        "v" .. (ns.version or "?"),
+        pending == 1 and "1 run waiting" or (pending .. " runs waiting"),
+    }
 
-    if not (ns.Inbound and ns.Inbound.IsAvailable()) then
-        panel.rowData.value:SetText("|cffff8800not received yet|r")
-        return
-    end
-    local age = ns.Inbound.AgeSeconds()
-    local season = ns.Inbound.GetSeason()
-    local when
-    if not age then
-        when = "received"
-    elseif age < 3600 then
-        when = string.format("%d min ago", math.floor(age / 60))
-    elseif age < 86400 then
-        when = string.format("%d hr ago", math.floor(age / 3600))
+    if ns.Inbound and ns.Inbound.IsAvailable() then
+        local age = ns.Inbound.AgeSeconds()
+        local when
+        if not age then
+            when = "data received"
+        elseif age < 3600 then
+            when = string.format("data %d min old", math.floor(age / 60))
+        elseif age < 86400 then
+            when = string.format("data %d hr old", math.floor(age / 3600))
+        else
+            when = string.format("data %d day(s) old", math.floor(age / 86400))
+        end
+        table.insert(parts, ns.Inbound.IsStale() and ("|cffff8800" .. when .. "|r") or when)
     else
-        when = string.format("%d day(s) ago", math.floor(age / 86400))
+        table.insert(parts, "|cffff8800no companion data|r")
     end
-    if ns.Inbound.IsStale() then when = "|cffff8800" .. when .. "|r" end
-    panel.rowData.value:SetText((season and season.name or "") .. " · " .. when)
+
+    panel.status:SetText(table.concat(parts, "  ·  "))
 end
 
 local function RefreshSeason()
     local player = ns.Inbound and ns.Inbound.GetPlayer and ns.Inbound.GetPlayer()
-    local rows = {
-        panel.rowJuice, panel.rowRuns, panel.rowTimed, panel.rowBest, panel.rowDeaths,
-    }
+    local season = ns.Inbound and ns.Inbound.GetSeason and ns.Inbound.GetSeason()
+    panel.seasonHeading:SetText(season and string.upper(season.name) or "THIS SEASON")
+
     if not player then
-        for _, row in ipairs(rows) do row.value:SetText("|cff808080—|r") end
+        for _, tile in ipairs(panel.tiles) do tile.value:SetText("|cff808080—|r") end
+        panel.deaths:SetText("")
         return
     end
-    panel.rowJuice.value:SetText(Comma(player.juice))
-    panel.rowRuns.value:SetText(tostring(player.runs or 0))
-    panel.rowTimed.value:SetText((player.timedPct or 0) .. "%")
-    panel.rowBest.value:SetText("+" .. (player.bestKey or 0))
-    panel.rowDeaths.value:SetText(string.format("%.2f", player.avgDeaths or 0))
+
+    panel.tiles[1].value:SetText(Comma(player.juice))
+    panel.tiles[2].value:SetText(tostring(player.runs or 0))
+    panel.tiles[3].value:SetText((player.timedPct or 0) .. "%")
+    panel.tiles[4].value:SetText("+" .. (player.bestKey or 0))
+    panel.deaths:SetText(string.format(
+        "|cff808080%.2f deaths per run|r", player.avgDeaths or 0
+    ))
 end
 
---- Personal bests, ordered by the key level reached. Doubles as the
---- keystone briefing: the time to beat is visible before you start.
+--- Personal bests, ordered by key level. Doubles as the keystone briefing:
+--- the time to beat is visible before the key starts.
 local function RefreshBests()
     for _, row in ipairs(panel.bestRows) do
         row.label:SetText("")
@@ -253,20 +330,18 @@ local function RefreshBests()
         return
     end
 
-    -- Names come from the game rather than the payload, so they are always
-    -- localised and always match what the player sees on their keystone.
+    -- Names come from the game, so they are localised and match the player's
+    -- keystone rather than whatever the server happened to store.
     local entries = {}
-    local records = MKeyTrackerDB.inbound.records or {}
-    for key, record in pairs(records) do
+    for key, record in pairs(MKeyTrackerDB.inbound.records or {}) do
         local cmid = tonumber(key)
         if cmid and type(record) == "table" then
             local name = C_ChallengeMode and C_ChallengeMode.GetMapUIInfo
-                and C_ChallengeMode.GetMapUIInfo(cmid) or ("Map " .. cmid)
+                and C_ChallengeMode.GetMapUIInfo(cmid) or nil
             table.insert(entries, {
                 name = name or ("Map " .. cmid),
                 level = record.bestLevel or 0,
                 timeMs = record.bestTimeMs or 0,
-                runs = record.runs or 0,
             })
         end
     end
@@ -289,7 +364,7 @@ local function RefreshBests()
         row.label:SetText(entry.name)
         if entry.level > 0 then
             row.value:SetText(string.format(
-                "|cffffffff+%d|r  %s", entry.level, FormatTime(entry.timeMs)
+                "|cffffffff+%d|r   %s", entry.level, FormatTime(entry.timeMs)
             ))
         else
             row.value:SetText("|cff808080not timed|r")
@@ -304,7 +379,7 @@ local function Refresh()
     RefreshBests()
     panel.cbMinimap:SetChecked(ns.Minimap and ns.Minimap.IsShown())
     panel.cbDebug:SetChecked(
-        MKeyTrackerDB and MKeyTrackerDB.settings and MKeyTrackerDB.settings.debugMode or false
+        (MKeyTrackerDB and MKeyTrackerDB.settings and MKeyTrackerDB.settings.debugMode) or false
     )
 end
 

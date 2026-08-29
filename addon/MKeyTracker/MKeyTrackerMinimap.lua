@@ -6,18 +6,30 @@
     that is currently 57 KB and served over the wire on every update. A
     minimap button is ~150 lines; the dependency is not worth it.
 
-    Left-click opens the panel, right-click toggles the capture toast's
-    visibility, and dragging moves the button around the minimap edge. The
-    angle is saved so it stays where the player put it.
+    Left-click opens the panel, right-click syncs when runs are waiting, and
+    dragging moves the button around the minimap edge. The angle is saved so
+    it stays where the player put it.
 ]]--
 
 local addonName, ns = ...
 ns.Minimap = {}
 
---- Distance from the minimap centre. 80 sits the button just outside the
---- default minimap ring, which is where players expect to grab it.
-local ORBIT_RADIUS = 80
+--- Gap between the minimap edge and the button's centre. Small on purpose:
+--- the button straddles the ring rather than floating off it, which is how
+--- every other minimap button sits.
+local EDGE_GAP = 6
 local DEFAULT_ANGLE = 194
+
+--- Orbit radius, measured from the minimap itself.
+---
+--- This was hardcoded to 80, which put the button *inside* the ring — the
+--- default minimap has grown across expansions, and other addons rescale it.
+--- Reading the live size keeps the button on the edge whatever that size is.
+local function OrbitRadii()
+    local w = (Minimap:GetWidth() or 140) / 2 + EDGE_GAP
+    local h = (Minimap:GetHeight() or 140) / 2 + EDGE_GAP
+    return w, h
+end
 
 local button = nil
 
@@ -31,14 +43,9 @@ end
 local function PositionAt(angle)
     if not button then return end
     local rad = math.rad(angle)
+    local w, h = OrbitRadii()
     button:ClearAllPoints()
-    button:SetPoint(
-        "CENTER",
-        Minimap,
-        "CENTER",
-        math.cos(rad) * ORBIT_RADIUS,
-        math.sin(rad) * ORBIT_RADIUS
-    )
+    button:SetPoint("CENTER", Minimap, "CENTER", math.cos(rad) * w, math.sin(rad) * h)
 end
 
 --- Follow the cursor around the minimap while dragging.
@@ -150,6 +157,15 @@ function ns.Minimap.Init()
     CreateButton()
     PositionAt(settings.angle or DEFAULT_ANGLE)
     button:Show()
+
+    -- A UI-scale change or a minimap-resizing addon moves the ring out from
+    -- under us, so re-place the button whenever the minimap changes size.
+    if not button.sizeHook then
+        button.sizeHook = true
+        Minimap:HookScript("OnSizeChanged", function()
+            PositionAt(Settings().angle or DEFAULT_ANGLE)
+        end)
+    end
 end
 
 --- Show or hide the button. Persists so it survives a reload.
