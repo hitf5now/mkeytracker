@@ -217,3 +217,73 @@ function ns.UI.ResetPosition()
         LoadToastPosition(toast)
     end
 end
+
+-- ─── Keystone briefing ────────────────────────────────────────────────────
+
+--[[
+    A short banner when a key starts.
+
+    Separate from the capture toast on purpose: this one carries no action,
+    so it has no buttons and fades on its own. It sits high on the screen
+    rather than centre, because the player is about to move and a box over
+    the middle of the viewport during a pull is an obstruction.
+]]--
+local BRIEFING_DURATION_SEC = 12
+local briefing = nil
+local briefingRemaining = 0
+
+local function CreateBriefingFrame()
+    if briefing then return briefing end
+
+    briefing = CreateFrame("Frame", "MKeyTrackerBriefingFrame", UIParent, "BackdropTemplate")
+    briefing:SetSize(420, 74)
+    briefing:SetPoint("TOP", UIParent, "TOP", 0, -140)
+    briefing:SetFrameStrata("MEDIUM")
+    briefing:SetClampedToScreen(true)
+    briefing:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    briefing:SetBackdropColor(0, 0, 0, 0.82)
+    briefing:SetBackdropBorderColor(1, 0.82, 0, 1)
+    briefing:Hide()
+
+    briefing.title = briefing:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    briefing.title:SetPoint("TOP", briefing, "TOP", 0, -10)
+    briefing.title:SetWidth(400)
+    briefing.title:SetJustifyH("CENTER")
+
+    briefing.body = briefing:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    briefing.body:SetPoint("TOP", briefing.title, "BOTTOM", 0, -6)
+    briefing.body:SetWidth(396)
+    briefing.body:SetJustifyH("CENTER")
+    briefing.body:SetSpacing(3)
+
+    briefing:SetScript("OnUpdate", function(self, elapsed)
+        briefingRemaining = briefingRemaining - elapsed
+        if briefingRemaining <= 0 then self:Hide() end
+    end)
+
+    return briefing
+end
+
+--- @param lines Array of strings from ns.Inbound.BuildBriefing.
+function ns.UI.ShowBriefing(dungeonName, level, lines)
+    if not lines or #lines == 0 then return end
+    local frame = CreateBriefingFrame()
+
+    frame.title:SetText(string.format(
+        "|cffffd100%s|r |cffffffff+%d|r", dungeonName or "Mythic+", level or 0
+    ))
+    frame.body:SetText(table.concat(lines, "\n"))
+    frame:SetHeight(46 + (#lines * 15))
+
+    briefingRemaining = BRIEFING_DURATION_SEC
+    frame:Show()
+end
+
+function ns.UI.HideBriefing()
+    if briefing then briefing:Hide() end
+end

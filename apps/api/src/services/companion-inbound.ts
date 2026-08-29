@@ -38,6 +38,15 @@ export interface InboundRosterEntry {
   togetherTimed: number;
 }
 
+export interface InboundDigest {
+  /** Recent achievements, newest first. The addon filters by `at`. */
+  achievements: Array<{ name: string; rarity: string; at: number }>;
+  /** Where the player currently stands on the headline board. */
+  juiceRank: number | null;
+  /** How many characters are ranked on it, for "4 of 45". */
+  juiceRankOf: number | null;
+}
+
 export interface InboundPayload {
   version: number;
   generatedAt: number;
@@ -53,6 +62,8 @@ export interface InboundPayload {
   records: Record<string, { bestLevel: number; bestTimeMs: number; runs: number; timedRuns: number }>;
   /** Known characters keyed "name-realm", lowercased. */
   roster: Record<string, InboundRosterEntry>;
+  /** What to tell the player when they log in. */
+  digest: InboundDigest;
 }
 
 /**
@@ -104,7 +115,7 @@ export async function buildInboundPayload(
   if (characters.length === 0) return null;
   const ownIds = characters.map((c) => c.id);
 
-  const [ownRuns, records, together, roster] = await Promise.all([
+  const [ownRuns, records, together, roster, achievements, juiceRank] = await Promise.all([
     // Headline numbers for the player across all their characters.
     prisma.$queryRaw<
       Array<{ juice: bigint; runs: bigint; timed: bigint; deaths: bigint; bestKey: number | null }>
@@ -205,6 +216,42 @@ export async function buildInboundPayload(
       LEFT JOIN runs r ON r.id = rm.run_id AND r.season_id = ${season.id}
       GROUP BY c.id, c.name, c.realm, c.class
     `,
+    // Recent achievements across the player's characters. Capped: this is a
+    // login greeting, not a history page.
+    prisma.$queryRaw<Array<{ name: string; rarity: string; at: Date }>>`
+      SELECT COALESCE(af.name, aa.key) AS name,
+             ra.rarity::text            AS rarity,
+             ra.awarded_at              AS at
+      FROM run_achievements ra
+      JOIN runs r ON r.id = ra.run_id
+      LEFT JOIN achievement_flavors af ON af.id = ra.flavor_id
+      LEFT JOIN achievement_archetypes aa ON aa.id = ra.archetype_id
+      WHERE r.season_id = ${season.id}
+        AND ra.character_id = ANY(${ownIds})
+      ORDER BY ra.awarded_at DESC
+      LIMIT 12
+    `,
+
+    // Standing on the headline board. Ranked over the whole season so the
+    // number means the same thing as the website's leaderboard.
+    prisma.$queryRaw<Array<{ rank: bigint; total: bigint }>>`
+      WITH totals AS (
+        SELECT rm.character_id,
+               COALESCE(SUM(r.personal_juice), 0) AS juice
+        FROM run_members rm
+        JOIN runs r ON r.id = rm.run_id
+        WHERE r.season_id = ${season.id}
+        GROUP BY rm.character_id
+      ),
+      ranked AS (
+        SELECT character_id, RANK() OVER (ORDER BY juice DESC) AS rank,
+               COUNT(*) OVER () AS total
+        FROM totals
+      )
+      SELECT MIN(rank) AS rank, MAX(total) AS total
+      FROM ranked
+      WHERE character_id = ANY(${ownIds})
+    `,
   ]);
 
   const own = ownRuns[0];
@@ -255,5 +302,14 @@ export async function buildInboundPayload(
     },
     records: recordsOut,
     roster: rosterOut,
+    digest: {
+      achievements: achievements.map((a) => ({
+        name: a.name,
+        rarity: a.rarity,
+        at: Math.floor(a.at.getTime() / 1000),
+      })),
+      juiceRank: juiceRank[0]?.rank != null ? Number(juiceRank[0].rank) : null,
+      juiceRankOf: juiceRank[0]?.total != null ? Number(juiceRank[0].total) : null,
+    },
   };
 }

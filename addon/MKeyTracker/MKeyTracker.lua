@@ -31,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.4.20"
+ns.version = "0.4.21"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
@@ -74,10 +74,31 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
         if ns.Scout and ns.Scout.Init then
             ns.Scout.Init()
         end
+
+        -- Wait a few seconds before speaking: chat frames and other addons
+        -- are still initialising at PLAYER_LOGIN, and a line printed into
+        -- that scroll gets lost.
+        C_Timer.After(6, function()
+            pcall(ns.ShowLoginDigest)
+        end)
         if ns.Logging and ns.Logging.CheckAndWarn then
             ns.Logging.CheckAndWarn(false)
         end
     elseif event == "CHALLENGE_MODE_START" then
+        -- What the player has to beat, while there is still time to act on
+        -- it. Guarded end to end: a missing API or payload must not disturb
+        -- the capture path that runs right after this.
+        pcall(function()
+            if not (ns.Inbound and ns.Inbound.BuildBriefing and ns.UI and ns.UI.ShowBriefing) then
+                return
+            end
+            local mapId = C_ChallengeMode.GetActiveChallengeMapID()
+            if not mapId then return end
+            local level = C_ChallengeMode.GetActiveKeystoneInfo()
+            local name, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapId)
+            ns.UI.ShowBriefing(name, level, ns.Inbound.BuildBriefing(mapId, level, timeLimit))
+        end)
+
         -- Re-warn if ACL is off — this key will produce impoverished log data.
         if ns.Logging and ns.Logging.CheckAndWarn then
             ns.Logging.CheckAndWarn(true)
@@ -113,3 +134,50 @@ end)
 
 -- Expose namespace globally so /mkt commands and debug tools can poke at it.
 _G.MKeyTracker = ns
+
+-- ─── Login digest ─────────────────────────────────────────────────────────
+
+--[[
+    "Since you last played" — achievements earned and where the player now
+    stands, printed once.
+
+    The watermark is stored per install rather than per character: the
+    achievements are the account's, and announcing the same three on every
+    alt would be noise rather than news.
+]]--
+function ns.ShowLoginDigest()
+    if not (ns.Inbound and ns.Inbound.BuildDigest) then return end
+
+    MKeyTrackerDB.settings = MKeyTrackerDB.settings or {}
+    local seen = MKeyTrackerDB.settings.lastDigestAt or 0
+
+    local digest = ns.Inbound.BuildDigest(seen)
+    if not digest then return end
+
+    local count = #digest.achievements
+    ns.Utils.Print(string.format(
+        "Since you last played: |cffffd100%d achievement%s|r.",
+        count, count == 1 and "" or "s"
+    ))
+    for i, entry in ipairs(digest.achievements) do
+        if i > 5 then
+            ns.Utils.Print(string.format("  ...and %d more.", count - 5))
+            break
+        end
+        ns.Utils.Print(string.format("  %s |cff808080(%s)|r", entry.name, entry.rarity or "common"))
+    end
+
+    if digest.juiceRank and digest.juiceRankOf then
+        ns.Utils.Print(string.format(
+            "You are |cffffd100#%d|r of %d on Season Juice.",
+            digest.juiceRank, digest.juiceRankOf
+        ))
+    end
+
+    -- Watermark the newest one so this is said once, not every login.
+    local newest = seen
+    for _, entry in ipairs(digest.achievements) do
+        if (entry.at or 0) > newest then newest = entry.at end
+    end
+    MKeyTrackerDB.settings.lastDigestAt = newest
+end

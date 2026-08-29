@@ -197,3 +197,90 @@ function ns.Inbound.BuildScorecard(challengeModeId, level, onTime, completionMs,
 
     return lines
 end
+
+-- ─── Keystone briefing ────────────────────────────────────────────────────
+
+--- Upgrade thresholds as a share of the dungeon timer: finishing inside 80%
+--- earns +2, inside 60% earns +3. Fixed by the game, not by us.
+local UPGRADE_FRACTIONS = { 1.0, 0.8, 0.6 }
+
+--[[
+    What to show when a key starts.
+
+    The information a player wants at the door is what they have to beat,
+    and that is knowable before the first pull: their own record here, and
+    the three timer thresholds. Returns the thresholds alone on a first
+    visit, which is still worth having.
+]]--
+function ns.Inbound.BuildBriefing(challengeModeId, level, timeLimitSec)
+    local lines = {}
+    local record = ns.Inbound.GetRecord(challengeModeId)
+
+    if record and (record.bestLevel or 0) > 0 then
+        local best = record.bestLevel
+        local comparison
+        if level and level > best then
+            comparison = "|cffffd100above|r your best here"
+        elseif level and level == best then
+            comparison = "matching your best here"
+        else
+            comparison = string.format("below your best of |cffffffff+%d|r", best)
+        end
+        table.insert(lines, string.format(
+            "Your record: |cffffffff+%d|r in %s — this key is %s",
+            best, FormatTime(record.bestTimeMs), comparison
+        ))
+    elseif record then
+        table.insert(lines, string.format("%d run(s) here, none timed yet", record.runs or 0))
+    else
+        table.insert(lines, "First run here this season")
+    end
+
+    if timeLimitSec and timeLimitSec > 0 then
+        local marks = {}
+        for i, fraction in ipairs(UPGRADE_FRACTIONS) do
+            table.insert(marks, string.format(
+                "|cffffffff+%d|r %s", i, FormatTime(timeLimitSec * fraction * 1000)
+            ))
+        end
+        table.insert(lines, "Beat: " .. table.concat(marks, "   "))
+    end
+
+    return lines
+end
+
+-- ─── Login digest ─────────────────────────────────────────────────────────
+
+--- Raw digest table, or nil.
+function ns.Inbound.GetDigest()
+    if not ns.Inbound.IsAvailable() then return nil end
+    local digest = raw().digest
+    return type(digest) == "table" and digest or nil
+end
+
+--[[
+    A short "since you last played" summary.
+
+    `sinceUnix` is when this character last saw a digest, so an achievement
+    is announced once rather than every login. Returns nil when there is
+    nothing new worth interrupting the player for — a rank on its own is not
+    news.
+]]--
+function ns.Inbound.BuildDigest(sinceUnix)
+    local digest = ns.Inbound.GetDigest()
+    if not digest then return nil end
+
+    local fresh = {}
+    for _, entry in ipairs(digest.achievements or {}) do
+        if type(entry) == "table" and (not sinceUnix or (entry.at or 0) > sinceUnix) then
+            table.insert(fresh, entry)
+        end
+    end
+    if #fresh == 0 then return nil end
+
+    return {
+        achievements = fresh,
+        juiceRank = digest.juiceRank,
+        juiceRankOf = digest.juiceRankOf,
+    }
+end

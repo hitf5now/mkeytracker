@@ -92,6 +92,22 @@ local function CmdMinimap()
     ns.Utils.Print(shown and "Minimap button shown." or "Minimap button hidden. /mkt minimap to bring it back.")
 end
 
+local function CmdDigest()
+    if not (ns.Inbound and ns.Inbound.BuildDigest) then
+        ns.Utils.PrintError("Inbound unavailable — try /reload.")
+        return
+    end
+    -- Pass 0 so the summary shows regardless of the watermark.
+    local digest = ns.Inbound.BuildDigest(0)
+    if not digest then
+        ns.Utils.Print("No achievements recorded this season yet.")
+        return
+    end
+    MKeyTrackerDB.settings = MKeyTrackerDB.settings or {}
+    MKeyTrackerDB.settings.lastDigestAt = 0
+    ns.ShowLoginDigest()
+end
+
 local function CmdParty()
     if ns.Scout and ns.Scout.PrintParty then
         ns.Scout.PrintParty()
@@ -184,6 +200,7 @@ local function CmdHelp()
     ns.Utils.Print("  /mkt              — open the tracker window")
     ns.Utils.Print("  /mkt minimap      — show/hide the minimap button")
     ns.Utils.Print("  /mkt party        — what we know about your group")
+    ns.Utils.Print("  /mkt digest       — achievements since you last played")
     ns.Utils.Print("  /mkt dump         — list pending runs")
     ns.Utils.Print("  /mkt dump <n>     — show full detail for run #n")
     ns.Utils.Print("  /mkt clear        — wipe pending queue")
@@ -223,6 +240,8 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
         CmdMinimap()
     elseif msg == "party" then
         CmdParty()
+    elseif msg == "digest" then
+        CmdDigest()
     elseif msg == "debug on" then
         CmdDebug(true)
     elseif msg == "debug off" then
