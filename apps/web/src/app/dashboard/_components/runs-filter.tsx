@@ -9,12 +9,14 @@ interface Props {
   dungeons: UserRunsFilterOption<number>[];
   activeCharacterId: number | null;
   activeDungeonId: number | null;
-  activeRange: "7d" | "30d" | "season" | "all";
+  activeRange: "7d" | "30d" | "all";
 }
 
+// "This season" used to live here, which made this control do two jobs at
+// once — the season picker above now owns that axis and this one narrows
+// within whatever season is selected.
 const RANGE_OPTIONS: Array<{ value: Props["activeRange"]; label: string }> = [
-  { value: "all", label: "All time" },
-  { value: "season", label: "This season" },
+  { value: "all", label: "Any time" },
   { value: "30d", label: "Last 30 days" },
   { value: "7d", label: "Last 7 days" },
 ];

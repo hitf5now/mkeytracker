@@ -665,7 +665,42 @@ export interface TokenBalance {
 
 // ─── User runs (paginated list for dashboard Runs tab) ──────────────
 
-export type UserRunsRange = "7d" | "30d" | "season" | "all";
+export type UserRunsRange = "7d" | "30d" | "all";
+
+/** One season as returned by GET /api/v1/seasons, shaped for the picker. */
+export interface SeasonOption {
+  id: number;
+  slug: string;
+  name: string;
+  /** Expansion display name, or null for seasons predating the grouping. */
+  expansion: string | null;
+  seasonNumber: number | null;
+  /** Label to show once the expansion is already the group heading. */
+  shortLabel: string;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string | null;
+  runCount: number;
+}
+
+/** GET /api/v1/dungeons — the dungeon pool for one season. */
+export interface DungeonsResponse {
+  season: { id: number; slug: string; name: string } | null;
+  dungeons: Array<{
+    id: number;
+    slug: string;
+    name: string;
+    shortCode: string;
+    parTimeSec?: number;
+  }>;
+}
+
+export interface SeasonsResponse {
+  seasons: SeasonOption[];
+  /** Seasons pre-grouped by expansion, newest expansion first. */
+  groups: Array<{ expansion: string; seasons: SeasonOption[] }>;
+  activeSlug: string | null;
+}
 
 export interface UserRunsListItem {
   id: number;

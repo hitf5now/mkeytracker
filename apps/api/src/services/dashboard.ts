@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import { resolveSeasonParam } from "./seasons.js";
 import {
   getEndorsementSummaryForUser,
   type EndorsementSummary,
@@ -123,7 +124,8 @@ export interface DashboardResult {
   dungeonBreakdown: DashboardDungeonBreakdown[];
   recentRuns: DashboardRecentRun[];
   chartData: DashboardChartData;
-  season: { slug: string; name: string };
+  /** Season the stats are scoped to, or null when spanning every season. */
+  season: { slug: string; name: string } | null;
   endorsements: EndorsementSummary;
   tokenBalance: TokenBalance;
 }
@@ -158,9 +160,21 @@ const EMPTY_OVERVIEW: DashboardOverview = {
 
 // ─── Main function ───────────────────────────────────────────────
 
-export async function getUserDashboard(userId: number): Promise<DashboardResult | null> {
-  const season = await prisma.season.findFirst({ where: { isActive: true } });
-  if (!season) return null;
+/**
+ * @param seasonParam Season slug, id, or "all". Omit for the active season.
+ *   The dashboard's headline stats (Juice, timed rate, records) are
+ *   season-relative, so this is what lets a user look back at a previous
+ *   season instead of seeing an empty page the day a new one starts.
+ */
+export async function getUserDashboard(
+  userId: number,
+  seasonParam?: string,
+): Promise<DashboardResult | null> {
+  const resolved = await resolveSeasonParam(prisma, seasonParam);
+  if (!resolved) return null;
+  const season = resolved.season;
+  const seasonFilter = season ? { seasonId: season.id } : {};
+  const seasonRef = season ? { slug: season.slug, name: season.name } : null;
 
   const characters = await prisma.character.findMany({
     where: { userId },
@@ -179,7 +193,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
       dungeonBreakdown: [],
       recentRuns: [],
       chartData: { runsPerWeek: [], keyProgression: [] },
-      season: { slug: season.slug, name: season.name },
+      season: seasonRef,
       endorsements,
       tokenBalance,
     };
@@ -192,7 +206,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
   const memberRuns = await prisma.runMember.findMany({
     where: {
       characterId: { in: characterIds },
-      run: { seasonId: season.id },
+      run: { ...seasonFilter },
     },
     include: { run: { include: { dungeon: true } } },
     orderBy: { run: { recordedAt: "desc" } },
@@ -466,7 +480,7 @@ export async function getUserDashboard(userId: number): Promise<DashboardResult 
     dungeonBreakdown,
     recentRuns,
     chartData: { runsPerWeek, keyProgression },
-    season: { slug: season.slug, name: season.name },
+    season: seasonRef,
     endorsements,
     tokenBalance,
   };

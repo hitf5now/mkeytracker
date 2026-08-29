@@ -17,6 +17,7 @@ import { redis } from "../lib/redis.js";
 import { env } from "../config/env.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 import { syncSeasons, type SeasonSyncResult } from "../services/season-sync.js";
+import { listSeasonOptions } from "../services/seasons.js";
 
 /**
  * Announce a rollover to every server that has an announcements or results
@@ -47,34 +48,28 @@ async function announceRollover(result: SeasonSyncResult): Promise<void> {
 }
 
 export async function seasonsRoutes(app: FastifyInstance): Promise<void> {
+  // Powers every season picker on the website. Returned newest-first and
+  // pre-grouped by expansion so the client renders <optgroup> without having
+  // to know how expansions are ordered.
   app.get("/seasons", async (_req, reply) => {
-    const seasons = await prisma.season.findMany({
-      orderBy: { startsAt: "desc" },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        patch: true,
-        startsAt: true,
-        endsAt: true,
-        isActive: true,
-        wowSeasonId: true,
-        _count: { select: { dungeons: true, runs: true } },
-      },
-    });
+    const seasons = await listSeasonOptions(prisma);
+
+    // Group in list order, so expansions come out newest-first for free.
+    const groups: Array<{ expansion: string; seasons: typeof seasons }> = [];
+    for (const season of seasons) {
+      // Seasons whose upstream slug wasn't recognisable have no expansion.
+      // They still belong somewhere, so collect them under "Other" rather
+      // than dropping them out of the picker entirely.
+      const label = season.expansion ?? "Other";
+      const existing = groups.find((g) => g.expansion === label);
+      if (existing) existing.seasons.push(season);
+      else groups.push({ expansion: label, seasons: [season] });
+    }
+
     return reply.code(200).send({
-      seasons: seasons.map((s) => ({
-        id: s.id,
-        slug: s.slug,
-        name: s.name,
-        patch: s.patch,
-        startsAt: s.startsAt,
-        endsAt: s.endsAt,
-        isActive: s.isActive,
-        wowSeasonId: s.wowSeasonId,
-        dungeonCount: s._count.dungeons,
-        runCount: s._count.runs,
-      })),
+      seasons,
+      groups,
+      activeSlug: seasons.find((s) => s.isActive)?.slug ?? null,
     });
   });
 

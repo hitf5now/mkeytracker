@@ -8,10 +8,12 @@
  * into Redis sorted sets or materialized views per MPLUS_PLATFORM.md
  * "Leaderboard Computation Strategy".
  *
- * All queries scope to the currently-active season.
+ * Queries are season-scoped. Callers pass a season slug/id (or "all") and
+ * default to the active season when they pass nothing.
  */
 
 import { prisma } from "../lib/prisma.js";
+import { resolveSeasonParam } from "./seasons.js";
 import {
   getEndorsementSummaryForCharacter,
   type EndorsementSummary,
@@ -74,10 +76,11 @@ export interface CharacterProfile {
     bestRunPerDungeon: ProfileBestRun[];
     recentRuns: ProfileRecentRun[];
   };
+  /** Season the stats are scoped to, or null when spanning every season. */
   season: {
     slug: string;
     name: string;
-  };
+  } | null;
   /** Null if the character is unclaimed (no linked User). */
   endorsements: EndorsementSummary | null;
   /** Discord ID of the claiming user, for linking to their profile surfaces. */
@@ -139,10 +142,16 @@ async function loadCharactersById(ids: number[]) {
 
 // ─── Character profile ──────────────────────────────────────────────
 
+/**
+ * @param seasonParam Season slug, id, or "all". Omit for the active season.
+ *   Without this a profile reads "no runs this season" for a player with
+ *   hundreds of runs the day a new season starts.
+ */
 export async function getCharacterProfile(
   region: string,
   realm: string,
   name: string,
+  seasonParam?: string,
 ): Promise<CharacterProfile | null> {
   const character = await prisma.character.findUnique({
     where: { region_realm_name: { region, realm, name } },
@@ -150,13 +159,16 @@ export async function getCharacterProfile(
   });
   if (!character) return null;
 
-  const season = await getActiveSeason();
+  const resolved = await resolveSeasonParam(prisma, seasonParam);
+  if (!resolved) return null;
+  const season = resolved.season;
+  const seasonRef = season ? { slug: season.slug, name: season.name } : null;
 
-  // All of this character's run_member rows in the active season
+  // All of this character's run_member rows in the selected scope
   const memberRuns = await prisma.runMember.findMany({
     where: {
       characterId: character.id,
-      run: { seasonId: season.id },
+      ...(season ? { run: { seasonId: season.id } } : {}),
     },
     include: { run: { include: { dungeon: true } } },
     orderBy: { run: { recordedAt: "desc" } },
@@ -251,7 +263,7 @@ export async function getCharacterProfile(
       bestRunPerDungeon,
       recentRuns,
     },
-    season: { slug: season.slug, name: season.name },
+    season: seasonRef,
     endorsements,
     claimedByDiscordId: character.user?.discordId ?? null,
   };
@@ -290,15 +302,31 @@ export async function getFirstCharacterForDiscordUser(
  */
 export type LeaderboardCategory = string;
 
+/**
+ * Build one leaderboard.
+ *
+ * @param seasonId Season to rank within; omit for the active season.
+ *   Leaderboards are always season-scoped — an all-time board would rank a
+ *   full season against one that is three weeks old.
+ * @returns `null` when the category names a dungeon that isn't in the
+ *   requested season, so the route can 404 instead of serving an empty
+ *   board that looks like "nobody has run this yet".
+ */
 export async function getLeaderboard(
   category: LeaderboardCategory,
   limit = 10,
-): Promise<LeaderboardResult> {
-  const season = await getActiveSeason();
+  seasonId?: number,
+): Promise<LeaderboardResult | null> {
+  const season =
+    seasonId === undefined
+      ? await getActiveSeason()
+      : await prisma.season.findUnique({ where: { id: seasonId } });
+  if (!season) return null;
+
   const now = new Date().toISOString();
+  const seasonRef = { slug: season.slug, name: season.name };
 
   let entries: LeaderboardEntry[] = [];
-  let context: string | undefined;
 
   if (category === "season-juice") {
     entries = await leaderboardSeasonJuice(season.id, limit);
@@ -311,25 +339,14 @@ export async function getLeaderboard(
     const dungeon = await prisma.dungeon.findFirst({
       where: { seasonId: season.id, slug: dungeonSlug },
     });
-    if (!dungeon) {
-      return {
-        category,
-        season: { slug: season.slug, name: season.name },
-        entries: [],
-        updatedAt: now,
-      };
-    }
-    context = dungeon.name;
+    // The dungeon pool changes every season, so a link to a previous
+    // season's dungeon is genuinely "not found here" — not an empty board.
+    if (!dungeon) return null;
     entries = await leaderboardFastestClear(season.id, dungeon.id, limit);
-    for (const e of entries) e.context = context;
+    for (const e of entries) e.context = dungeon.name;
   }
 
-  return {
-    category,
-    season: { slug: season.slug, name: season.name },
-    entries,
-    updatedAt: now,
-  };
+  return { category, season: seasonRef, entries, updatedAt: now };
 }
 
 // ─── Category queries ────────────────────────────────────────────────

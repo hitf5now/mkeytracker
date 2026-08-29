@@ -10,6 +10,8 @@
       "isActive": false,
       "externalSlug": "season-mn-1",
       "wowSeasonId": 17,
+      "expansion": "Midnight",
+      "seasonNumber": 1,
       "dungeons": [
         {
           "challengeModeId": 239,
@@ -78,6 +80,8 @@
       "isActive": true,
       "externalSlug": "season-mn-2",
       "wowSeasonId": 18,
+      "expansion": "Midnight",
+      "seasonNumber": 2,
       "dungeons": [
         {
           "challengeModeId": 588,

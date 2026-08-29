@@ -35,7 +35,8 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
     const realm = toRealmSlug(parsed.data.realm);
     const name = parsed.data.name;
 
-    const profile = await getCharacterProfile(region, realm, name);
+    const season = (req.query as { season?: string } | undefined)?.season;
+    const profile = await getCharacterProfile(region, realm, name, season);
     if (!profile) {
       return reply.code(404).send({
         error: "character_not_found",

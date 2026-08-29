@@ -3,9 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { fetchApi } from "@/lib/api";
-import type { TeamSummary } from "@/types/api";
+import type { TeamSummary, SeasonsResponse } from "@/types/api";
 import { ClassBadge } from "@/components/class-badge";
 import { RoleIcon } from "@/components/role-icon";
+import { SeasonPicker } from "@/components/season-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,21 @@ export const metadata: Metadata = {
   description: "Pre-made M+ teams for competitive events.",
 };
 
-export default async function TeamsPage() {
+interface Props {
+  searchParams: Promise<{ season?: string }>;
+}
+
+export default async function TeamsPage({ searchParams }: Props) {
   const session = await auth();
   if (!session) redirect("/");
 
-  const { teams } = await fetchApi<{ teams: TeamSummary[] }>("/api/v1/teams");
+  const season = (await searchParams).season;
+  const qs = season ? `?season=${encodeURIComponent(season)}` : "";
+
+  const [{ teams }, seasons] = await Promise.all([
+    fetchApi<{ teams: TeamSummary[] }>(`/api/v1/teams${qs}`),
+    fetchApi<SeasonsResponse>("/api/v1/seasons"),
+  ]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -29,18 +40,22 @@ export default async function TeamsPage() {
             Pre-made rosters for team-mode events.
           </p>
         </div>
-        <Link
-          href="/teams/create"
-          className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-gold-dark"
-        >
-          Create Team
-        </Link>
+        <div className="flex items-end gap-3">
+          <SeasonPicker data={seasons} value={season} />
+          <Link
+            href="/teams/create"
+            className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-gold-dark"
+          >
+            Create Team
+          </Link>
+        </div>
       </div>
 
       {teams.length === 0 ? (
         <div className="mt-10 rounded-lg border border-border bg-card p-8 text-center">
           <p className="text-muted-foreground">
-            No teams yet. Create one to sign up for team-mode events.
+            No teams in this season. Teams don&apos;t carry across seasons —
+            create one, or pick an earlier season above.
           </p>
         </div>
       ) : (

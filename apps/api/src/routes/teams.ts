@@ -10,6 +10,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { resolveSeasonParam } from "../services/seasons.js";
 import { requireInternalAuth } from "../plugins/internal-auth.js";
 
 const TeamMemberSchema = z.object({
@@ -163,7 +164,7 @@ export async function teamsRoutes(app: FastifyInstance): Promise<void> {
 
   // ── Public read routes ──────────────────────────────────────
   app.get("/teams", async (req, reply) => {
-    const query = req.query as { seasonId?: string; active?: string };
+    const query = req.query as { season?: string; seasonId?: string; active?: string };
 
     const where: Record<string, unknown> = {};
 
@@ -171,12 +172,12 @@ export async function teamsRoutes(app: FastifyInstance): Promise<void> {
       where.active = true;
     }
 
-    if (query.seasonId) {
-      where.seasonId = parseInt(query.seasonId, 10);
-    } else {
-      const season = await prisma.season.findFirst({ where: { isActive: true } });
-      if (season) where.seasonId = season.id;
-    }
+    // Teams don't carry across seasons, so the season a viewer is looking at
+    // decides which rosters exist at all. `seasonId` is the original spelling
+    // and stays accepted alongside the site-wide `season`.
+    const resolved = await resolveSeasonParam(prisma, query.season ?? query.seasonId);
+    if (!resolved) return reply.code(404).send({ error: "season_not_found" });
+    if (resolved.season) where.seasonId = resolved.season.id;
 
     const teams = await prisma.team.findMany({
       where,

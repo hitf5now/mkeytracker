@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api";
-import type { CharacterProfile } from "@/types/api";
+import type { CharacterProfile, SeasonsResponse } from "@/types/api";
 import { getClassColor, getClassName } from "@/lib/class-colors";
 import { formatDuration, formatNumber, formatUpgrades } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
@@ -10,12 +10,18 @@ import { RoleIcon } from "@/components/role-icon";
 import { PlayerSearch } from "@/components/player-search";
 import { RefreshPortraitButton } from "@/components/refresh-portrait-button";
 import { EndorsementDisplay } from "@/components/endorsement-display";
+import { SeasonPicker } from "@/components/season-picker";
 
 interface Props {
   params: Promise<{ region: string; realm: string; name: string }>;
+  searchParams: Promise<{ season?: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Props["params"];
+}): Promise<Metadata> {
   const { region, realm, name } = await params;
   return {
     title: `${name} — ${realm} (${region.toUpperCase()})`,
@@ -23,15 +29,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PlayerProfilePage({ params }: Props) {
+export default async function PlayerProfilePage({ params, searchParams }: Props) {
   const { region, realm, name } = await params;
+  const seasonParam = (await searchParams).season;
+
+  const qs = seasonParam ? `?season=${encodeURIComponent(seasonParam)}` : "";
 
   let data: CharacterProfile;
+  let seasons: SeasonsResponse;
   try {
-    data = await fetchApi<CharacterProfile>(
-      `/api/v1/characters/${region}/${realm}/${name}`,
-      { revalidate: 120 },
-    );
+    [data, seasons] = await Promise.all([
+      fetchApi<CharacterProfile>(
+        `/api/v1/characters/${region}/${realm}/${name}${qs}`,
+        { revalidate: 120 },
+      ),
+      fetchApi<SeasonsResponse>("/api/v1/seasons"),
+    ]);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       notFound();
@@ -83,7 +96,12 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       {/* Season */}
-      <p className="mt-2 text-sm text-muted-foreground">{season.name}</p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <SeasonPicker data={seasons} value={seasonParam} />
+        <p className="pb-1.5 text-sm text-muted-foreground">
+          {season?.name ?? "All seasons"}
+        </p>
+      </div>
 
       {/* Stats grid */}
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -244,7 +262,8 @@ export default async function PlayerProfilePage({ params }: Props) {
 
       {stats.totalRuns === 0 && (
         <p className="mt-12 text-center text-muted-foreground">
-          No runs recorded yet for this character this season.
+          No runs recorded for this character in this season. Try another
+          season above.
         </p>
       )}
     </div>

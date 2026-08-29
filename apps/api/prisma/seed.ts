@@ -39,6 +39,8 @@ interface SeasonSeed {
   isActive: boolean;
   externalSlug?: string | null;
   wowSeasonId?: number | null;
+  expansion?: string | null;
+  seasonNumber?: number | null;
   dungeons: DungeonSeed[];
 }
 

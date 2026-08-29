@@ -24,7 +24,7 @@ import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
 import { matchRunToEvents, markGroupsMatched } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
-import { resolveSeasonAt } from "../services/seasons.js";
+import { resolveSeasonAt, resolveSeasonParam } from "../services/seasons.js";
 import { grantJuiceTokens } from "../services/endorsement-tokens.js";
 import { fetchCharacterMedia } from "../lib/blizzard.js";
 import { evaluateAndPersist as evaluateAchievements } from "../services/achievements/evaluator.js";
@@ -1004,12 +1004,14 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
   // ─── GET /api/v1/runs — public paginated list of runs ───────────────────
   //
   // Public read: no auth. Powers the /runs page on the website. Sorted by
-  // recordedAt DESC. Defaults to the active season; pass `?seasonId=all` to
-  // span every season.
+  // recordedAt DESC. Defaults to the active season; pass `?season=<slug>`,
+  // `?season=<id>` or `?season=all`. `seasonId` is the original spelling and
+  // stays accepted so existing links keep working.
   const RunsListQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
     offset: z.coerce.number().int().min(0).default(0),
-    seasonId: z.union([z.coerce.number().int().positive(), z.literal("all")]).optional(),
+    season: z.string().optional(),
+    seasonId: z.string().optional(),
   });
 
   app.get<{ Querystring: unknown }>("/runs", async (req, reply) => {
@@ -1020,25 +1022,16 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
         issues: parsed.error.issues,
       });
     }
-    const { limit, offset, seasonId } = parsed.data;
+    const { limit, offset } = parsed.data;
 
-    let resolvedSeasonId: number | null = null;
-    let seasonInfo: { id: number; slug: string; name: string } | null = null;
-    if (seasonId === "all") {
-      resolvedSeasonId = null;
-    } else if (typeof seasonId === "number") {
-      const s = await prisma.season.findUnique({ where: { id: seasonId } });
-      if (!s) return reply.code(404).send({ error: "season_not_found" });
-      resolvedSeasonId = s.id;
-      seasonInfo = { id: s.id, slug: s.slug, name: s.name };
-    } else {
-      const active = await prisma.season.findFirst({ where: { isActive: true } });
-      if (!active) return reply.code(500).send({ error: "no_active_season" });
-      resolvedSeasonId = active.id;
-      seasonInfo = { id: active.id, slug: active.slug, name: active.name };
-    }
+    const resolved = await resolveSeasonParam(
+      prisma,
+      parsed.data.season ?? parsed.data.seasonId,
+    );
+    if (!resolved) return reply.code(404).send({ error: "season_not_found" });
 
-    const where = resolvedSeasonId ? { seasonId: resolvedSeasonId } : {};
+    const seasonInfo = resolved.season;
+    const where = seasonInfo ? { seasonId: seasonInfo.id } : {};
 
     const [total, runs] = await Promise.all([
       prisma.run.count({ where }),

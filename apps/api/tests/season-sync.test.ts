@@ -128,6 +128,8 @@ describe("deriveSeasonIdentity", () => {
     expect(deriveSeasonIdentity(rio("season-mn-2", "MN Season 2"))).toEqual({
       slug: "midnight-s2",
       name: "Midnight Season 2",
+      expansion: "Midnight",
+      seasonNumber: 2,
     });
   });
 
@@ -135,15 +137,21 @@ describe("deriveSeasonIdentity", () => {
     expect(deriveSeasonIdentity(rio("season-tww-3", "TWW Season 3"))).toEqual({
       slug: "the-war-within-s3",
       name: "The War Within Season 3",
+      expansion: "The War Within",
+      seasonNumber: 3,
     });
   });
 
   it("falls back to upstream values for an unknown expansion", () => {
     // A future expansion must not block the sync — an admin can rename the
     // row later, and externalSlug keeps the sync pointed at it either way.
+    // Grouping fields stay null so the picker files it under "Other" rather
+    // than inventing an expansion name.
     expect(deriveSeasonIdentity(rio("season-xyz-1", "XYZ Season 1"))).toEqual({
       slug: "season-xyz-1",
       name: "XYZ Season 1",
+      expansion: null,
+      seasonNumber: null,
     });
   });
 
@@ -151,6 +159,8 @@ describe("deriveSeasonIdentity", () => {
     expect(deriveSeasonIdentity(rio("season-tww-1-post", "TWW Season 1 Post"))).toEqual({
       slug: "season-tww-1-post",
       name: "TWW Season 1 Post",
+      expansion: null,
+      seasonNumber: null,
     });
   });
 });

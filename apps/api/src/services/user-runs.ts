@@ -3,12 +3,19 @@
  *
  * Powers the Runs tab on the user dashboard — returns a page of runs across
  * all of the user's claimed characters, with optional filters for character,
- * dungeon, and a date-range preset. Always sorted by recordedAt DESC.
+ * dungeon, season, and a date-range preset. Always sorted by recordedAt DESC.
+ *
+ * Season and date range are independent axes. They used to be tangled: the
+ * query was hard-scoped to the active season while offering an "All time"
+ * range, so a user's previous-season runs were unreachable no matter which
+ * range they picked. Season now selects *which* season (or all of them) and
+ * range narrows *within* that.
  */
 
 import { prisma } from "../lib/prisma.js";
+import { resolveSeasonParam } from "./seasons.js";
 
-export type UserRunsRange = "7d" | "30d" | "season" | "all";
+export type UserRunsRange = "7d" | "30d" | "all";
 
 export interface UserRunsListItem {
   id: number;
@@ -39,10 +46,11 @@ export interface UserRunsResult {
   total: number;
   limit: number;
   offset: number;
-  season: { slug: string; name: string };
+  /** Season the list is scoped to, or null when spanning every season. */
+  season: { slug: string; name: string } | null;
   /** Characters the user has — used to populate the character filter dropdown. */
   filterCharacters: UserRunsFilterOption<number>[];
-  /** Dungeons with at least one run this season — for the dungeon dropdown. */
+  /** Dungeons the user has run in the selected scope — for the dungeon dropdown. */
   filterDungeons: UserRunsFilterOption<number>[];
 }
 
@@ -50,22 +58,26 @@ export interface UserRunsQuery {
   userId: number;
   characterId?: number;
   dungeonId?: number;
+  /** Season slug, id, or "all". Omit for the active season. */
+  season?: string;
   range: UserRunsRange;
   limit: number;
   offset: number;
 }
 
-function rangeStart(range: UserRunsRange, seasonStartsAt: Date): Date | null {
+function rangeStart(range: UserRunsRange): Date | null {
   const now = Date.now();
   if (range === "7d") return new Date(now - 7 * 24 * 3600 * 1000);
   if (range === "30d") return new Date(now - 30 * 24 * 3600 * 1000);
-  if (range === "season") return seasonStartsAt;
   return null;
 }
 
 export async function getUserRuns(q: UserRunsQuery): Promise<UserRunsResult | null> {
-  const season = await prisma.season.findFirst({ where: { isActive: true } });
-  if (!season) return null;
+  const resolved = await resolveSeasonParam(prisma, q.season);
+  if (!resolved) return null;
+  const season = resolved.season;
+  const seasonFilter = season ? { seasonId: season.id } : {};
+  const seasonRef = season ? { slug: season.slug, name: season.name } : null;
 
   const characters = await prisma.character.findMany({
     where: { userId: q.userId },
@@ -80,7 +92,7 @@ export async function getUserRuns(q: UserRunsQuery): Promise<UserRunsResult | nu
       total: 0,
       limit: q.limit,
       offset: q.offset,
-      season: { slug: season.slug, name: season.name },
+      season: seasonRef,
       filterCharacters: [],
       filterDungeons: [],
     };
@@ -98,12 +110,12 @@ export async function getUserRuns(q: UserRunsQuery): Promise<UserRunsResult | nu
       ? [q.characterId]
       : characterIds;
 
-  const since = rangeStart(q.range, season.startsAt);
+  const since = rangeStart(q.range);
 
   const where = {
     characterId: { in: characterFilter },
     run: {
-      seasonId: season.id,
+      ...seasonFilter,
       ...(q.dungeonId ? { dungeonId: q.dungeonId } : {}),
       ...(since ? { recordedAt: { gte: since } } : {}),
     },
@@ -119,10 +131,10 @@ export async function getUserRuns(q: UserRunsQuery): Promise<UserRunsResult | nu
       take: q.limit,
     }),
     // Populate the dungeon dropdown with the dungeons this user has actually
-    // played in the active season (not every dungeon in the game).
+    // played in the selected scope (not every dungeon in the game).
     prisma.run.findMany({
       where: {
-        seasonId: season.id,
+        ...seasonFilter,
         members: { some: { characterId: { in: characterIds } } },
       },
       select: { dungeonId: true, dungeon: { select: { name: true } } },
@@ -161,7 +173,7 @@ export async function getUserRuns(q: UserRunsQuery): Promise<UserRunsResult | nu
     total,
     limit: q.limit,
     offset: q.offset,
-    season: { slug: season.slug, name: season.name },
+    season: seasonRef,
     filterCharacters,
     filterDungeons,
   };

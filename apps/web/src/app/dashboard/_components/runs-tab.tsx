@@ -11,7 +11,7 @@ import { RunsFilter } from "./runs-filter";
 
 interface Props {
   data: UserRunsResult;
-  activeRange: "7d" | "30d" | "season" | "all";
+  activeRange: "7d" | "30d" | "all";
   activeCharacterId: number | null;
   activeDungeonId: number | null;
   currentQueryString: string;

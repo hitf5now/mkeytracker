@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchApi } from "@/lib/api";
-import type { RunsListResult, RunsListMember } from "@/types/api";
+import type { RunsListResult, RunsListMember, SeasonsResponse } from "@/types/api";
 import { getClassColor } from "@/lib/class-colors";
 import { formatDuration, formatNumber, formatUpgrades } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
+import { SeasonPicker } from "@/components/season-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,12 @@ export default async function RunsListPage({ searchParams }: Props) {
   const qs = new URLSearchParams();
   qs.set("limit", String(limit));
   qs.set("offset", String(offset));
-  if (seasonParam === "all") qs.set("seasonId", "all");
+  if (seasonParam) qs.set("season", seasonParam);
 
-  const data = await fetchApi<RunsListResult>(`/api/v1/runs?${qs.toString()}`);
+  const [data, seasons] = await Promise.all([
+    fetchApi<RunsListResult>(`/api/v1/runs?${qs.toString()}`),
+    fetchApi<SeasonsResponse>("/api/v1/seasons"),
+  ]);
 
   const page = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(data.total / limit));
@@ -57,7 +61,7 @@ export default async function RunsListPage({ searchParams }: Props) {
             Every Mythic+ run logged on the site, newest first.
           </p>
         </div>
-        <SeasonToggle currentSeason={seasonParam === "all" ? "all" : "current"} />
+        <SeasonPicker data={seasons} value={seasonParam} />
       </div>
 
       <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
@@ -222,7 +226,9 @@ function pageHref(args: {
   const p = new URLSearchParams();
   if (args.offset > 0) p.set("offset", String(args.offset));
   if (args.limit !== PAGE_SIZE) p.set("limit", String(args.limit));
-  if (args.season === "all") p.set("season", "all");
+  // Preserve whatever season is being viewed — not just "all", or paging
+  // through a past season would snap the reader back to the current one.
+  if (args.season) p.set("season", args.season);
   const qs = p.toString();
   return qs ? `/runs?${qs}` : "/runs";
 }
@@ -251,36 +257,5 @@ function PageLink({
     >
       {label}
     </Link>
-  );
-}
-
-function SeasonToggle({
-  currentSeason,
-}: {
-  currentSeason: "current" | "all";
-}) {
-  return (
-    <div className="flex gap-1 text-xs">
-      <Link
-        href="/runs"
-        className={`rounded border px-3 py-1 font-semibold ${
-          currentSeason === "current"
-            ? "border-gold bg-gold/10 text-gold"
-            : "border-border bg-card text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        Current season
-      </Link>
-      <Link
-        href="/runs?season=all"
-        className={`rounded border px-3 py-1 font-semibold ${
-          currentSeason === "all"
-            ? "border-gold bg-gold/10 text-gold"
-            : "border-border bg-card text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        All seasons
-      </Link>
-    </div>
   );
 }

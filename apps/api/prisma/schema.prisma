@@ -42,6 +42,13 @@ model Season {
   /// for "a new season has begun"; also stamped onto Run.wowSeasonId.
   wowSeasonId  Int?    @map("wow_season_id")
 
+  /// Expansion display name, e.g. "Midnight". Persisted rather than parsed
+  /// out of `name` at read time so season pickers can group by expansion.
+  expansion    String? @map("expansion")
+  /// Ordinal within the expansion, e.g. 2 for "Midnight Season 2". Lets the
+  /// UI label an option "Season 2" once the expansion is the group heading.
+  seasonNumber Int?    @map("season_number")
+
   dungeons           Dungeon[]
   runs               Run[]
   events             Event[]

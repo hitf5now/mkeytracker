@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { fetchApi } from "@/lib/api";
+import type { DungeonsResponse } from "@/types/api";
 import { EventCreateForm } from "@/components/event-create-form";
 
 export const dynamic = "force-dynamic";
@@ -10,16 +11,6 @@ export const metadata: Metadata = {
   title: "Create Event",
   description: "Create a new M+ competitive event.",
 };
-
-interface DungeonsResponse {
-  season: { id: number; slug: string; name: string } | null;
-  dungeons: Array<{
-    id: number;
-    slug: string;
-    name: string;
-    shortCode: string;
-  }>;
-}
 
 export default async function CreateEventPage() {
   const session = await auth();

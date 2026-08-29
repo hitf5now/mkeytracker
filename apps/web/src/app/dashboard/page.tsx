@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import type { DashboardResult, UserRunsResult, UserRunsRange } from "@/types/api";
+import { fetchApi } from "@/lib/api";
+import type {
+  DashboardResult,
+  UserRunsResult,
+  UserRunsRange,
+  SeasonsResponse,
+} from "@/types/api";
+import { SeasonPicker } from "@/components/season-picker";
 import { OverviewStats } from "./_components/overview-stats";
 import { JuiceTotals } from "./_components/juice-totals";
 import { CharacterCards } from "./_components/character-cards";
@@ -26,9 +33,18 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-async function fetchDashboard(userId: number): Promise<DashboardResult | null> {
+function toSeason(v: string | string[] | undefined): string | undefined {
+  const s = Array.isArray(v) ? v[0] : v;
+  return s && s.length > 0 ? s : undefined;
+}
+
+async function fetchDashboard(
+  userId: number,
+  season: string | undefined,
+): Promise<DashboardResult | null> {
+  const qs = season ? `?season=${encodeURIComponent(season)}` : "";
   try {
-    const res = await fetch(`${API_BASE}/api/v1/users/${userId}/dashboard`, {
+    const res = await fetch(`${API_BASE}/api/v1/users/${userId}/dashboard${qs}`, {
       headers: { Authorization: `Bearer ${API_SECRET}` },
       next: { revalidate: 60 },
     });
@@ -51,7 +67,7 @@ function toInt(
 
 function toRange(v: string | string[] | undefined): UserRunsRange {
   const s = Array.isArray(v) ? v[0] : v;
-  if (s === "7d" || s === "30d" || s === "season") return s;
+  if (s === "7d" || s === "30d") return s;
   return "all";
 }
 
@@ -64,8 +80,10 @@ async function fetchUserRuns(
   const dungeonId = toInt(params.dungeon);
   const range = toRange(params.range);
   const offset = Math.max(0, toInt(params.offset, 0) ?? 0);
+  const season = toSeason(params.season);
   if (characterId) qs.set("characterId", String(characterId));
   if (dungeonId) qs.set("dungeonId", String(dungeonId));
+  if (season) qs.set("season", season);
   qs.set("range", range);
   qs.set("limit", "25");
   qs.set("offset", String(offset));
@@ -95,7 +113,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const resolvedParams = await searchParams;
   const active = parseDashboardTab(resolvedParams.tab);
 
-  const data = await fetchDashboard(userId);
+  const season = toSeason(resolvedParams.season);
+  const [data, seasons] = await Promise.all([
+    fetchDashboard(userId, season),
+    fetchApi<SeasonsResponse>("/api/v1/seasons"),
+  ]);
   if (!data) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -130,9 +152,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             {displayName ? `${displayName}'s Dashboard` : "Dashboard"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {data.season.name}
+            {data.season?.name ?? "All seasons"}
           </p>
         </div>
+        <SeasonPicker data={seasons} value={season} />
       </div>
 
       <div className="mt-6">
@@ -174,15 +197,15 @@ function SummaryTab({ data }: { data: DashboardResult }) {
   if (data.overview.totalRuns === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-        No runs recorded this season. Run some keys with the companion app to
-        see your stats here!
+        No runs recorded in this season. Pick another season above, or run
+        some keys with the companion app to see your stats here!
       </div>
     );
   }
   return (
     <div className="space-y-10">
       <section>
-        <h2 className="mb-3 text-lg font-bold">{data.season.name}</h2>
+        <h2 className="mb-3 text-lg font-bold">{data.season?.name ?? "All seasons"}</h2>
         <OverviewStats overview={data.overview} />
       </section>
 

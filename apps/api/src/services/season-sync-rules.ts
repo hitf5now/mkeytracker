@@ -70,7 +70,16 @@ const EXPANSION_NAMES: Record<string, string> = {
   bfa: "Battle for Azeroth",
 };
 
-export function deriveSeasonIdentity(rio: RioSeason): { slug: string; name: string } {
+export interface SeasonIdentity {
+  slug: string;
+  name: string;
+  /** Expansion display name, or null when the slug isn't recognisable. */
+  expansion: string | null;
+  /** Ordinal within the expansion, or null when it can't be determined. */
+  seasonNumber: number | null;
+}
+
+export function deriveSeasonIdentity(rio: RioSeason): SeasonIdentity {
   const m = /^season-([a-z]+)-(\d+)$/.exec(rio.slug);
   const abbr = m?.[1];
   const num = m?.[2];
@@ -79,9 +88,15 @@ export function deriveSeasonIdentity(rio: RioSeason): { slug: string; name: stri
     return {
       slug: `${expansion.toLowerCase().replace(/\s+/g, "-")}-s${num}`,
       name: `${expansion} Season ${num}`,
+      expansion,
+      seasonNumber: Number(num),
     };
   }
-  return { slug: rio.slug, name: rio.name };
+  // Unrecognised upstream slug (a new expansion abbreviation, or a variant
+  // like "season-tww-1-post"). Fall back to upstream's own labels and leave
+  // the grouping fields null — the picker renders those under "Other" rather
+  // than inventing an expansion name.
+  return { slug: rio.slug, name: rio.name, expansion: null, seasonNumber: null };
 }
 
 export function toSeasonInput(rio: RioSeason, startsAt: Date, patch: string): SeasonInput {
@@ -91,11 +106,13 @@ export function toSeasonInput(rio: RioSeason, startsAt: Date, patch: string): Se
     rawEnds === null ||
     rawEnds.getTime() - startsAt.getTime() > OPEN_ENDED_AFTER_DAYS * 86_400_000;
 
-  const { slug, name } = deriveSeasonIdentity(rio);
+  const { slug, name, expansion, seasonNumber } = deriveSeasonIdentity(rio);
 
   return {
     slug,
     name,
+    expansion,
+    seasonNumber,
     patch,
     startsAt,
     endsAt: openEnded ? null : rawEnds,
