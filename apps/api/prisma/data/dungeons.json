@@ -1,68 +1,141 @@
 {
-  "$comment": "Real WoW Midnight Season 1 dungeon data captured via C_ChallengeMode.GetMapTable() on 2026-04-11. Par times from C_ChallengeMode.GetMapUIInfo (seconds).",
-  "season": {
-    "slug": "midnight-s1",
-    "name": "Midnight Season 1",
-    "patch": "12.0.0",
-    "startsAt": "2026-03-10T00:00:00Z",
-    "isActive": true
-  },
-  "dungeons": [
+  "$comment": "Season + dungeon reference data. Par times and pools are sourced from Raider.IO static-data and cross-checked against the Blizzard mythic-keystone Game Data API (both agreed on every value as of 2026-08-29). Do NOT source par times from the addon's dungeonTimeLimitSec — it reports inconsistent values for the same dungeon across runs. Exactly one season may have isActive:true; the season-sync service keeps this in step with upstream automatically, and this file is the fallback/bootstrap.",
+  "seasons": [
     {
-      "challengeModeId": 239,
-      "slug": "seat-of-the-triumvirate",
-      "name": "Seat of the Triumvirate",
-      "shortCode": "SOTT",
-      "parTimeSec": 2040
+      "slug": "midnight-s1",
+      "name": "Midnight Season 1",
+      "patch": "12.0.0",
+      "startsAt": "2026-03-24T15:00:00Z",
+      "endsAt": "2026-08-18T15:00:00Z",
+      "isActive": false,
+      "externalSlug": "season-mn-1",
+      "wowSeasonId": 17,
+      "dungeons": [
+        {
+          "challengeModeId": 239,
+          "slug": "seat-of-the-triumvirate",
+          "name": "Seat of the Triumvirate",
+          "shortCode": "SOTT",
+          "parTimeSec": 2040
+        },
+        {
+          "challengeModeId": 161,
+          "slug": "skyreach",
+          "name": "Skyreach",
+          "shortCode": "SKY",
+          "parTimeSec": 1680
+        },
+        {
+          "challengeModeId": 560,
+          "slug": "maisara-caverns",
+          "name": "Maisara Caverns",
+          "shortCode": "MC",
+          "parTimeSec": 1980
+        },
+        {
+          "challengeModeId": 402,
+          "slug": "algethar-academy",
+          "name": "Algeth'ar Academy",
+          "shortCode": "AA",
+          "parTimeSec": 1860
+        },
+        {
+          "challengeModeId": 556,
+          "slug": "pit-of-saron",
+          "name": "Pit of Saron",
+          "shortCode": "POS",
+          "parTimeSec": 1800
+        },
+        {
+          "challengeModeId": 558,
+          "slug": "magisters-terrace",
+          "name": "Magisters' Terrace",
+          "shortCode": "MGT",
+          "parTimeSec": 2040
+        },
+        {
+          "challengeModeId": 559,
+          "slug": "nexus-point-xenas",
+          "name": "Nexus-Point Xenas",
+          "shortCode": "NPX",
+          "parTimeSec": 1800
+        },
+        {
+          "challengeModeId": 557,
+          "slug": "windrunner-spire",
+          "name": "Windrunner Spire",
+          "shortCode": "WRS",
+          "parTimeSec": 1980
+        }
+      ]
     },
     {
-      "challengeModeId": 161,
-      "slug": "skyreach",
-      "name": "Skyreach",
-      "shortCode": "SKY",
-      "parTimeSec": 1680
-    },
-    {
-      "challengeModeId": 560,
-      "slug": "maisara-caverns",
-      "name": "Maisara Caverns",
-      "shortCode": "MC",
-      "parTimeSec": 1980
-    },
-    {
-      "challengeModeId": 402,
-      "slug": "algethar-academy",
-      "name": "Algeth'ar Academy",
-      "shortCode": "AA",
-      "parTimeSec": 1800
-    },
-    {
-      "challengeModeId": 556,
-      "slug": "pit-of-saron",
-      "name": "Pit of Saron",
-      "shortCode": "POS",
-      "parTimeSec": 2040
-    },
-    {
-      "challengeModeId": 558,
-      "slug": "magisters-terrace",
-      "name": "Magisters' Terrace",
-      "shortCode": "MGT",
-      "parTimeSec": 2040
-    },
-    {
-      "challengeModeId": 559,
-      "slug": "nexus-point-xenas",
-      "name": "Nexus-Point Xenas",
-      "shortCode": "NPX",
-      "parTimeSec": 1800
-    },
-    {
-      "challengeModeId": 557,
-      "slug": "windrunner-spire",
-      "name": "Windrunner Spire",
-      "shortCode": "WRS",
-      "parTimeSec": 1980
+      "slug": "midnight-s2",
+      "name": "Midnight Season 2",
+      "patch": "12.1.0",
+      "startsAt": "2026-08-18T15:00:00Z",
+      "endsAt": null,
+      "isActive": true,
+      "externalSlug": "season-mn-2",
+      "wowSeasonId": 18,
+      "dungeons": [
+        {
+          "challengeModeId": 588,
+          "slug": "altar-of-fangs",
+          "name": "Altar of Fangs",
+          "shortCode": "AOF",
+          "parTimeSec": 1800
+        },
+        {
+          "challengeModeId": 586,
+          "slug": "den-of-nalorakk",
+          "name": "Den of Nalorakk",
+          "shortCode": "DON",
+          "parTimeSec": 1920
+        },
+        {
+          "challengeModeId": 249,
+          "slug": "kings-rest",
+          "name": "Kings' Rest",
+          "shortCode": "KR",
+          "parTimeSec": 1980
+        },
+        {
+          "challengeModeId": 587,
+          "slug": "murder-row",
+          "name": "Murder Row",
+          "shortCode": "MR",
+          "parTimeSec": 2040
+        },
+        {
+          "challengeModeId": 399,
+          "slug": "ruby-life-pools",
+          "name": "Ruby Life Pools",
+          "shortCode": "RLP",
+          "parTimeSec": 1680
+        },
+        {
+          "challengeModeId": 250,
+          "slug": "temple-of-sethraliss",
+          "name": "Temple of Sethraliss",
+          "shortCode": "TOS",
+          "parTimeSec": 1920
+        },
+        {
+          "challengeModeId": 584,
+          "slug": "the-blinding-vale",
+          "name": "The Blinding Vale",
+          "shortCode": "BV",
+          "parTimeSec": 1800
+        },
+        {
+          "challengeModeId": 585,
+          "slug": "voidscar-arena",
+          "name": "Voidscar Arena",
+          "shortCode": "VSA",
+          "parTimeSec": 1800
+        }
+      ]
     }
   ]
 }

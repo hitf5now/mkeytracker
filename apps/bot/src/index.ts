@@ -54,6 +54,30 @@ client.once(Events.ClientReady, (c) => {
   startNotificationSubscriber(client);
 });
 
+/**
+ * Wait until the API answers its health check, or give up after `attempts`.
+ *
+ * `depends_on: {api: {condition: service_healthy}}` only orders a
+ * `compose up`. After a *host* reboot each container is started
+ * independently by its `restart: unless-stopped` policy, with no ordering at
+ * all — so the bot regularly wins the race against the API and every
+ * startup call fails with ECONNREFUSED. Backing off here makes the bot
+ * self-heal instead of needing a manual restart.
+ */
+async function waitForApi(attempts = 10): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      if (await apiClient.isHealthy()) return true;
+    } catch {
+      // fall through to the backoff below
+    }
+    const delayMs = Math.min(30_000, 1_000 * 2 ** i);
+    console.log(`   API not ready (attempt ${i + 1}/${attempts}) — retrying in ${delayMs / 1000}s`);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 // Reconciles `discord_servers` rows against the bot's live guild list.
 // GuildCreate only fires for new joins, so guilds the bot has been in since
 // before the row was missing (DB wipe, manual delete, pre-multitenant version)
@@ -61,6 +85,12 @@ client.once(Events.ClientReady, (c) => {
 async function backfillDiscordServers(c: Client<true>): Promise<void> {
   const guilds = [...c.guilds.cache.values()];
   if (guilds.length === 0) return;
+
+  if (!(await waitForApi())) {
+    console.error("   Backfill skipped: API never became reachable");
+    return;
+  }
+
   console.log(`   Reconciling ${guilds.length} guild(s) into discord_servers...`);
   let ok = 0;
   let failed = 0;

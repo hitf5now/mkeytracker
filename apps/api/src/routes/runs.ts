@@ -24,6 +24,7 @@ import { redis } from "../lib/redis.js";
 import { computeDedupHash } from "../services/run-dedup.js";
 import { matchRunToEvents, markGroupsMatched } from "../services/event-matcher.js";
 import { scoreRun } from "../services/scoring.js";
+import { resolveSeasonAt } from "../services/seasons.js";
 import { grantJuiceTokens } from "../services/endorsement-tokens.js";
 import { fetchCharacterMedia } from "../lib/blizzard.js";
 import { evaluateAndPersist as evaluateAchievements } from "../services/achievements/evaluator.js";
@@ -470,11 +471,11 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       }
       const body = parsed.data;
 
-      // 1. Resolve dungeon against the currently active season.
-      const activeSeason = await prisma.season.findFirst({
-        where: { isActive: true },
-      });
-      if (!activeSeason) {
+      // 1. Resolve the run's season from when it was *played*, not from
+      // whatever is active now — the addon queues runs in SavedVariables and
+      // the companion may not flush them until after a season rollover.
+      const runSeason = await resolveSeasonAt(prisma, body.serverTime);
+      if (!runSeason) {
         return reply.code(500).send({
           error: "no_active_season",
           message: "Database has no active season. Run the seed script.",
@@ -484,7 +485,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       const dungeon = await prisma.dungeon.findUnique({
         where: {
           seasonId_challengeModeId: {
-            seasonId: activeSeason.id,
+            seasonId: runSeason.id,
             challengeModeId: body.challengeModeId,
           },
         },
@@ -492,7 +493,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
       if (!dungeon) {
         return reply.code(404).send({
           error: "dungeon_not_found",
-          message: `No dungeon with challenge_mode_id=${body.challengeModeId} in season ${activeSeason.slug}.`,
+          message: `No dungeon with challenge_mode_id=${body.challengeModeId} in season ${runSeason.slug}.`,
         });
       }
 
@@ -663,7 +664,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
           const created = await tx.run.create({
             data: {
               dungeonId: dungeon.id,
-              seasonId: activeSeason.id,
+              seasonId: runSeason.id,
               keystoneLevel: body.keystoneLevel,
               completionMs: body.completionMs,
               parMs: dungeon.parTimeSec * 1000,
@@ -832,7 +833,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
 
         // 6. Auto-match run to active events
         const eventMatches = await matchRunToEvents({
-          seasonId: activeSeason.id,
+          seasonId: runSeason.id,
           dungeonId: dungeon.id,
           keystoneLevel: body.keystoneLevel,
           serverTime: BigInt(body.serverTime),
@@ -1537,12 +1538,14 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
     }
     const { challengeModeId, serverTime, enrichment: e } = parsed.data;
 
-    // Candidate runs = matching dungeon, within time window, in the
-    // currently-active season. For JWT callers we additionally require
-    // the caller owns at least one member. Internal bearer skips the
+    // Candidate runs = matching dungeon, within time window, in the season
+    // the run was *played* in — enrichment arrives from a combat log that may
+    // be parsed well after a rollover, so pinning to the active season would
+    // orphan cross-boundary enrichments. For JWT callers we additionally
+    // require the caller owns at least one member. Internal bearer skips the
     // ownership filter so admin scripts can backfill anyone's run.
-    const activeSeason = await prisma.season.findFirst({ where: { isActive: true } });
-    if (!activeSeason) {
+    const runSeason = await resolveSeasonAt(prisma, serverTime);
+    if (!runSeason) {
       return reply.code(500).send({ error: "no_active_season" });
     }
 
@@ -1556,7 +1559,7 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
 
     const candidates = await prisma.run.findMany({
       where: {
-        seasonId: activeSeason.id,
+        seasonId: runSeason.id,
         dungeon: { challengeModeId },
         serverTime: { gte: lowerTime, lte: upperTime },
         ...whereUser,

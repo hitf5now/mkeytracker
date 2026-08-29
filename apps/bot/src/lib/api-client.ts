@@ -392,6 +392,23 @@ async function apiGetInternal<TResponse>(path: string): Promise<TResponse> {
 }
 
 export const apiClient = {
+  /**
+   * Liveness probe used by the startup backoff. Deliberately does not go
+   * through `apiGet` — it must report "not up yet" as a boolean rather than
+   * throwing, and it needs its own short timeout so a hung socket doesn't
+   * stall the retry loop.
+   */
+  isHealthy: async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${env.API_BASE_URL}/health`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   register: (req: RegisterRequest): Promise<RegisterResponse> =>
     apiPost<RegisterRequest, RegisterResponse>("/api/v1/register", req),
 

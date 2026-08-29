@@ -29,6 +29,22 @@ const EnvSchema = z.object({
   FEEDBACK_TOKENS: z.string().optional().default(""),
 
   RAIDERIO_BASE_URL: z.string().url().default("https://raider.io/api/v1"),
+  /// Raider.IO expansion id the season sync probes (11 = Midnight). The sync
+  /// also probes one id above this, so a new expansion is picked up without
+  /// a redeploy.
+  RAIDERIO_EXPANSION_ID: z.coerce.number().int().positive().default(11),
+
+  // Automated M+ season rollover (services/season-sync.ts)
+  SEASON_SYNC_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  /// When false the sync still refreshes dungeon data but never flips which
+  /// season is active — useful if you want a human in the loop on rollover.
+  SEASON_SYNC_AUTO_ACTIVATE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
 
   // Blizzard Battle.net API (optional — for character portraits)
   BLIZZARD_CLIENT_ID: z.string().optional().or(z.literal("")).default(""),

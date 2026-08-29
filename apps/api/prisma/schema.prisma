@@ -35,6 +35,13 @@ model Season {
   endsAt   DateTime? @map("ends_at")
   isActive Boolean   @default(false) @map("is_active")
 
+  /// Raider.IO season slug (e.g. "season-mn-2"). Used by the season-sync
+  /// service to match an upstream season to this row idempotently.
+  externalSlug String? @unique @map("external_slug")
+  /// Blizzard's mythic-keystone season id (e.g. 18). Authoritative signal
+  /// for "a new season has begun"; also stamped onto Run.wowSeasonId.
+  wowSeasonId  Int?    @map("wow_season_id")
+
   dungeons           Dungeon[]
   runs               Run[]
   events             Event[]

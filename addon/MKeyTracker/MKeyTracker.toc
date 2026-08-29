@@ -1,12 +1,12 @@
-## Interface: 120005
+## Interface: 120100
 ## Title: MKey Tracker
 ## Notes: Captures Mythic+ runs for the M+ Challenge Platform.|nRuns are queued in SavedVariables and flushed by the companion app on /reload.
 ## Author: hitf5now
-## Version: 0.4.14
+## Version: 0.4.15
 ## SavedVariables: MKeyTrackerDB
 ## IconTexture: Interface\Icons\INV_Relics_Hourglass
 ## X-Category: Mythic+
-## X-Website: https://api.hitf5now.com
+## X-Website: https://mythicplustracker.com
 
 MKeyTrackerUtils.lua
 MKeyTrackerUI.lua

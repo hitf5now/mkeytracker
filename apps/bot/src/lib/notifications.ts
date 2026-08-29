@@ -163,6 +163,10 @@ interface BotNotification {
   bouncedSignupIds?: number[];
   // event_group_disbanded / event_group_matched payload
   groupId?: number;
+  // season_rollover payload
+  seasonSlug?: string;
+  previousSeasonSlug?: string;
+  dungeonCount?: number;
 }
 
 export function startNotificationSubscriber(client: Client): void {
@@ -203,6 +207,8 @@ export function startNotificationSubscriber(client: Client): void {
         await handleRunCompleted(client, notification);
       } else if (notification.type === "endorsement_given" && notification.endorsementId) {
         await handleEndorsementGiven(client, notification);
+      } else if (notification.type === "season_rollover" && notification.seasonSlug) {
+        await handleSeasonRollover(client, notification);
       }
     } catch (err) {
       console.error("Error handling Redis notification:", err);
@@ -1022,5 +1028,46 @@ async function handleRunCompleted(client: Client, notification: BotNotification)
     }
   } catch (err) {
     console.error("Failed to handle run_completed notification:", err);
+  }
+}
+
+/**
+ * Announce an M+ season rollover detected by the season sync.
+ *
+ * Posted to each server's announcements channel (falling back to results),
+ * because a rollover resets leaderboards and swaps the dungeon pool — people
+ * notice their standings changing and should know why.
+ */
+async function handleSeasonRollover(
+  client: Client,
+  n: BotNotification,
+): Promise<void> {
+  const channelIds = n.channelIds ?? [];
+  if (channelIds.length === 0) return;
+
+  const embed = new EmbedBuilder()
+    .setTitle("🔄 New Mythic+ Season")
+    .setColor(0x9b59b6)
+    .setDescription(
+      `**${n.seasonSlug}** is now the active season` +
+        (n.previousSeasonSlug ? `, taking over from **${n.previousSeasonSlug}**` : "") +
+        ".\n\nLeaderboards and Juice totals now track the new season. " +
+        "Runs you completed in the previous season are still on your profile.",
+    )
+    .setTimestamp();
+
+  if (n.dungeonCount) {
+    embed.addFields({ name: "Dungeon pool", value: `${n.dungeonCount} dungeons`, inline: true });
+  }
+  embed.addFields({ name: "Leaderboard", value: `${WEB_BASE}/leaderboard`, inline: true });
+
+  for (const channelId of channelIds) {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (!channel?.isTextBased()) continue;
+      await (channel as TextChannel).send({ embeds: [embed] });
+    } catch (err) {
+      console.error(`season_rollover: failed to post to channel ${channelId}:`, err);
+    }
   }
 }

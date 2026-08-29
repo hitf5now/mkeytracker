@@ -86,6 +86,11 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       BLIZZARD_CLIENT_ID: ${BLIZZARD_CLIENT_ID}
       BLIZZARD_CLIENT_SECRET: ${BLIZZARD_CLIENT_SECRET}
+      # Automated M+ season rollover. Set SEASON_SYNC_AUTO_ACTIVATE=false to
+      # keep refreshing dungeon data but require a human to flip the season.
+      SEASON_SYNC_ENABLED: ${SEASON_SYNC_ENABLED:-true}
+      SEASON_SYNC_AUTO_ACTIVATE: ${SEASON_SYNC_AUTO_ACTIVATE:-true}
+      RAIDERIO_EXPANSION_ID: ${RAIDERIO_EXPANSION_ID:-11}
     ports:
       - "3020:3001"
     networks:
@@ -112,6 +117,12 @@ services:
       REDIS_URL: redis://mplus-platform-redis:6379
     networks:
       - tech-stack-net
+    # Pin public resolvers. The Unraid host advertises a broken IPv6 route, so
+    # container DNS would try AAAA first and stall ~4s per lookup — long enough
+    # for Discord interaction acknowledgements to blow their 3s deadline.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     mem_limit: 512m
 
   scheduler:

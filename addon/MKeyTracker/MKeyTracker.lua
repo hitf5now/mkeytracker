@@ -31,7 +31,7 @@
 
 local addonName, ns = ...
 
-ns.version = "0.4.14"
+ns.version = "0.4.15"
 
 -- ─── SavedVariables init ──────────────────────────────────────────────────
 local function InitDB()
