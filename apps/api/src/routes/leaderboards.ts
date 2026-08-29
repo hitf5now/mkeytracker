@@ -1,43 +1,121 @@
 /**
- * GET /api/v1/leaderboards/:category — public leaderboard endpoint.
+ * Leaderboard routes — all public, no auth.
  *
- * Supported categories:
- *   - season-juice
- *   - highest-key
- *   - most-timed
- *   - fastest-clear-<dungeonSlug>  (e.g. fastest-clear-algethar-academy)
+ *   GET /api/v1/leaderboards                     — catalog of available boards
+ *   GET /api/v1/leaderboards/champions/:category — best player of each class
+ *   GET /api/v1/leaderboards/:category           — one ranked board
  *
- * Query params:
- *   ?limit=10           (max 50)
- *   ?season=<slug|id>   defaults to the active season
+ * Query params on the board routes:
+ *   ?limit=25          (max 50)
+ *   ?season=<slug|id>  defaults to the active season
+ *   ?class=<slug>      narrow to one class, e.g. "druid"
+ *   ?role=tank|healer|dps
  *
- * Leaderboards are always scoped to one season — `season=all` is
- * deliberately not supported, because ranking a finished season against a
- * three-week-old one produces a meaningless board.
- *
- * No auth required — all leaderboards are public.
+ * Boards are always scoped to a single season — `season=all` is deliberately
+ * rejected, because ranking a finished season against a three-week-old one
+ * produces a meaningless order.
  */
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { CLASS_SLUGS } from "@mplus/wow-constants";
 import { prisma } from "../lib/prisma.js";
-import { getLeaderboard } from "../services/stats.js";
+import {
+  getLeaderboard,
+  getClassChampions,
+  listBoards,
+  type BoardRole,
+} from "../services/leaderboards.js";
 import { resolveSeasonParam } from "../services/seasons.js";
 
-const CategorySchema = z.string().regex(
-  /^(season-juice|highest-key|most-timed|fastest-clear-[a-z0-9-]+)$/,
-  "category must be one of: season-juice, highest-key, most-timed, fastest-clear-<dungeonSlug>",
-);
+const CategorySchema = z
+  .string()
+  .regex(/^[a-z0-9-]+$/, "category must be a board key or fastest-clear-<dungeonSlug>");
 
 const QuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
   season: z.string().optional(),
+  class: z
+    .string()
+    .refine((v) => CLASS_SLUGS.includes(v), { message: "unknown class" })
+    .optional(),
+  role: z.enum(["tank", "healer", "dps"]).optional(),
 });
 
+/**
+ * Shared season resolution for the board routes. Returns either a usable
+ * season or the exact error the caller should be sent.
+ */
+async function resolveBoardSeason(
+  seasonParam: string | undefined,
+): Promise<
+  | { ok: true; season: { id: number; slug: string; name: string } }
+  | { ok: false; code: number; body: Record<string, unknown> }
+> {
+  if (seasonParam === "all") {
+    return {
+      ok: false,
+      code: 400,
+      body: {
+        error: "season_required",
+        message:
+          "Leaderboards are ranked within a single season; `all` is not supported.",
+      },
+    };
+  }
+  const resolved = await resolveSeasonParam(prisma, seasonParam);
+  if (!resolved?.season) {
+    return { ok: false, code: 404, body: { error: "season_not_found" } };
+  }
+  return { ok: true, season: resolved.season };
+}
+
 export async function leaderboardsRoutes(app: FastifyInstance): Promise<void> {
+  // Catalog — lets the website render the category list and its groupings
+  // without keeping its own copy of the board keys.
+  app.get("/leaderboards", async (_req, reply) =>
+    reply.code(200).send({ boards: listBoards() }),
+  );
+
   app.get<{
     Params: { category: string };
-    Querystring: { limit?: string; season?: string };
+    Querystring: Record<string, string | undefined>;
+  }>("/leaderboards/champions/:category", async (req, reply) => {
+    const categoryParse = CategorySchema.safeParse(req.params.category);
+    if (!categoryParse.success) {
+      return reply.code(400).send({ error: "invalid_category" });
+    }
+    const queryParse = QuerySchema.safeParse(req.query);
+    if (!queryParse.success) {
+      return reply
+        .code(400)
+        .send({ error: "invalid_query", issues: queryParse.error.issues });
+    }
+
+    const seasonResult = await resolveBoardSeason(queryParse.data.season);
+    if (!seasonResult.ok) {
+      return reply.code(seasonResult.code).send(seasonResult.body);
+    }
+
+    const result = await getClassChampions({
+      category: categoryParse.data,
+      seasonId: seasonResult.season.id,
+      seasonSlug: seasonResult.season.slug,
+      seasonName: seasonResult.season.name,
+      roleFilter: (queryParse.data.role as BoardRole | undefined) ?? null,
+    });
+    if (!result) {
+      return reply.code(404).send({
+        error: "leaderboard_not_found",
+        message: `No such leaderboard in season ${seasonResult.season.slug}.`,
+      });
+    }
+    return reply.code(200).send(result);
+  });
+
+  app.get<{
+    Params: { category: string };
+    Querystring: Record<string, string | undefined>;
   }>("/leaderboards/:category", async (req, reply) => {
     const categoryParse = CategorySchema.safeParse(req.params.category);
     if (!categoryParse.success) {
@@ -55,27 +133,24 @@ export async function leaderboardsRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    if (queryParse.data.season === "all") {
-      return reply.code(400).send({
-        error: "season_required",
-        message: "Leaderboards are ranked within a single season; `all` is not supported.",
-      });
+    const seasonResult = await resolveBoardSeason(queryParse.data.season);
+    if (!seasonResult.ok) {
+      return reply.code(seasonResult.code).send(seasonResult.body);
     }
 
-    const resolved = await resolveSeasonParam(prisma, queryParse.data.season);
-    if (!resolved?.season) {
-      return reply.code(404).send({ error: "season_not_found" });
-    }
-
-    const result = await getLeaderboard(
-      categoryParse.data,
-      queryParse.data.limit,
-      resolved.season.id,
-    );
+    const result = await getLeaderboard({
+      category: categoryParse.data,
+      seasonId: seasonResult.season.id,
+      seasonSlug: seasonResult.season.slug,
+      seasonName: seasonResult.season.name,
+      limit: queryParse.data.limit,
+      classFilter: queryParse.data.class ?? null,
+      roleFilter: (queryParse.data.role as BoardRole | undefined) ?? null,
+    });
     if (!result) {
       return reply.code(404).send({
         error: "leaderboard_not_found",
-        message: `No such leaderboard in season ${resolved.season.slug}. The dungeon pool changes each season.`,
+        message: `No such leaderboard in season ${seasonResult.season.slug}. The dungeon pool changes each season.`,
       });
     }
     return reply.code(200).send(result);
