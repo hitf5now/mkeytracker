@@ -26,6 +26,10 @@ export interface SeasonInput {
   patch: string;
   startsAt: string | Date;
   endsAt?: string | Date | null;
+  /**
+   * Seed value only — applied when the row is first created. Changing which
+   * season is active on an existing row goes through `activateSeason`.
+   */
   isActive: boolean;
   /** Raider.IO season slug, e.g. "season-mn-2". */
   externalSlug?: string | null;
@@ -60,14 +64,17 @@ export async function upsertSeason(
     patch: input.patch,
     startsAt: new Date(input.startsAt),
     endsAt: input.endsAt == null ? null : new Date(input.endsAt),
-    isActive: input.isActive,
     externalSlug: input.externalSlug ?? null,
     wowSeasonId: input.wowSeasonId ?? null,
   };
 
+  // `isActive` is deliberately absent from the update: which season is active
+  // is owned solely by `activateSeason`. The sync refreshes season metadata on
+  // every tick and passes isActive:false to mean "not my decision" — writing
+  // that through here would deactivate the live season on the next poll.
   const season = await prisma.season.upsert({
     where: { slug: input.slug },
-    create: { slug: input.slug, ...scalars },
+    create: { slug: input.slug, isActive: input.isActive, ...scalars },
     update: scalars,
   });
 
