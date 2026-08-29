@@ -97,13 +97,32 @@ export function BoardRail({ boards, dungeons, current, champions }: Props) {
       </div>
 
       <nav className="hidden lg:block" aria-label="Leaderboard categories">
-        <RailButton
-          label="Class Champions"
-          hint="Best of every class"
-          active={champions}
+        {/* Its own block rather than a rail row: the hint needs a second
+            line, and squeezing it beside the label truncated both. */}
+        <button
+          type="button"
           onClick={() => go({ view: "champions", class: null })}
-          feature
-        />
+          aria-current={champions ? "true" : undefined}
+          className={cn(
+            "w-full rounded border px-3 py-2 text-left transition-colors",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold",
+            champions
+              ? "border-gold/60 bg-gold/10"
+              : "border-border hover:border-gold/40 hover:bg-accent/40",
+          )}
+        >
+          <span
+            className={cn(
+              "block font-display text-sm uppercase tracking-wide",
+              champions ? "text-gold" : "text-foreground",
+            )}
+          >
+            Class Champions
+          </span>
+          <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
+            Best of every class
+          </span>
+        </button>
 
         {groups.map((g) => (
           <div key={g.group} className="mt-5">
@@ -148,13 +167,11 @@ function RailButton({
   hint,
   active,
   onClick,
-  feature = false,
 }: {
   label: string;
   hint?: string;
   active: boolean;
   onClick: () => void;
-  feature?: boolean;
 }) {
   return (
     <button
@@ -167,7 +184,6 @@ function RailButton({
         active
           ? "bg-gold/10 font-semibold text-gold"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-        feature && !active && "font-medium text-foreground",
       )}
     >
       <span className="truncate">{label}</span>

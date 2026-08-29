@@ -26,7 +26,7 @@ export function ChampionsWall({ entries, tierSets, metricLabel }: Props) {
   const tierByClass = new Map(tierSets.map((t) => [t.classSlug, t]));
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {entries.map((entry) => {
         const slug = entry.context ?? entry.character.class;
         const color = getClassColor(slug);
@@ -41,48 +41,47 @@ export function ChampionsWall({ entries, tierSets, metricLabel }: Props) {
             {/* Class colour is the card's identity, so it gets the top edge. */}
             <span aria-hidden className="h-1 w-full" style={{ backgroundColor: color }} />
 
-            <div className="flex items-start gap-3 p-3">
+            <div className="flex items-center gap-4 p-4">
               <img
                 src={tier?.icon ?? getClassIconUrl(slug, "large")}
                 alt=""
-                className="h-14 w-14 shrink-0 rounded border border-border object-cover"
+                className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
                 loading="lazy"
               />
               <div className="min-w-0 flex-1">
                 <p
-                  className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]"
+                  className="text-xs font-semibold uppercase tracking-[0.12em]"
                   style={{ color }}
                 >
                   {getClassName(slug)}
                 </p>
-                <p className="truncate text-sm font-semibold text-foreground">
+                <p className="mt-0.5 truncate text-lg font-semibold leading-tight text-foreground">
                   {entry.character.name}
                 </p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {entry.character.realm}
                 </p>
+                {tier && (
+                  <p
+                    className="mt-1 truncate text-[11px] italic text-muted-foreground/70"
+                    title={`${tier.setName} — current tier set`}
+                  >
+                    {tier.setName}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="mt-auto flex items-baseline justify-between border-t border-border/60 px-3 py-2">
-              <span className="font-display text-xl leading-none tabular-nums text-foreground">
+            <div className="mt-auto flex items-baseline justify-between border-t border-border/60 px-4 py-2.5">
+              <span className="font-display text-2xl leading-none tabular-nums text-foreground">
                 {entry.displayValue}
               </span>
               {entry.runCount !== undefined && (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {entry.runCount} runs
                 </span>
               )}
             </div>
-
-            {tier && (
-              <p
-                className="truncate px-3 pb-2 text-[10px] italic text-muted-foreground/70"
-                title={`${tier.setName} — current tier set`}
-              >
-                {tier.setName}
-              </p>
-            )}
             <span className="sr-only">
               {metricLabel}: {entry.displayValue}
             </span>

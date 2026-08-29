@@ -197,9 +197,13 @@ export default async function LeaderboardsPage({ searchParams }: Props) {
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-5">
-            <ClassFilter value={champions ? undefined : classFilter} />
-          </div>
+          {/* Champions already shows all thirteen classes, so a class
+              filter there would be a control with nothing to do. */}
+          {!champions && (
+            <div className="mb-5">
+              <ClassFilter value={classFilter} />
+            </div>
+          )}
 
           <Suspense
             key={`${category}:${season ?? "active"}:${classFilter ?? "all"}:${champions}`}
