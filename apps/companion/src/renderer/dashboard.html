@@ -99,10 +99,16 @@
 
                 <!-- settings row -->
                 <div class="row" style="justify-content: space-between; align-items: center">
-                    <label class="checkbox">
-                        <input type="checkbox" id="auto-launch-check" />
-                        Launch on Windows startup
-                    </label>
+                    <div class="row">
+                        <label class="checkbox">
+                            <input type="checkbox" id="auto-launch-check" />
+                            Launch on Windows startup
+                        </label>
+                        <label class="checkbox" title="Open straight to the system tray instead of showing this window">
+                            <input type="checkbox" id="start-minimized-check" />
+                            Start minimized to tray
+                        </label>
+                    </div>
                     <div class="row">
                         <button class="btn btn-ghost btn-sm" id="check-updates-btn">Check for updates</button>
                         <button class="btn btn-ghost btn-sm" id="open-wizard">Re-run setup wizard</button>

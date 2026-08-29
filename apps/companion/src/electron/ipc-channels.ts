@@ -47,6 +47,10 @@ export const IPC = {
   APP_SET_AUTO_LAUNCH: "mplus:app:setAutoLaunch",
   /** Get current auto-launch state */
   APP_GET_AUTO_LAUNCH: "mplus:app:getAutoLaunch",
+  /** Set "start hidden in the tray" on/off */
+  APP_SET_START_MINIMIZED: "mplus:app:setStartMinimized",
+  /** Get current "start hidden in the tray" state */
+  APP_GET_START_MINIMIZED: "mplus:app:getStartMinimized",
   /** Manually trigger an update check */
   UPDATE_CHECK: "mplus:update:check",
   /** Open a URL in the default browser */

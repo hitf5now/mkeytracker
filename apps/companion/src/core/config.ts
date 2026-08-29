@@ -68,9 +68,31 @@ const ConfigSchema = z.object({
 
   /** User-controlled telemetry opt-out. Default false (opted-in). */
   telemetryOptOut: z.boolean().default(false),
+
+  /**
+   * Start hidden in the system tray instead of opening the window.
+   *
+   * Defaults to true: the companion's job is to sit in the background and
+   * flush runs, so popping a window on every login is noise. The first-run
+   * wizard ignores this and always shows — a new install that silently
+   * vanished into the tray would look broken.
+   */
+  startMinimized: z.boolean().default(true),
 });
 
 export type CompanionConfig = z.infer<typeof ConfigSchema>;
+
+/**
+ * Does this install still need the first-run wizard?
+ *
+ * Two places depend on this answer and must never disagree: which page the
+ * main window loads, and whether the app is allowed to boot straight into
+ * the tray. If they drifted apart, a half-configured install could start
+ * hidden with the wizard behind it and look like it simply failed to launch.
+ */
+export function needsFirstRunWizard(cfg: CompanionConfig): boolean {
+  return !cfg.onboarded || !cfg.jwt || !cfg.savedVariablesPath;
+}
 
 // ─── Path resolution ──────────────────────────────────────────────────────
 function resolveConfigDir(): string {

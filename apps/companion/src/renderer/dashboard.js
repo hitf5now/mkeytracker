@@ -153,6 +153,17 @@ autoLaunchCheck?.addEventListener("change", async () => {
 });
 void loadAutoLaunchState();
 
+// ─── Start minimized to tray ────────────────────────────────────
+const startMinimizedCheck = document.getElementById("start-minimized-check");
+async function loadStartMinimizedState() {
+    const result = await window.mplus.getStartMinimized();
+    if (startMinimizedCheck) startMinimizedCheck.checked = result.enabled;
+}
+startMinimizedCheck?.addEventListener("change", async () => {
+    await window.mplus.setStartMinimized(startMinimizedCheck.checked);
+});
+void loadStartMinimizedState();
+
 // ─── Combat-log diagnostics ─────────────────────────────────────
 function formatDiagnose(result) {
     const lines = [];

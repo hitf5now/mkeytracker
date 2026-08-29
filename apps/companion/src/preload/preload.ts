@@ -87,6 +87,12 @@ const api = {
   getAutoLaunch: (): Promise<{ enabled: boolean }> =>
     ipcRenderer.invoke(IPC.APP_GET_AUTO_LAUNCH),
 
+  // Start hidden in the system tray instead of opening the window
+  setStartMinimized: (enabled: boolean): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.APP_SET_START_MINIMIZED, enabled),
+  getStartMinimized: (): Promise<{ enabled: boolean }> =>
+    ipcRenderer.invoke(IPC.APP_GET_START_MINIMIZED),
+
   // Manual update check
   updateCheck: (): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.UPDATE_CHECK),

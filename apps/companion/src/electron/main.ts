@@ -23,6 +23,7 @@ import {
   addPostedHash,
   deriveSavedVariablesPath,
   loadConfig,
+  needsFirstRunWizard,
   updateConfig,
 } from "../core/config.js";
 import { fileLogger, getLogFilePath, initFileLogger } from "../core/file-logger.js";
@@ -73,7 +74,13 @@ let lastSyncAt: string | null = null;
 let runsSyncedThisSession = 0;
 
 // ─── Window creation ──────────────────────────────────────────────────
-function createMainWindow(): BrowserWindow {
+/**
+ * @param startHidden Create the window but leave it hidden, so the app boots
+ *   straight into the tray. Only ever set at startup — every other entry
+ *   point (tray Open, second instance, macOS activate) wants a visible
+ *   window and takes the default.
+ */
+function createMainWindow(startHidden = false): BrowserWindow {
   const win = new BrowserWindow({
     width: 760,
     height: 620,
@@ -91,7 +98,9 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    if (!startHidden) win.show();
+  });
 
   // Re-scan SavedVariables whenever the user brings the window forward.
   // Catches runs that the watcher missed (Windows FS event drops, AV
@@ -101,11 +110,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   // Decide which page to load: wizard if first-run, dashboard otherwise.
-  const cfg = loadConfig();
-  const page =
-    cfg.onboarded && cfg.jwt && cfg.savedVariablesPath
-      ? "dashboard.html"
-      : "wizard.html";
+  const page = needsFirstRunWizard(loadConfig()) ? "wizard.html" : "dashboard.html";
   const htmlPath = join(__dirname, "..", "renderer", page);
   void win.loadFile(htmlPath);
 
@@ -389,6 +394,15 @@ function registerIpcHandlers(): void {
     return { enabled: settings.openAtLogin };
   });
 
+  ipcMain.handle(IPC.APP_SET_START_MINIMIZED, async (_e, enabled: boolean) => {
+    updateConfig({ startMinimized: enabled });
+    return { ok: true, enabled };
+  });
+
+  ipcMain.handle(IPC.APP_GET_START_MINIMIZED, async () => ({
+    enabled: loadConfig().startMinimized,
+  }));
+
   ipcMain.handle(IPC.UPDATE_CHECK, async () => {
     await checkForUpdatesManually();
     return { ok: true };
@@ -659,7 +673,18 @@ app.whenReady().then(() => {
   fileLogger.log(`companion v${app.getVersion()} starting — log at ${logPath}`);
 
   registerIpcHandlers();
-  mainWindow = createMainWindow();
+
+  // Boot into the tray when the user has asked for it — but never before
+  // they've finished setup, or a fresh install would look like it did
+  // nothing at all.
+  const startupCfg = loadConfig();
+  const startHidden =
+    startupCfg.startMinimized && !needsFirstRunWizard(startupCfg);
+
+  mainWindow = createMainWindow(startHidden);
+  if (startHidden) {
+    fileLogger.log("started minimized to tray (startMinimized=true)");
+  }
   setupTray(trayCallbacks);
   refreshTrayMenu();
   syncAddonOnStartup();
