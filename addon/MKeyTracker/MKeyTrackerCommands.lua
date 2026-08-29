@@ -75,6 +75,23 @@ local function CmdStatus()
     ))
 end
 
+local function CmdPanel()
+    if ns.Panel and ns.Panel.Toggle then
+        ns.Panel.Toggle()
+    else
+        ns.Utils.PrintError("Panel unavailable — try /reload.")
+    end
+end
+
+local function CmdMinimap()
+    if not (ns.Minimap and ns.Minimap.Toggle) then
+        ns.Utils.PrintError("Minimap button unavailable — try /reload.")
+        return
+    end
+    local shown = ns.Minimap.Toggle()
+    ns.Utils.Print(shown and "Minimap button shown." or "Minimap button hidden. /mkt minimap to bring it back.")
+end
+
 local function CmdInbound()
     if not ns.Inbound or not ns.Inbound.IsAvailable() then
         ns.Utils.Print("No companion data yet. Run the companion app with WoW closed, then log back in.")
@@ -156,6 +173,8 @@ end
 
 local function CmdHelp()
     ns.Utils.Print("Commands:")
+    ns.Utils.Print("  /mkt              — open the tracker window")
+    ns.Utils.Print("  /mkt minimap      — show/hide the minimap button")
     ns.Utils.Print("  /mkt dump         — list pending runs")
     ns.Utils.Print("  /mkt dump <n>     — show full detail for run #n")
     ns.Utils.Print("  /mkt clear        — wipe pending queue")
@@ -173,7 +192,10 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
     msg = (msg or ""):lower()
     msg = msg:gsub("^%s+", ""):gsub("%s+$", "")
 
-    if msg == "" or msg == "help" then
+    if msg == "" then
+        -- Bare /mkt opens the window; help is still one word away.
+        CmdPanel()
+    elseif msg == "help" then
         CmdHelp()
     elseif msg == "dump" then
         CmdDump()
@@ -186,6 +208,10 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
         CmdStatus()
     elseif msg == "inbound" then
         CmdInbound()
+    elseif msg == "show" or msg == "panel" then
+        CmdPanel()
+    elseif msg == "minimap" then
+        CmdMinimap()
     elseif msg == "debug on" then
         CmdDebug(true)
     elseif msg == "debug off" then
