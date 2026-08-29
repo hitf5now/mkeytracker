@@ -20,7 +20,7 @@ const API_BASE: Record<string, string> = {
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   // Return cached token if still valid (with 1hr buffer)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 3600_000) {
     return cachedToken.token;

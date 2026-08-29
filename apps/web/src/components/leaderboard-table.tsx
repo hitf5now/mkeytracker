@@ -1,27 +1,24 @@
+import Link from "next/link";
+import { getClassIconUrl } from "@mplus/wow-constants";
+import { getClassColor, getClassName } from "@/lib/class-colors";
 import type { LeaderboardEntry } from "@/types/api";
-import { ClassBadge } from "./class-badge";
 
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
-  /** When "season-juice", show the rich column set. Others get the compact view. */
+  /** "season-juice" gets the Juice breakdown; everything else is ranked rows. */
   category?: string;
 }
 
 /**
- * Public leaderboard table.
+ * Ranked leaderboard rows.
  *
- * Season-juice view (the default at /leaderboards) shows the rich column
- * set: Rank, Player, Personal Juice, Team Juice, Event Juice, Run Count,
- * Endorsements. Realm + Spec were removed in the Phase 4 overhaul —
- * players vary characters across seasons and specs, so those columns
- * were visual clutter more than useful context.
+ * Each row carries a rail in the player's class colour, so scanning the
+ * board shows the class spread at a glance — which is how this audience
+ * reads a ladder. Only rank 1 takes the site's gold; every other colour on
+ * the page comes from the data rather than a decorative palette.
  *
- * The champions view swaps the rank column for the class, since "best of
- * every class" is read down the class column rather than by position.
- *
- * Every other board uses the compact view: rank, player, value, and the run
- * count behind it — a 20-kicks-per-run average over 5 runs and over 40 is
- * not the same claim, so the sample size belongs next to the number.
+ * Values are set in the condensed display face with tabular figures, so the
+ * score column stays aligned whatever the digit widths.
  */
 export function LeaderboardTable({
   entries,
@@ -38,59 +35,69 @@ export function LeaderboardTable({
   if (category === "season-juice") {
     return <SeasonJuiceTable entries={entries} />;
   }
-  if (category === "champions") {
-    return <ChampionsTable entries={entries} />;
-  }
-  return <CompactTable entries={entries} />;
+  return <RankedRows entries={entries} />;
 }
 
-/**
- * One row per class, best player first. The class is the primary column
- * because the question this answers is "who is the top Druid", not "who is
- * eleventh overall".
- */
-function ChampionsTable({ entries }: { entries: LeaderboardEntry[] }) {
+function RankedRows({ entries }: { entries: LeaderboardEntry[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="px-4 py-3 font-medium">Class</th>
-            <th className="px-4 py-3 font-medium">Champion</th>
-            <th className="px-4 py-3 text-right font-medium">Score</th>
-            <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
-              Runs
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => (
-            <tr
-              key={entry.character.id}
-              className="border-b border-border/50 transition-colors hover:bg-accent/50"
+    <ol className="divide-y divide-border/60">
+      {entries.map((entry) => {
+        const color = getClassColor(entry.character.class);
+        const isLead = entry.rank === 1;
+        return (
+          <li key={`${entry.character.id}-${entry.rank}`}>
+            <Link
+              href={`/players/${entry.character.region}/${entry.character.realm}/${entry.character.name}`}
+              className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold sm:px-4"
             >
-              <td className="px-4 py-3 font-medium capitalize">
-                {(entry.context ?? entry.character.class).replace("-", " ")}
-              </td>
-              <td className="px-4 py-3">
-                <ClassBadge
-                  name={entry.character.name}
-                  realm={entry.character.realm}
-                  region={entry.character.region}
-                  classSlug={entry.character.class}
-                />
-              </td>
-              <td className="px-4 py-3 text-right font-semibold">
-                {entry.displayValue}
-              </td>
-              <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
-                {entry.runCount ?? "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              <span
+                aria-hidden
+                className="h-8 w-[3px] shrink-0 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+
+              <span
+                className={
+                  "w-7 shrink-0 font-display text-lg leading-none tabular-nums " +
+                  (isLead ? "text-gold" : "text-muted-foreground")
+                }
+              >
+                {entry.rank}
+              </span>
+
+              <img
+                src={getClassIconUrl(entry.character.class, "medium")}
+                alt=""
+                title={getClassName(entry.character.class)}
+                className="hidden h-7 w-7 shrink-0 rounded-sm sm:block"
+                loading="lazy"
+              />
+
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium" style={{ color }}>
+                  {entry.character.name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {entry.character.realm}
+                  {entry.context ? ` · ${entry.context}` : ""}
+                </span>
+              </span>
+
+              <span className="shrink-0 text-right">
+                <span className="block font-display text-lg leading-none tabular-nums text-foreground">
+                  {entry.displayValue}
+                </span>
+                {entry.runCount !== undefined && (
+                  <span className="block text-[11px] text-muted-foreground">
+                    {entry.runCount} runs
+                  </span>
+                )}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -100,109 +107,68 @@ function SeasonJuiceTable({ entries }: { entries: LeaderboardEntry[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="w-16 px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Player</th>
-            <th className="px-4 py-3 text-right font-medium">Personal Juice</th>
-            <th className="px-4 py-3 text-right font-medium">Team Juice</th>
-            <th className="px-4 py-3 text-right font-medium">Event Juice</th>
-            <th className="px-4 py-3 text-right font-medium">Runs</th>
-            <th className="px-4 py-3 text-right font-medium">Endorsements</th>
+            <th className="w-12 px-3 py-3 font-medium sm:px-4">#</th>
+            <th className="px-3 py-3 font-medium sm:px-4">Player</th>
+            <th className="px-3 py-3 text-right font-medium sm:px-4">Personal</th>
+            <th className="hidden px-4 py-3 text-right font-medium md:table-cell">Team</th>
+            <th className="hidden px-4 py-3 text-right font-medium md:table-cell">Event</th>
+            <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">Runs</th>
+            <th className="hidden px-4 py-3 text-right font-medium lg:table-cell">Endorsed</th>
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => (
-            <tr
-              key={`${entry.character.id}-${entry.rank}`}
-              className="border-b border-border/50 transition-colors hover:bg-accent/50"
-            >
-              <td className="px-4 py-3 font-mono text-muted-foreground">
-                {entry.rank <= 3 ? (
-                  <span className="font-bold text-gold">#{entry.rank}</span>
-                ) : (
-                  `#${entry.rank}`
-                )}
-              </td>
-              <td className="px-4 py-3">
-                <ClassBadge
-                  name={entry.character.name}
-                  realm={entry.character.realm}
-                  region={entry.character.region}
-                  classSlug={entry.character.class}
-                />
-              </td>
-              <td className="px-4 py-3 text-right font-semibold">
-                {(entry.personalJuice ?? entry.value).toLocaleString()}
-              </td>
-              <td className="px-4 py-3 text-right text-muted-foreground">
-                {formatAggregate(entry.teamJuice)}
-              </td>
-              <td className="px-4 py-3 text-right text-muted-foreground">
-                {formatAggregate(entry.eventJuice)}
-              </td>
-              <td className="px-4 py-3 text-right text-muted-foreground">
-                {entry.runCount ?? "—"}
-              </td>
-              <td className="px-4 py-3 text-right">
-                {entry.endorsementsReceived != null &&
-                entry.endorsementsReceived > 0 ? (
-                  <span className="font-medium text-gold">
-                    {entry.endorsementsReceived}
+          {entries.map((entry) => {
+            const color = getClassColor(entry.character.class);
+            return (
+              <tr
+                key={`${entry.character.id}-${entry.rank}`}
+                className="border-b border-border/50 transition-colors hover:bg-accent/40"
+              >
+                <td className="px-3 py-2.5 sm:px-4">
+                  <span
+                    className={
+                      "font-display text-lg leading-none tabular-nums " +
+                      (entry.rank === 1 ? "text-gold" : "text-muted-foreground")
+                    }
+                  >
+                    {entry.rank}
                   </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CompactTable({ entries }: { entries: LeaderboardEntry[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="w-16 px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Player</th>
-            <th className="px-4 py-3 text-right font-medium">Score</th>
-            <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
-              Runs
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => (
-            <tr
-              key={`${entry.character.id}-${entry.rank}`}
-              className="border-b border-border/50 transition-colors hover:bg-accent/50"
-            >
-              <td className="px-4 py-3 font-mono text-muted-foreground">
-                {entry.rank <= 3 ? (
-                  <span className="font-bold text-gold">#{entry.rank}</span>
-                ) : (
-                  `#${entry.rank}`
-                )}
-              </td>
-              <td className="px-4 py-3">
-                <ClassBadge
-                  name={entry.character.name}
-                  realm={entry.character.realm}
-                  region={entry.character.region}
-                  classSlug={entry.character.class}
-                />
-              </td>
-              <td className="px-4 py-3 text-right font-semibold">
-                {entry.displayValue}
-              </td>
-              <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
-                {entry.runCount ?? "—"}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-3 py-2.5 sm:px-4">
+                  <Link
+                    href={`/players/${entry.character.region}/${entry.character.realm}/${entry.character.name}`}
+                    className="inline-flex items-center gap-2 hover:underline"
+                  >
+                    <img
+                      src={getClassIconUrl(entry.character.class, "medium")}
+                      alt=""
+                      title={getClassName(entry.character.class)}
+                      className="h-6 w-6 rounded-sm"
+                      loading="lazy"
+                    />
+                    <span className="font-medium" style={{ color }}>
+                      {entry.character.name}
+                    </span>
+                  </Link>
+                </td>
+                <td className="px-3 py-2.5 text-right font-display text-base tabular-nums sm:px-4">
+                  {formatAggregate(entry.personalJuice ?? entry.value)}
+                </td>
+                <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground md:table-cell">
+                  {formatAggregate(entry.teamJuice)}
+                </td>
+                <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground md:table-cell">
+                  {formatAggregate(entry.eventJuice)}
+                </td>
+                <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground sm:table-cell">
+                  {entry.runCount ?? "—"}
+                </td>
+                <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground lg:table-cell">
+                  {entry.endorsementsReceived ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -210,6 +176,6 @@ function CompactTable({ entries }: { entries: LeaderboardEntry[] }) {
 }
 
 function formatAggregate(value: number | undefined): string {
-  if (value == null || value === 0) return "—";
+  if (value === undefined || value === null) return "—";
   return value.toLocaleString();
 }

@@ -5,6 +5,10 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        // Condensed scoreboard face — ranks, scores, board titles.
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+      },
       colors: {
         gold: "#FFD100",
         "gold-dark": "#B89200",

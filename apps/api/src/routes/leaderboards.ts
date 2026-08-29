@@ -2,6 +2,7 @@
  * Leaderboard routes — all public, no auth.
  *
  *   GET /api/v1/leaderboards                     — catalog of available boards
+ *   GET /api/v1/tier-sets                        — current tier art per class
  *   GET /api/v1/leaderboards/champions/:category — best player of each class
  *   GET /api/v1/leaderboards/:category           — one ranked board
  *
@@ -27,6 +28,7 @@ import {
   type BoardRole,
 } from "../services/leaderboards.js";
 import { resolveSeasonParam } from "../services/seasons.js";
+import { getTierSets } from "../services/tier-sets.js";
 
 const CategorySchema = z
   .string()
@@ -76,6 +78,13 @@ export async function leaderboardsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/leaderboards", async (_req, reply) =>
     reply.code(200).send({ boards: listBoards() }),
   );
+
+  // Current-tier armour set art, one per class. Powers the Champions wall.
+  // Cached for a week, so this is a Redis read in the normal case.
+  app.get("/tier-sets", async (_req, reply) => {
+    const result = await getTierSets();
+    return reply.code(200).send(result);
+  });
 
   app.get<{
     Params: { category: string };

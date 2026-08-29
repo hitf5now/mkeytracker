@@ -69,6 +69,19 @@ export interface LeaderboardResult {
   updatedAt: string;
 }
 
+/** GET /api/v1/tier-sets — current-tier armour set art, one per class. */
+export interface TierSet {
+  setId: number;
+  classSlug: string;
+  setName: string;
+  icon: string;
+}
+
+export interface TierSetsResult {
+  sets: TierSet[];
+  resolvedAt: string;
+}
+
 export interface ClassChampionsResult {
   category: string;
   label: string;
