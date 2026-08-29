@@ -75,6 +75,35 @@ local function CmdStatus()
     ))
 end
 
+local function CmdInbound()
+    if not ns.Inbound or not ns.Inbound.IsAvailable() then
+        ns.Utils.Print("No companion data yet. Run the companion app with WoW closed, then log back in.")
+        return
+    end
+
+    local season = ns.Inbound.GetSeason()
+    local player = ns.Inbound.GetPlayer()
+    local age = ns.Inbound.AgeSeconds()
+
+    ns.Utils.Print(string.format(
+        "Companion data: %s | %d character(s) | %d dungeon record(s)%s",
+        season and season.name or "unknown season",
+        ns.Inbound.CountRoster(),
+        ns.Inbound.CountRecords(),
+        ns.Inbound.IsStale() and " |cffff8800(stale)|r" or ""
+    ))
+    if age then
+        ns.Utils.Print(string.format("  updated %.1f hour(s) ago", age / 3600))
+    end
+    if player then
+        ns.Utils.Print(string.format(
+            "  you: %s Juice | %d runs | %d%% timed | best +%d | %.2f deaths/run",
+            BreakUpLargeNumbers and BreakUpLargeNumbers(player.juice or 0) or tostring(player.juice or 0),
+            player.runs or 0, player.timedPct or 0, player.bestKey or 0, player.avgDeaths or 0
+        ))
+    end
+end
+
 local function CmdDebug(on)
     MKeyTrackerDB = MKeyTrackerDB or {}
     MKeyTrackerDB.settings = MKeyTrackerDB.settings or {}
@@ -131,6 +160,7 @@ local function CmdHelp()
     ns.Utils.Print("  /mkt dump <n>     — show full detail for run #n")
     ns.Utils.Print("  /mkt clear        — wipe pending queue")
     ns.Utils.Print("  /mkt status       — addon version + queue counts")
+    ns.Utils.Print("  /mkt inbound      — data received from the companion")
     ns.Utils.Print("  /mkt acl          — enable Advanced Combat Logging")
     ns.Utils.Print("  /mkt acl status   — show combat-log system state")
     ns.Utils.Print("  /mkt test         — preview the capture toast")
@@ -154,6 +184,8 @@ SlashCmdList["MKEYTRACKER"] = function(msg)
         CmdClear()
     elseif msg == "status" then
         CmdStatus()
+    elseif msg == "inbound" then
+        CmdInbound()
     elseif msg == "debug on" then
         CmdDebug(true)
     elseif msg == "debug off" then

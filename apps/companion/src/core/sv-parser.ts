@@ -26,7 +26,7 @@
  * validate each entry against a zod schema matching RunSubmission.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import * as luaparse from "luaparse";
 import type {
   Chunk,
@@ -106,6 +106,15 @@ export interface ParseResult {
   errors: Array<{ index: number; message: string }>;
   /** Any other top-level values we recognized (lastCapturedHash, etc.) */
   lastCapturedHash: string | null;
+  /**
+   * The whole MKeyTrackerDB table as parsed.
+   *
+   * Kept so a rewrite can preserve keys this parser doesn't model —
+   * `settings` (the player's toast position), `inbound` (data we push back
+   * to the addon), and anything a future addon version adds. Rebuilding the
+   * table from only the fields we understand silently deletes the rest.
+   */
+  db: Record<string, unknown>;
 }
 
 // ─── Lua AST → JS value conversion ────────────────────────────────────────
@@ -242,7 +251,7 @@ export function parseSavedVariablesSource(source: string): ParseResult {
 
   const db = findGlobalAssignment(chunk, "MKeyTrackerDB");
   if (db === null) {
-    return { runs: [], rejected: 0, errors: [], lastCapturedHash: null };
+    return { runs: [], rejected: 0, errors: [], lastCapturedHash: null, db: {} };
   }
   if (typeof db !== "object" || Array.isArray(db)) {
     throw new Error("MKeyTrackerDB is not a table");
@@ -284,7 +293,13 @@ export function parseSavedVariablesSource(source: string): ParseResult {
     }
   }
 
-  return { runs, rejected, errors, lastCapturedHash };
+  return {
+    runs,
+    rejected,
+    errors,
+    lastCapturedHash,
+    db: db as Record<string, unknown>,
+  };
 }
 
 // ─── Lua serializer (for writing back cleaned SavedVariables) ────────
@@ -328,7 +343,7 @@ function jsToLua(value: unknown, indent = 1): string {
  *
  * Reads the current file, parses it, removes runs whose client hashes
  * are in the `submittedHashes` set, and writes the file back as valid
- * Lua. Preserves other top-level keys like lastCapturedHash.
+ * Lua. Every other top-level key is preserved untouched.
  *
  * This keeps the file small and prevents re-parsing old runs.
  */
@@ -347,16 +362,53 @@ export function removeSubmittedRuns(
     return { removed: 0, remaining: remaining.length };
   }
 
-  // Rebuild the MKeyTrackerDB Lua table
-  const db: Record<string, unknown> = {
-    pendingRuns: remaining,
-  };
-  if (parse.lastCapturedHash) {
-    db.lastCapturedHash = parse.lastCapturedHash;
-  }
+  // Rewrite from the parsed table so keys we don't model survive — the
+  // player's saved toast position lives in `settings`, and `inbound` is the
+  // data we push back to the addon. Rebuilding from only `pendingRuns`
+  // deleted both every time runs were cleared with WoW closed.
+  const db: Record<string, unknown> = { ...parse.db, pendingRuns: remaining };
 
-  const lua = `MKeyTrackerDB = ${jsToLua(db)}\n`;
-  writeFileSync(filePath, lua, "utf-8");
+  writeSavedVariables(filePath, db);
 
   return { removed, remaining: remaining.length };
+}
+
+/**
+ * Write the MKeyTrackerDB table back to disk.
+ *
+ * Serialises, then re-parses the result before it replaces anything: a
+ * malformed write would make WoW discard the whole file, taking the
+ * player's queued runs and settings with it. Writes to a temp file and
+ * renames, so a crash mid-write can't leave a half-file behind either.
+ */
+export function writeSavedVariables(
+  filePath: string,
+  db: Record<string, unknown>,
+): void {
+  const lua = `
+MKeyTrackerDB = ${jsToLua(db)}
+`;
+
+  // Cheapest possible guard against handing WoW something it can't read.
+  parseSavedVariablesSource(lua);
+
+  const tmp = `${filePath}.tmp`;
+  writeFileSync(tmp, lua, "utf-8");
+  renameSync(tmp, filePath);
+}
+
+/**
+ * Replace the `inbound` table — the companion-to-addon channel — leaving
+ * every other key untouched.
+ *
+ * Only meaningful while WoW is closed. Both `/reload` and logout save
+ * SavedVariables from memory *before* reading them back, so anything
+ * written while the game is running gets overwritten rather than picked up.
+ */
+export function writeInbound(
+  filePath: string,
+  inbound: Record<string, unknown>,
+): void {
+  const parse = parseSavedVariablesFile(filePath);
+  writeSavedVariables(filePath, { ...parse.db, inbound });
 }

@@ -29,6 +29,7 @@ import {
 import { fileLogger, getLogFilePath, initFileLogger } from "../core/file-logger.js";
 import { RunQueue } from "../core/queue.js";
 import { maybeRefreshToken } from "../core/token-refresh.js";
+import { syncInbound } from "../core/inbound-sync.js";
 import { recordEvent, startTelemetry, stopTelemetry } from "../core/telemetry.js";
 import { SavedVariablesWatcher } from "../core/watcher.js";
 
@@ -73,6 +74,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 const BACKFILL_LOOKBACK_DAYS = 30;
 const BACKFILL_MAX_FILES = 12;
+
+/**
+ * How often to try pushing platform data back into the addon. The write only
+ * lands with WoW closed, so this is really "check whether the game has shut
+ * down yet" — cheap, and it means data is fresh by the next launch.
+ */
+const INBOUND_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
 // ─── App-wide state ───────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
@@ -242,6 +250,27 @@ const trayCallbacks = {
     app.quit();
   },
 };
+
+/**
+ * Fetch the inbound payload and hand it to the addon. Best-effort — this
+ * must never disturb the run-posting path it shares a process with.
+ */
+async function runInboundSync(): Promise<void> {
+  const cfg = loadConfig();
+  if (!cfg.jwt) return;
+  const client = new CompanionApiClient(cfg.apiBaseUrl, () => loadConfig().jwt);
+  try {
+    await syncInbound({
+      config: cfg,
+      fetchPayload: () => client.fetchInbound(),
+      log: fileLogger,
+    });
+  } catch (err) {
+    fileLogger.warn(
+      `[inbound] sync error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
 
 async function stopWatcher(): Promise<void> {
   if (watcher) {
@@ -732,6 +761,12 @@ app.whenReady().then(() => {
   // ticks also renew just-in-time before submitting.
   void maybeRefreshToken(fileLogger);
   setInterval(() => void maybeRefreshToken(fileLogger), 6 * 60 * 60 * 1000);
+
+  // Push platform data back into the addon. Runs on a timer rather than on
+  // demand because the only window that works is "WoW is closed", and we
+  // don't control when that happens.
+  void runInboundSync();
+  setInterval(() => void runInboundSync(), INBOUND_SYNC_INTERVAL_MS);
 
   startTelemetry();
   recordEvent("app_started");

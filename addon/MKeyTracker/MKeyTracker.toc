@@ -9,6 +9,7 @@
 ## X-Website: https://mythicplustracker.com
 
 MKeyTrackerUtils.lua
+MKeyTrackerInbound.lua
 MKeyTrackerUI.lua
 MKeyTracker.lua
 MKeyTrackerLogging.lua

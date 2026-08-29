@@ -116,6 +116,26 @@ export class CompanionApiClient {
     });
   }
 
+  /**
+   * Fetch the payload the addon reads from SavedVariables.
+   *
+   * Returns null on 204, which the API sends when there is nothing worth
+   * sending (no characters yet, no active season) — distinct from an error,
+   * because the caller should leave existing inbound data in place rather
+   * than overwrite it.
+   */
+  async fetchInbound(): Promise<Record<string, unknown> | null> {
+    if (!this.jwt) throw new CompanionApiError("Missing JWT", 401, "not_paired");
+    const response = await fetch(`${this.baseUrl}/api/v1/companion/inbound`, {
+      headers: { Authorization: `Bearer ${this.jwt}` },
+    });
+    if (response.status === 204) return null;
+    if (!response.ok) {
+      throw new CompanionApiError(`API ${response.status}`, response.status, "inbound_failed");
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
+
   // ─── Internals ──────────────────────────────────────────────────────────
 
   private async requestJson<T>(
