@@ -16,9 +16,12 @@ interface LeaderboardTableProps {
  * players vary characters across seasons and specs, so those columns
  * were visual clutter more than useful context.
  *
- * Other category views (highest-key, most-timed, fastest-clear-*) still
- * use the compact 3-column fallback since their shape doesn't carry the
- * per-run aggregates.
+ * The champions view swaps the rank column for the class, since "best of
+ * every class" is read down the class column rather than by position.
+ *
+ * Every other board uses the compact view: rank, player, value, and the run
+ * count behind it — a 20-kicks-per-run average over 5 runs and over 40 is
+ * not the same claim, so the sample size belongs next to the number.
  */
 export function LeaderboardTable({
   entries,
@@ -35,7 +38,60 @@ export function LeaderboardTable({
   if (category === "season-juice") {
     return <SeasonJuiceTable entries={entries} />;
   }
+  if (category === "champions") {
+    return <ChampionsTable entries={entries} />;
+  }
   return <CompactTable entries={entries} />;
+}
+
+/**
+ * One row per class, best player first. The class is the primary column
+ * because the question this answers is "who is the top Druid", not "who is
+ * eleventh overall".
+ */
+function ChampionsTable({ entries }: { entries: LeaderboardEntry[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-muted-foreground">
+            <th className="px-4 py-3 font-medium">Class</th>
+            <th className="px-4 py-3 font-medium">Champion</th>
+            <th className="px-4 py-3 text-right font-medium">Score</th>
+            <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
+              Runs
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr
+              key={entry.character.id}
+              className="border-b border-border/50 transition-colors hover:bg-accent/50"
+            >
+              <td className="px-4 py-3 font-medium capitalize">
+                {(entry.context ?? entry.character.class).replace("-", " ")}
+              </td>
+              <td className="px-4 py-3">
+                <ClassBadge
+                  name={entry.character.name}
+                  realm={entry.character.realm}
+                  region={entry.character.region}
+                  classSlug={entry.character.class}
+                />
+              </td>
+              <td className="px-4 py-3 text-right font-semibold">
+                {entry.displayValue}
+              </td>
+              <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
+                {entry.runCount ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function SeasonJuiceTable({ entries }: { entries: LeaderboardEntry[] }) {
@@ -113,6 +169,9 @@ function CompactTable({ entries }: { entries: LeaderboardEntry[] }) {
             <th className="w-16 px-4 py-3 font-medium">Rank</th>
             <th className="px-4 py-3 font-medium">Player</th>
             <th className="px-4 py-3 text-right font-medium">Score</th>
+            <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
+              Runs
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -138,6 +197,9 @@ function CompactTable({ entries }: { entries: LeaderboardEntry[] }) {
               </td>
               <td className="px-4 py-3 text-right font-semibold">
                 {entry.displayValue}
+              </td>
+              <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
+                {entry.runCount ?? "—"}
               </td>
             </tr>
           ))}

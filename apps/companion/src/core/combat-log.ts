@@ -61,38 +61,113 @@ export function resolveCombatLogsDir(config: CompanionConfig): string | null {
 }
 
 /**
- * Find the combat-log file to read. WoW historically writes `WoWCombatLog.txt`
- * but with most current clients / auto-combatlog addons, it rolls timestamped
- * files like `WoWCombatLog-041826_141359.txt`. We accept either: prefer the
- * most recently modified `WoWCombatLog*.txt` in the Logs dir.
+ * Start time encoded in a rolled log's filename, as epoch ms.
  *
- * The segment-match window in enrichRun (SEGMENT_MATCH_WINDOW_MS) will reject
- * a stale newest-file that doesn't match the current run, so picking the
- * newest file is safe even when older logs linger.
+ * WoW names rolled logs `WoWCombatLog-MMDDYY_HHMMSS.txt` in *local* time,
+ * and the companion runs on the same machine as the client, so building a
+ * local Date is the correct reading. Returns null for the un-rolled
+ * `WoWCombatLog.txt`, which carries no timestamp.
  */
-export function findLatestCombatLogFile(logsDir: string): string | null {
-  if (!existsSync(logsDir)) return null;
+export function parseCombatLogStart(name: string): number | null {
+  const m = /^WoWCombatLog-(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.txt$/i.exec(name);
+  if (!m) return null;
+  const [, mm, dd, yy, hh, mi, ss] = m;
+  const d = new Date(
+    2000 + Number(yy),
+    Number(mm) - 1,
+    Number(dd),
+    Number(hh),
+    Number(mi),
+    Number(ss),
+  );
+  const t = d.getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+interface LogCandidate {
+  path: string;
+  name: string;
+  startMs: number | null;
+  mtimeMs: number;
+}
+
+function listCombatLogs(logsDir: string): LogCandidate[] {
+  if (!existsSync(logsDir)) return [];
   let entries: string[];
   try {
     entries = readdirSync(logsDir);
   } catch {
-    return null;
+    return [];
   }
-  let best: { path: string; mtimeMs: number } | null = null;
+  const out: LogCandidate[] = [];
   for (const name of entries) {
     if (!/^WoWCombatLog.*\.txt$/i.test(name)) continue;
     const p = join(logsDir, name);
     try {
       const st = statSync(p);
       if (!st.isFile()) continue;
-      if (best === null || st.mtimeMs > best.mtimeMs) {
-        best = { path: p, mtimeMs: st.mtimeMs };
-      }
+      out.push({ path: p, name, startMs: parseCombatLogStart(name), mtimeMs: st.mtimeMs });
     } catch {
       // Skip unreadable entries — e.g. locked or missing.
     }
   }
+  return out;
+}
+
+/**
+ * Most recently modified `WoWCombatLog*.txt`. Correct for a run that just
+ * finished, and the fallback when a run's timestamp matches no file.
+ */
+export function findLatestCombatLogFile(logsDir: string): string | null {
+  let best: LogCandidate | null = null;
+  for (const c of listCombatLogs(logsDir)) {
+    if (best === null || c.mtimeMs > best.mtimeMs) best = c;
+  }
   return best?.path ?? null;
+}
+
+/**
+ * Slack around a log file's window. The filename records when logging
+ * started and mtime when it last flushed; a run finishing moments before
+ * the final write should still count as covered.
+ */
+const LOG_WINDOW_SLACK_MS = 60 * 60 * 1000;
+
+/**
+ * Pick the combat log that actually covers a run.
+ *
+ * The addon queues runs in SavedVariables and the companion may not flush
+ * them for days, so "the newest log" is only right for a run that just
+ * happened. A backlog flushed after a break was previously matched against
+ * whatever log existed at flush time and rejected as `segment_mismatch` —
+ * which is how eleven Season 2 runs ended up with no combat data at all.
+ *
+ * Falls back to the newest file when nothing covers the timestamp (an
+ * un-rolled `WoWCombatLog.txt`, or logs pruned since the run).
+ */
+export function findCombatLogFileForRun(
+  logsDir: string,
+  serverTimeSec: number,
+): string | null {
+  const runMs = serverTimeSec * 1000;
+  const candidates = listCombatLogs(logsDir);
+  if (candidates.length === 0) return null;
+
+  const covering = candidates.filter(
+    (c) =>
+      c.startMs !== null &&
+      runMs >= c.startMs - LOG_WINDOW_SLACK_MS &&
+      runMs <= c.mtimeMs + LOG_WINDOW_SLACK_MS,
+  );
+
+  if (covering.length > 0) {
+    // Several sessions can overlap once slack is applied; the one that
+    // started latest before the run is the tightest fit.
+    covering.sort((a, b) => (b.startMs ?? 0) - (a.startMs ?? 0));
+    return covering[0]!.path;
+  }
+
+  return findLatestCombatLogFile(logsDir);
 }
 
 export async function enrichRun(
@@ -143,7 +218,7 @@ export async function enrichRun(
     }
   }
 
-  const logPath = findLatestCombatLogFile(logsDir);
+  const logPath = findCombatLogFileForRun(logsDir, run.serverTime);
   if (!logPath) {
     return unavailable(
       "log_not_found",

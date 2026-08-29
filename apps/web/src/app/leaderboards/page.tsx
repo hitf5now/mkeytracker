@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { fetchApi } from "@/lib/api";
-import type { LeaderboardResult, SeasonsResponse, DungeonsResponse } from "@/types/api";
+import type {
+  LeaderboardResult,
+  ClassChampionsResult,
+  BoardCatalog,
+  SeasonsResponse,
+  DungeonsResponse,
+} from "@/types/api";
 import { CategorySelector } from "@/components/category-selector";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { SeasonPicker } from "@/components/season-picker";
@@ -10,28 +16,50 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Leaderboards",
-  description: "M+ Tracker leaderboards — season Juice, highest key, most timed runs, and fastest clears.",
+  description:
+    "M+ Tracker leaderboards — Juice, keys, interrupts, dispels, damage, healing, achievements and per-class champions.",
 };
 
 interface Props {
-  searchParams: Promise<{ category?: string; season?: string }>;
+  searchParams: Promise<{
+    category?: string;
+    season?: string;
+    class?: string;
+    view?: string;
+  }>;
+}
+
+function buildQuery(params: Record<string, string | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) qs.set(k, v);
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
 }
 
 async function LeaderboardContent({
   category,
   season,
+  classFilter,
+  champions,
 }: {
   category: string;
   season: string | undefined;
+  classFilter: string | undefined;
+  champions: boolean;
 }) {
-  const qs = new URLSearchParams({ limit: "25" });
-  if (season) qs.set("season", season);
+  const path = champions
+    ? `/api/v1/leaderboards/champions/${category}${buildQuery({ season })}`
+    : `/api/v1/leaderboards/${category}${buildQuery({
+        season,
+        class: classFilter,
+        limit: "25",
+      })}`;
 
-  let data: LeaderboardResult;
+  let data: LeaderboardResult | ClassChampionsResult;
   try {
-    data = await fetchApi<LeaderboardResult>(
-      `/api/v1/leaderboards/${category}?${qs.toString()}`,
-    );
+    data = await fetchApi<LeaderboardResult | ClassChampionsResult>(path);
   } catch {
     // The dungeon pool changes every season, so a fastest-clear category
     // from another season legitimately doesn't exist here. Say so instead
@@ -44,19 +72,66 @@ async function LeaderboardContent({
     );
   }
 
+  const full = data as LeaderboardResult;
+
   return (
     <div className="mt-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-muted-foreground">
-          {data.season.name}
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">
+          {champions ? `Class Champions — ${data.label}` : data.label}
         </h2>
         <p className="text-xs text-muted-foreground">
-          {data.entries.length} entries
+          {data.season.name} · {data.entries.length}{" "}
+          {champions ? "classes" : "entries"}
         </p>
       </div>
+      <p className="mb-4 text-sm text-muted-foreground">{data.description}</p>
+
       <div className="rounded-lg border border-border bg-card">
-        <LeaderboardTable entries={data.entries} category={category} />
+        {data.entries.length === 0 ? (
+          <EmptyBoard
+            needsEnrichment={full.needsEnrichment ?? false}
+            minRuns={full.minRuns ?? null}
+            classFilter={classFilter}
+          />
+        ) : (
+          <LeaderboardTable
+            entries={data.entries}
+            category={champions ? "champions" : data.category}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * An empty board almost always has a specific, explainable cause. Naming it
+ * turns a dead end into something the reader can act on.
+ */
+function EmptyBoard({
+  needsEnrichment,
+  minRuns,
+  classFilter,
+}: {
+  needsEnrichment: boolean;
+  minRuns: number | null;
+  classFilter: string | undefined;
+}) {
+  return (
+    <div className="space-y-2 px-6 py-12 text-center text-sm text-muted-foreground">
+      <p>No entries on this board yet.</p>
+      {needsEnrichment && (
+        <p>
+          This board is built from combat logs. Runs only carry combat data
+          when the companion app can match them to a log file, so a new season
+          takes a while to fill in.
+        </p>
+      )}
+      {minRuns !== null && (
+        <p>Players need at least {minRuns} runs this season to qualify.</p>
+      )}
+      {classFilter && <p>Try removing the class filter.</p>}
     </div>
   );
 }
@@ -65,11 +140,13 @@ export default async function LeaderboardsPage({ searchParams }: Props) {
   const params = await searchParams;
   const category = params.category ?? "season-juice";
   const season = params.season;
+  const classFilter = params.class;
+  const champions = params.view === "champions";
 
-  const dungeonQs = season ? `?season=${encodeURIComponent(season)}` : "";
-  const [seasons, dungeons] = await Promise.all([
+  const [seasons, dungeons, catalog] = await Promise.all([
     fetchApi<SeasonsResponse>("/api/v1/seasons"),
-    fetchApi<DungeonsResponse>(`/api/v1/dungeons${dungeonQs}`),
+    fetchApi<DungeonsResponse>(`/api/v1/dungeons${buildQuery({ season })}`),
+    fetchApi<BoardCatalog>("/api/v1/leaderboards"),
   ]);
 
   return (
@@ -88,12 +165,12 @@ export default async function LeaderboardsPage({ searchParams }: Props) {
 
       <div className="mt-6">
         <Suspense fallback={null}>
-          <CategorySelector dungeons={dungeons.dungeons} />
+          <CategorySelector boards={catalog.boards} dungeons={dungeons.dungeons} />
         </Suspense>
       </div>
 
       <Suspense
-        key={`${category}:${season ?? "active"}`}
+        key={`${category}:${season ?? "active"}:${classFilter ?? "all"}:${champions}`}
         fallback={
           <div className="mt-6 animate-pulse">
             <div className="h-8 w-48 rounded bg-muted" />
@@ -105,7 +182,12 @@ export default async function LeaderboardsPage({ searchParams }: Props) {
           </div>
         }
       >
-        <LeaderboardContent category={category} season={season} />
+        <LeaderboardContent
+          category={category}
+          season={season}
+          classFilter={classFilter}
+          champions={champions}
+        />
       </Suspense>
     </div>
   );

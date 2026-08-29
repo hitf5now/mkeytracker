@@ -66,6 +66,14 @@ import { readdirSync, statSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * How far back the enrichment backfill looks, and how many files it will
+ * open. Combat logs reach hundreds of megabytes, so this trades a complete
+ * scan for a bounded one — a month covers any realistic addon backlog.
+ */
+const BACKFILL_LOOKBACK_DAYS = 30;
+const BACKFILL_MAX_FILES = 12;
+
 // ─── App-wide state ───────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
 let watcher: SavedVariablesWatcher | null = null;
@@ -530,30 +538,59 @@ function registerIpcHandlers(): void {
       };
     }
 
-    // Find newest combat log and parse every segment.
-    let newestPath: string | null = null;
+    // Scan recent combat logs, not just the newest one. Runs sit in the
+    // addon queue until a /reload, so a backlog flushed after a break spans
+    // several days of logs — reading only the newest recovers almost none of
+    // it. Bounded because these files run to hundreds of megabytes.
+    let candidates: string[] = [];
     try {
-      const files = readdirSync(logsDir)
+      const cutoff = Date.now() - BACKFILL_LOOKBACK_DAYS * 24 * 3600 * 1000;
+      candidates = readdirSync(logsDir)
         .filter((n) => /^WoWCombatLog.*\.txt$/i.test(n))
         .map((n) => ({ path: join(logsDir, n), mtime: statSync(join(logsDir, n)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime);
-      newestPath = files[0]?.path ?? null;
+        .filter((f) => f.mtime >= cutoff)
+        .sort((a, b) => b.mtime - a.mtime)
+        .slice(0, BACKFILL_MAX_FILES)
+        .map((f) => f.path);
     } catch (err) {
       fileLogger.error(`[backfill] couldn't list logs dir: ${err instanceof Error ? err.message : err}`);
     }
 
-    if (!newestPath) {
-      return { segments: [], totals, message: "No WoWCombatLog*.txt files found." };
+    if (candidates.length === 0) {
+      return {
+        segments: [],
+        totals,
+        message: `No WoWCombatLog*.txt files from the last ${BACKFILL_LOOKBACK_DAYS} days.`,
+      };
     }
 
-    fileLogger.log(`[backfill] parsing ${newestPath}`);
-    let segments;
-    try {
-      segments = await summarizeAllSegmentsInLogFile(newestPath);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      fileLogger.error(`[backfill] parse failed: ${msg}`);
-      return { segments: [], totals, message: `Parse failed: ${msg}` };
+    fileLogger.log(`[backfill] scanning ${candidates.length} log file(s)`);
+    const segments: Awaited<ReturnType<typeof summarizeAllSegmentsInLogFile>> = [];
+    let parseFailures = 0;
+    for (const path of candidates) {
+      try {
+        const found = await summarizeAllSegmentsInLogFile(path);
+        fileLogger.log(`[backfill] ${path}: ${found.length} segment(s)`);
+        segments.push(...found);
+      } catch (err) {
+        // One unreadable log shouldn't sink the whole backfill — a partially
+        // written file mid-session is common.
+        parseFailures++;
+        fileLogger.error(
+          `[backfill] parse failed for ${path}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    if (segments.length === 0) {
+      return {
+        segments: [],
+        totals,
+        message:
+          parseFailures > 0
+            ? `Couldn't parse any of the ${candidates.length} recent log file(s).`
+            : "No completed keys found in recent logs.",
+      };
     }
     fileLogger.log(`[backfill] parsed ${segments.length} segment(s); posting each to the API`);
 

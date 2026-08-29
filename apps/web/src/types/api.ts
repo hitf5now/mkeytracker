@@ -27,8 +27,52 @@ export interface LeaderboardEntry {
   endorsementsReceived?: number;
 }
 
+export type BoardGroup =
+  | "overall"
+  | "combat"
+  | "consistency"
+  | "achievements"
+  | "records"
+  | "dungeon";
+
+export type BoardRole = "tank" | "healer" | "dps";
+
+/** One board in the catalog returned by GET /api/v1/leaderboards. */
+export interface BoardSummary {
+  key: string;
+  label: string;
+  description: string;
+  group: BoardGroup;
+  /** Metric only makes sense for this role; the filter is forced. */
+  roleGate: BoardRole | null;
+  /** Reads combat-log enrichment, so coverage depends on the companion. */
+  needsEnrichment: boolean;
+  /** Minimum runs required to appear, when the metric is a rate. */
+  minRuns: number | null;
+}
+
+export interface BoardCatalog {
+  boards: BoardSummary[];
+}
+
 export interface LeaderboardResult {
   category: string;
+  label: string;
+  description: string;
+  group: BoardGroup;
+  season: { slug: string; name: string };
+  classFilter: string | null;
+  roleFilter: BoardRole | null;
+  needsEnrichment: boolean;
+  minRuns: number | null;
+  entries: LeaderboardEntry[];
+  updatedAt: string;
+}
+
+export interface ClassChampionsResult {
+  category: string;
+  label: string;
+  description: string;
   season: { slug: string; name: string };
   entries: LeaderboardEntry[];
   updatedAt: string;
